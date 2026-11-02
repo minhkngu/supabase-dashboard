@@ -1897,42 +1897,6 @@ td:first-child {
 
 #grid td.record-detail {
   position: relative;
-  padding-right: 20px;
-}
-
-.record-duplicate {
-  position: absolute;
-  top: 50%;
-  right: 2px;
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-faint);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1;
-  transform: translateY(-50%);
-  opacity: 0.55;
-  cursor: pointer;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-tr:hover .record-duplicate,
-.record-duplicate:focus-visible {
-  opacity: 1;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
-.record-duplicate:disabled {
-  opacity: 0.3;
-  cursor: progress;
 }
 
 td.numeric {
@@ -2355,31 +2319,6 @@ h2 {
 .field .field-hint {
   margin-top: 5px;
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.field.field-attention > label {
-  color: var(--danger-text);
-}
-
-.field.field-attention input,
-.field.field-attention textarea,
-.field.field-attention .custom-select-btn {
-  border-color: var(--danger-border);
-  background: var(--danger-bg);
-}
-
-.field.field-attention input:focus,
-.field.field-attention textarea:focus,
-.field.field-attention .custom-select-btn:focus {
-  border-color: var(--danger-text);
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
-}
-
-.field .field-note {
-  margin-top: 5px;
-  color: var(--danger-text);
   font-size: 12px;
   line-height: 1.4;
 }

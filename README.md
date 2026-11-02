@@ -42,14 +42,6 @@ Khi lưu, giao diện hiển thị số bản ghi bị ảnh hưởng để xác
 
 Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.lookup_configs` hiện có. Không cần Docker hay dịch vụ đồng bộ riêng. SQL chạy với quyền của thao tác đang thay đổi bản ghi; thiếu quyền sẽ báo lỗi. Kiểm thử tự động của luồng này dùng dữ liệu và kết nối giả lập.
 
-## Nhân bản bản ghi
-
-Mở chi tiết bản ghi rồi bấm **Nhân bản**, hoặc bấm dấu `⋯` cạnh số thứ tự trên bảng để nhân bản nhanh. Nếu dữ liệu đủ để thêm ngay, ứng dụng sao chép nguyên các cột được phép nhập và gọi API thêm bản ghi hiện có; khóa chính tự sinh, cột generated, formula, lookup đồng bộ và thời điểm tạo có default thời gian hiện tại để database tự tạo hoặc tính lại. Các trường nghiệp vụ như giá, ngày áp dụng, trạng thái và liên kết vẫn giữ giá trị nguồn kể cả khi cột có default.
-
-Chỉ trường thuộc ràng buộc unique mới được đổi giá trị. Trường văn bản bị trùng được thêm ` copy`, sau đó ` copy 2`, ` copy 3`…; với unique nhiều cột, chỉ một trường văn bản được đổi để tổ hợp mới không trùng, các trường còn lại và khóa ngoại được giữ nguyên. `name` không unique vẫn giữ nguyên tên. Nếu trường unique có kiểu hoặc định dạng không thể tự tạo giá trị hợp lệ (số, ngày, enum, UUID, email, URL, liên kết…), form mở lại với dữ liệu đã sao chép và đánh dấu trường cần sửa.
-
-Trước khi ghi, ứng dụng kiểm tra trùng trên toàn bảng và vẫn để database xác nhận ràng buộc khi lưu. Nếu khóa chính phải nhập tay hoặc lỗi unique từ database, form bản ghi mở lại với dữ liệu đã sao chép. Lỗi mạng giữ nguyên bản nháp và báo rõ; ứng dụng không tự thử lại thao tác ghi. Nút bị khóa trong lúc gửi để tránh tạo dòng trùng. Khi thành công, bảng được làm mới ngầm theo lọc và sắp xếp hiện tại, giữ vị trí cuộn và không tải lại trang.
-
 ## Nhân bản cột
 
 Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.

@@ -21,12 +21,6 @@ test('mở bảng trực tiếp và giữ thiết lập cột', async ({ page })
   await expect(page.locator('tbody')).toContainText('Lune');
   await page.locator('#undoCell').click();
   await expect(page.locator('tbody')).toContainText('Mia');
-  await page.locator('tbody tr td').first().click();
-  await page.locator('#duplicate').click();
-  await expect(page.locator('#dialogTitle')).toHaveText('Nhân bản bản ghi');
-  await expect(page.locator('#field-id')).toHaveValue('');
-  await expect(page.locator('#field-name')).toHaveValue('Mia');
-  await page.locator('#cancel').click();
   await page.locator('#columnsButton').click();
   await page.locator('#columnVisibility label').filter({ hasText: 'name' }).click();
   await expect(page.locator('thead')).not.toContainText('name');
