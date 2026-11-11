@@ -1,5 +1,5 @@
-import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, message, toast } from './api.js';
+import { deleteRecords, refreshAfterWrite, rowCheckbox, rowSelectionHeader, updateRowSelection } from './deletion.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -10,11 +10,8 @@ import {
 } from './overview/mode.js';
 import {
   $,
-  clearPageCache,
   countedKey,
   deletionBusy,
-  deletionNotice,
-  deletionProgress,
   deletionTable,
   el,
   loadController,
@@ -23,103 +20,245 @@ import {
   pendingRows,
   selectedRecords,
   setCountedKey,
-  setDeletionBusy,
   setDeletionNotice,
-  setDeletionProgress,
-  setDeletionTable,
   setLoadController,
   state,
   writable,
 } from './state.js';
 
-function toggleRecordSelection(row, checked) {
-  if (deletionBusy) return;
-  const identity = recordIdentity(state.table, row);
-  if (!identity) return;
-  if (checked) selectedRecords.set(identity, row);
-  else selectedRecords.delete(identity);
-  updateRowSelection();
+function persistSidebar() {
+  try {
+    localStorage.setItem('siris-table-order', JSON.stringify(state.tables.map(name)));
+    localStorage.setItem(
+      'siris-table-folders',
+      JSON.stringify({ folders: state.folders, tableFolders: state.tableFolders }),
+    );
+  } catch {}
 }
-function toggleManyRecordSelection(rows, checked) {
-  if (deletionBusy) return;
-  for (const row of rows) {
-    const identity = recordIdentity(state.table, row);
-    if (!identity) continue;
-    if (checked) selectedRecords.set(identity, row);
-    else selectedRecords.delete(identity);
+function restoreSidebar() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('siris-table-order') || '[]');
+    if (Array.isArray(saved)) {
+      const rank = new Map(saved.map((n, i) => [n, i]));
+      state.tables.sort((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
+    }
+  } catch {}
+  try {
+    const data = JSON.parse(localStorage.getItem('siris-table-folders') || '{}');
+    state.folders = Array.isArray(data.folders)
+      ? data.folders.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string')
+      : [];
+    state.tableFolders = data.tableFolders && typeof data.tableFolders === 'object' ? data.tableFolders : {};
+  } catch {
+    state.folders = [];
+    state.tableFolders = {};
   }
-  updateRowSelection();
 }
-function rowCheckbox(row, index) {
-  const input = el('input', 'row-select');
-  input.type = 'checkbox';
-  input.dataset.rowSelect = String(index);
-  input.setAttribute('aria-label', `Chọn dòng ${state.page * 50 + index + 1}`);
-  input.onclick = event => event.stopPropagation();
-  return input;
+function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
+  if (!draggedName || draggedName === targetName) return;
+  const from = state.tables.findIndex(t => name(t) === draggedName);
+  if (from < 0) return;
+  const [item] = state.tables.splice(from, 1);
+  if (targetFolder !== undefined) {
+    state.tableFolders[draggedName] = targetFolder;
+    if (targetFolder) {
+      const folder = state.folders.find(f => f.id === targetFolder);
+      if (folder) folder.collapsed = false;
+    }
+  }
+  let to = targetName ? state.tables.findIndex(t => name(t) === targetName) : -1;
+  if (to < 0) {
+    const destination = targetFolder ?? null;
+    const group = state.tables.filter(t => (state.tableFolders[name(t)] || null) === destination);
+    to = group.length ? state.tables.indexOf(group.at(-1)) + 1 : state.tables.length;
+  } else if (placeAfter) to++;
+  state.tables.splice(to, 0, item);
+  persistSidebar();
+  clearTimeout(state.navAfterDrop);
+  state.navAfterDrop = setTimeout(nav, 0);
 }
-function rowSelectionHeader() {
-  const head = el('th', 'row-selection-header');
-  if (!state.table?.primary_keys?.length) {
-    head.textContent = '#';
-    return head;
+function makeFolder(name) {
+  const clean = name.trim();
+  if (!clean) return;
+  if (state.folders.some(f => f.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) {
+    alert('Đã có thư mục cùng tên.');
+    return;
   }
-  const input = el('input', 'row-select');
-  input.type = 'checkbox';
-  input.dataset.rowsSelectAll = '';
-  input.setAttribute('aria-label', 'Chọn tất cả dòng hiển thị trên trang');
-  input.onclick = event => event.stopPropagation();
-  head.append(input);
-  return head;
+  state.folders.push({
+    id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: clean,
+    collapsed: false,
+  });
+  persistSidebar();
+  nav();
 }
-function updateRowSelection() {
-  const bar = $('#rowSelectionBar'),
-    active = deletionBusy || selectedRecords.size > 0 || !!deletionNotice;
-  bar.hidden = !active || isPromotionsOverview();
-  $('#rowSelectionSummary').textContent = deletionBusy ? deletionProgress : `Đã chọn ${selectedRecords.size} dòng`;
-  $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
-  $('#add').disabled = deletionBusy || !state.configReady || !state.table?.primary_keys?.length;
-  $('#clearRowSelection').disabled = deletionBusy;
-  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
-  $('#rowDeleteResults').hidden = !deletionNotice;
-  $('#rowDeleteResults').textContent = deletionNotice;
-  const inputs = [...document.querySelectorAll('#grid input[data-row-select]')];
-  for (const input of inputs) {
-    const row = state.rows[Number(input.dataset.rowSelect)],
-      identity = recordIdentity(state.table, row);
-    input.checked = !!identity && selectedRecords.has(identity);
-    input.disabled = deletionBusy || !identity;
-    input.closest('tr')?.classList.toggle('record-selected', input.checked);
+function getTableVisual(tableName) {
+  const lower = tableName.toLowerCase();
+  const PALETTES = [
+    { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+    { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
+    { bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
+    { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' },
+    { bg: '#f3e8ff', color: '#7e22ce', border: '#e9d5ff' },
+    { bg: '#ffe4e6', color: '#be123c', border: '#fecdd3' },
+    { bg: '#ccfbf1', color: '#0f766e', border: '#99f6e4' },
+    { bg: '#ffedd5', color: '#c2410c', border: '#fed7aa' },
+  ];
+  let hash = 0;
+  for (let i = 0; i < lower.length; i++) hash = (hash * 31 + lower.charCodeAt(i)) & 0xffffffff;
+  const palette = PALETTES[Math.abs(hash) % PALETTES.length];
+  const parts = lower.split(/[^a-z0-9]+/i).filter(Boolean);
+  let initials = '';
+  if (parts.length >= 2) initials = (parts[0][0] + parts[1][0]).toUpperCase();
+  else if (parts.length === 1 && parts[0].length >= 2) initials = parts[0].slice(0, 2).toUpperCase();
+  else initials = (lower.slice(0, 2) || 'TB').toUpperCase();
+  return { initials, palette };
+}
+function tableNode(t, list) {
+  const n = name(t),
+    visual = getTableVisual(n),
+    b = el('button', 'nav-item' + (state.table === t ? ' active' : ''));
+  b.draggable = true;
+  b.setAttribute('aria-label', n);
+  b.title = `${n} · Kéo để sắp xếp hoặc đưa vào thư mục`;
+  const avatar = el('span', 'table-avatar', visual.initials);
+  avatar.style.background = visual.palette.bg;
+  avatar.style.color = visual.palette.color;
+  avatar.style.borderColor = visual.palette.border;
+  avatar.title = n;
+  const label = el('span', 'table-name-text', n);
+  b.append(avatar, label);
+  b.onclick = () => choose(t);
+  b.ondragstart = e => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', n);
+    b.classList.add('dragging');
+  };
+  b.ondragend = () => {
+    b.classList.remove('dragging');
+    list
+      .querySelectorAll('.drop-before,.drop-after,.drop-target')
+      .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
+  };
+  b.ondragover = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    list
+      .querySelectorAll('.drop-before,.drop-after,.drop-target')
+      .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
+    b.classList.add(e.clientY > b.getBoundingClientRect().top + b.offsetHeight / 2 ? 'drop-after' : 'drop-before');
+  };
+  b.ondrop = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    const after = e.clientY > b.getBoundingClientRect().top + b.offsetHeight / 2;
+    reorderTable(e.dataTransfer.getData('text/plain'), n, after, state.tableFolders[n] || null);
+  };
+  return b;
+}
+function nav() {
+  const list = $('#tables');
+  list.replaceChildren();
+  const query = $('#tableSearch').value.trim().toLocaleLowerCase();
+  const visible = t => !query || name(t).toLocaleLowerCase().includes(query);
+  const addDrop = (node, folderId) => {
+    node.ondragover = e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      node.classList.add('drop-target');
+    };
+    node.ondragleave = e => {
+      if (!node.contains(e.relatedTarget)) node.classList.remove('drop-target');
+    };
+    node.ondrop = e => {
+      e.preventDefault();
+      node.classList.remove('drop-target');
+      reorderTable(e.dataTransfer.getData('text/plain'), null, false, folderId);
+    };
+  };
+  for (const folder of state.folders) {
+    const members = state.tables.filter(t => state.tableFolders[name(t)] === folder.id);
+    const folderMatches = !!query && folder.name.toLocaleLowerCase().includes(query);
+    const shown = members.filter(t => !query || folderMatches || visible(t));
+    if (query && !folderMatches && !shown.length) continue;
+    const section = el('section', 'folder' + (folder.collapsed && !query ? ' collapsed' : ''));
+    const head = el('div', 'folder-head');
+    const toggle = el('button', 'folder-toggle');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(!folder.collapsed || !!query));
+    toggle.append(
+      el('span', 'folder-arrow', folder.collapsed && !query ? '▸' : '▾'),
+      el('span', 'folder-name', folder.name),
+      el('span', 'folder-count', String(members.length)),
+    );
+    toggle.onclick = () => {
+      folder.collapsed = !folder.collapsed;
+      persistSidebar();
+      nav();
+    };
+    const actions = el('div', 'folder-actions');
+    const rename = el('button', 'folder-action', '···');
+    rename.type = 'button';
+    rename.title = `Tùy chọn ${folder.name}`;
+    rename.setAttribute('aria-label', rename.title);
+    rename.onclick = e => {
+      e.stopPropagation();
+      const action = prompt(`Nhập tên mới cho “${folder.name}”. Để xóa thư mục, nhập /xoa`, folder.name);
+      if (action === null) return;
+      if (action.trim() === '/xoa') {
+        if (!confirm(`Xóa thư mục “${folder.name}”? Các bảng bên trong sẽ được chuyển ra ngoài thư mục.`)) return;
+        state.folders = state.folders.filter(f => f.id !== folder.id);
+        for (const key of Object.keys(state.tableFolders))
+          if (state.tableFolders[key] === folder.id) delete state.tableFolders[key];
+        persistSidebar();
+        nav();
+        return;
+      }
+      const next = action.trim();
+      if (next && next !== folder.name) {
+        if (state.folders.some(f => f.id !== folder.id && f.name.toLocaleLowerCase() === next.toLocaleLowerCase())) {
+          alert('Đã có thư mục cùng tên.');
+          return;
+        }
+        folder.name = next;
+        persistSidebar();
+        nav();
+      }
+    };
+    actions.append(rename);
+    head.append(toggle, actions);
+    section.append(head);
+    const content = el('div', 'folder-content');
+    for (const t of shown) content.append(tableNode(t, list));
+    section.append(content);
+    addDrop(section, folder.id);
+    list.append(section);
   }
-  const header = $('#grid input[data-rows-select-all]');
-  if (header) {
-    const eligible = inputs.filter(input => recordIdentity(state.table, state.rows[Number(input.dataset.rowSelect)])),
-      count = eligible.filter(input => input.checked).length;
-    header.checked = eligible.length > 0 && count === eligible.length;
-    header.indeterminate = count > 0 && count < eligible.length;
-    header.disabled = deletionBusy || !eligible.length;
+  const loose = state.tables.filter(
+    t => !state.tableFolders[name(t)] || !state.folders.some(f => f.id === state.tableFolders[name(t)]),
+  );
+  const looseShown = loose.filter(visible);
+  if (looseShown.length || !state.folders.length) {
+    const section = el('section', 'folder unfiled');
+    const content = el('div', 'folder-content');
+    for (const t of looseShown) content.append(tableNode(t, list));
+    section.append(content);
+    addDrop(section, null);
+    list.append(section);
   }
-  promotionsOverview.syncSelection();
+  if (query && !list.children.length) list.append(el('div', 'muted', 'Không tìm thấy bảng hoặc thư mục.'));
+  list.ondragover = e => {
+    if (e.target === list) e.preventDefault();
+  };
+  list.ondrop = e => {
+    if (e.target === list) {
+      e.preventDefault();
+      reorderTable(e.dataTransfer.getData('text/plain'), null, false, null);
+    }
+  };
 }
 export async function initMain() {
-  $('#grid').addEventListener('change', event => {
-    const input = event.target;
-    if (input.matches('[data-row-select]'))
-      toggleRecordSelection(state.rows[Number(input.dataset.rowSelect)], input.checked);
-    else if (input.matches('[data-rows-select-all]'))
-      toggleManyRecordSelection(
-        [...document.querySelectorAll('#grid input[data-row-select]')].map(
-          input => state.rows[Number(input.dataset.rowSelect)],
-        ),
-        input.checked,
-      );
-  });
-  $('#clearRowSelection').onclick = () => {
-    selectedRecords.clear();
-    setDeletionNotice('');
-    updateRowSelection();
-  };
-  $('#deleteSelectedRows').onclick = () => void deleteRecords([...selectedRecords.values()]);
   $('#addFolder').onclick = () => {
     const form = $('#createFolderForm'),
       open = form.hidden;
@@ -933,355 +1072,6 @@ export async function initMain() {
   await initialize();
 }
 
-async function refreshAfterWrite(table = state.table) {
-  if (!table || state.table?.name !== table.name) return;
-  const scroller = $('.table-scroll'),
-    top = scroller?.scrollTop || 0,
-    left = scroller?.scrollLeft || 0;
-  await load({ silent: true });
-  if (state.table?.name === table.name && scroller?.isConnected) {
-    scroller.scrollTop = top;
-    scroller.scrollLeft = left;
-  }
-}
-async function deleteRecords(rows) {
-  if (deletionBusy || !state.configReady || !state.table || !rows.length) return;
-  const table = state.table,
-    records = rows.slice();
-  if (state.rows.some(row => pendingRows.has(row)) || state.historyBusy || bulkBusy || state.cellEdit) {
-    toast('Hãy chờ lưu hoặc hoàn tất sửa ô trước khi xóa.');
-    return;
-  }
-  if (records.some(row => !recordIdentity(table, row))) {
-    toast('Bản ghi thiếu khóa chính để xóa.');
-    return;
-  }
-  if (!confirm(`Xóa ${records.length} dòng trong bảng ${name(table)} khỏi Supabase? Thao tác này không thể hoàn tác.`))
-    return;
-  setDeletionBusy(true);
-  setDeletionTable(table);
-  setDeletionNotice('');
-  setDeletionProgress(`Đang chuẩn bị xóa ${records.length} dòng trong ${name(table)}…`);
-  if (isPromotionsOverview() && state.table.name === 'public.promotions') state.total = promotionsOverview.total();
-  loadController?.abort();
-  state.loadVersion++;
-  promotionsOverview.cancel();
-  clearBulk();
-  clearPageCache();
-  $('#add').disabled = true;
-  updateHistoryButtons();
-  syncEditorReadiness();
-  render();
-  updateRowSelection();
-  let result;
-  try {
-    result = await deleteRecordBatch({
-      api,
-      table,
-      rows: records,
-      onProgress: (current, total) => {
-        setDeletionProgress(`Đang xóa ${current}/${total} dòng trong ${name(table)}…`);
-        updateRowSelection();
-      },
-      onDeleted: entry => {
-        clearPageCache();
-        const history = state.history.get(name(table));
-        if (history)
-          for (const direction of ['undo', 'redo'])
-            history[direction] = history[direction].filter(
-              item =>
-                recordIdentity(table, item.beforeKey) !== entry.identity &&
-                recordIdentity(table, item.afterKey) !== entry.identity,
-            );
-        if (state.table?.name !== table.name) return;
-        loadController?.abort();
-        state.loadVersion++;
-        promotionsOverview.cancel();
-        selectedRecords.delete(entry.identity);
-        state.rows = state.rows.filter(row => recordIdentity(table, row) !== entry.identity);
-        state.total = Math.max(0, state.total - 1);
-        if ($('#editor').open && recordIdentity(table, state.edit) === entry.identity) {
-          $('#editor').close();
-          state.edit = null;
-        }
-        if (table.name === 'public.promotions') promotionsOverview.removeRecord(entry.row);
-        render();
-        updateRowSelection();
-      },
-    });
-    const problems = result.failed.map(entry => `${entry.row.name ?? JSON.stringify(entry.key)}: ${entry.message}`);
-    if (result.uncertain)
-      problems.push(
-        `${result.uncertain.row.name ?? JSON.stringify(result.uncertain.key)}: Chưa xác nhận được kết quả xóa. ${result.uncertain.message} Kiểm tra dữ liệu trước khi thử lại.`,
-      );
-    if (result.unattempted.length) problems.push(`${result.unattempted.length} dòng chưa được gửi yêu cầu xóa.`);
-    if (state.table?.name === table.name) {
-      setDeletionNotice(
-        problems.length ? `Đã xóa ${result.deleted.length}/${result.total} dòng. ${problems.join(' · ')}` : '',
-      );
-      if (
-        $('#editor').open &&
-        problems.length &&
-        records.some(row => recordIdentity(table, row) === recordIdentity(table, state.edit))
-      )
-        $('#formError').textContent = deletionNotice;
-    }
-    toast(
-      problems.length
-        ? `Đã xóa ${result.deleted.length}/${result.total} dòng trong ${name(table)}; có dòng cần kiểm tra.`
-        : `Đã xóa ${result.deleted.length} dòng trong ${name(table)}`,
-    );
-  } catch (error) {
-    setDeletionNotice(`Không thể hoàn tất thao tác xóa: ${error.message}`);
-    toast(deletionNotice);
-  } finally {
-    setDeletionBusy(false);
-    setDeletionTable(null);
-    clearPageCache();
-    $('#add').disabled = !state.configReady || !state.table?.primary_keys?.length;
-    updateHistoryButtons();
-    syncEditorReadiness();
-    render();
-    updateRowSelection();
-  }
-  if (state.table?.name === table.name) {
-    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / 50) - 1));
-    persistView();
-    await refreshAfterWrite(table);
-  }
-}
-function persistSidebar() {
-  try {
-    localStorage.setItem('siris-table-order', JSON.stringify(state.tables.map(name)));
-    localStorage.setItem(
-      'siris-table-folders',
-      JSON.stringify({ folders: state.folders, tableFolders: state.tableFolders }),
-    );
-  } catch {}
-}
-function restoreSidebar() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-order') || '[]');
-    if (Array.isArray(saved)) {
-      const rank = new Map(saved.map((n, i) => [n, i]));
-      state.tables.sort((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
-    }
-  } catch {}
-  try {
-    const data = JSON.parse(localStorage.getItem('siris-table-folders') || '{}');
-    state.folders = Array.isArray(data.folders)
-      ? data.folders.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string')
-      : [];
-    state.tableFolders = data.tableFolders && typeof data.tableFolders === 'object' ? data.tableFolders : {};
-  } catch {
-    state.folders = [];
-    state.tableFolders = {};
-  }
-}
-function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
-  if (!draggedName || draggedName === targetName) return;
-  const from = state.tables.findIndex(t => name(t) === draggedName);
-  if (from < 0) return;
-  const [item] = state.tables.splice(from, 1);
-  if (targetFolder !== undefined) {
-    state.tableFolders[draggedName] = targetFolder;
-    if (targetFolder) {
-      const folder = state.folders.find(f => f.id === targetFolder);
-      if (folder) folder.collapsed = false;
-    }
-  }
-  let to = targetName ? state.tables.findIndex(t => name(t) === targetName) : -1;
-  if (to < 0) {
-    const destination = targetFolder ?? null;
-    const group = state.tables.filter(t => (state.tableFolders[name(t)] || null) === destination);
-    to = group.length ? state.tables.indexOf(group.at(-1)) + 1 : state.tables.length;
-  } else if (placeAfter) to++;
-  state.tables.splice(to, 0, item);
-  persistSidebar();
-  clearTimeout(state.navAfterDrop);
-  state.navAfterDrop = setTimeout(nav, 0);
-}
-function makeFolder(name) {
-  const clean = name.trim();
-  if (!clean) return;
-  if (state.folders.some(f => f.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) {
-    alert('Đã có thư mục cùng tên.');
-    return;
-  }
-  state.folders.push({
-    id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    name: clean,
-    collapsed: false,
-  });
-  persistSidebar();
-  nav();
-}
-function getTableVisual(tableName) {
-  const lower = tableName.toLowerCase();
-  const PALETTES = [
-    { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-    { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' },
-    { bg: '#fef3c7', color: '#b45309', border: '#fde68a' },
-    { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' },
-    { bg: '#f3e8ff', color: '#7e22ce', border: '#e9d5ff' },
-    { bg: '#ffe4e6', color: '#be123c', border: '#fecdd3' },
-    { bg: '#ccfbf1', color: '#0f766e', border: '#99f6e4' },
-    { bg: '#ffedd5', color: '#c2410c', border: '#fed7aa' },
-  ];
-  let hash = 0;
-  for (let i = 0; i < lower.length; i++) hash = (hash * 31 + lower.charCodeAt(i)) & 0xffffffff;
-  const palette = PALETTES[Math.abs(hash) % PALETTES.length];
-  const parts = lower.split(/[^a-z0-9]+/i).filter(Boolean);
-  let initials = '';
-  if (parts.length >= 2) initials = (parts[0][0] + parts[1][0]).toUpperCase();
-  else if (parts.length === 1 && parts[0].length >= 2) initials = parts[0].slice(0, 2).toUpperCase();
-  else initials = (lower.slice(0, 2) || 'TB').toUpperCase();
-  return { initials, palette };
-}
-function tableNode(t, list) {
-  const n = name(t),
-    visual = getTableVisual(n),
-    b = el('button', 'nav-item' + (state.table === t ? ' active' : ''));
-  b.draggable = true;
-  b.setAttribute('aria-label', n);
-  b.title = `${n} · Kéo để sắp xếp hoặc đưa vào thư mục`;
-  const avatar = el('span', 'table-avatar', visual.initials);
-  avatar.style.background = visual.palette.bg;
-  avatar.style.color = visual.palette.color;
-  avatar.style.borderColor = visual.palette.border;
-  avatar.title = n;
-  const label = el('span', 'table-name-text', n);
-  b.append(avatar, label);
-  b.onclick = () => choose(t);
-  b.ondragstart = e => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', n);
-    b.classList.add('dragging');
-  };
-  b.ondragend = () => {
-    b.classList.remove('dragging');
-    list
-      .querySelectorAll('.drop-before,.drop-after,.drop-target')
-      .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
-  };
-  b.ondragover = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'move';
-    list
-      .querySelectorAll('.drop-before,.drop-after,.drop-target')
-      .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
-    b.classList.add(e.clientY > b.getBoundingClientRect().top + b.offsetHeight / 2 ? 'drop-after' : 'drop-before');
-  };
-  b.ondrop = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    const after = e.clientY > b.getBoundingClientRect().top + b.offsetHeight / 2;
-    reorderTable(e.dataTransfer.getData('text/plain'), n, after, state.tableFolders[n] || null);
-  };
-  return b;
-}
-function nav() {
-  const list = $('#tables');
-  list.replaceChildren();
-  const query = $('#tableSearch').value.trim().toLocaleLowerCase();
-  const visible = t => !query || name(t).toLocaleLowerCase().includes(query);
-  const addDrop = (node, folderId) => {
-    node.ondragover = e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      node.classList.add('drop-target');
-    };
-    node.ondragleave = e => {
-      if (!node.contains(e.relatedTarget)) node.classList.remove('drop-target');
-    };
-    node.ondrop = e => {
-      e.preventDefault();
-      node.classList.remove('drop-target');
-      reorderTable(e.dataTransfer.getData('text/plain'), null, false, folderId);
-    };
-  };
-  for (const folder of state.folders) {
-    const members = state.tables.filter(t => state.tableFolders[name(t)] === folder.id);
-    const folderMatches = !!query && folder.name.toLocaleLowerCase().includes(query);
-    const shown = members.filter(t => !query || folderMatches || visible(t));
-    if (query && !folderMatches && !shown.length) continue;
-    const section = el('section', 'folder' + (folder.collapsed && !query ? ' collapsed' : ''));
-    const head = el('div', 'folder-head');
-    const toggle = el('button', 'folder-toggle');
-    toggle.type = 'button';
-    toggle.setAttribute('aria-expanded', String(!folder.collapsed || !!query));
-    toggle.append(
-      el('span', 'folder-arrow', folder.collapsed && !query ? '▸' : '▾'),
-      el('span', 'folder-name', folder.name),
-      el('span', 'folder-count', String(members.length)),
-    );
-    toggle.onclick = () => {
-      folder.collapsed = !folder.collapsed;
-      persistSidebar();
-      nav();
-    };
-    const actions = el('div', 'folder-actions');
-    const rename = el('button', 'folder-action', '···');
-    rename.type = 'button';
-    rename.title = `Tùy chọn ${folder.name}`;
-    rename.setAttribute('aria-label', rename.title);
-    rename.onclick = e => {
-      e.stopPropagation();
-      const action = prompt(`Nhập tên mới cho “${folder.name}”. Để xóa thư mục, nhập /xoa`, folder.name);
-      if (action === null) return;
-      if (action.trim() === '/xoa') {
-        if (!confirm(`Xóa thư mục “${folder.name}”? Các bảng bên trong sẽ được chuyển ra ngoài thư mục.`)) return;
-        state.folders = state.folders.filter(f => f.id !== folder.id);
-        for (const key of Object.keys(state.tableFolders))
-          if (state.tableFolders[key] === folder.id) delete state.tableFolders[key];
-        persistSidebar();
-        nav();
-        return;
-      }
-      const next = action.trim();
-      if (next && next !== folder.name) {
-        if (state.folders.some(f => f.id !== folder.id && f.name.toLocaleLowerCase() === next.toLocaleLowerCase())) {
-          alert('Đã có thư mục cùng tên.');
-          return;
-        }
-        folder.name = next;
-        persistSidebar();
-        nav();
-      }
-    };
-    actions.append(rename);
-    head.append(toggle, actions);
-    section.append(head);
-    const content = el('div', 'folder-content');
-    for (const t of shown) content.append(tableNode(t, list));
-    section.append(content);
-    addDrop(section, folder.id);
-    list.append(section);
-  }
-  const loose = state.tables.filter(
-    t => !state.tableFolders[name(t)] || !state.folders.some(f => f.id === state.tableFolders[name(t)]),
-  );
-  const looseShown = loose.filter(visible);
-  if (looseShown.length || !state.folders.length) {
-    const section = el('section', 'folder unfiled');
-    const content = el('div', 'folder-content');
-    for (const t of looseShown) content.append(tableNode(t, list));
-    section.append(content);
-    addDrop(section, null);
-    list.append(section);
-  }
-  if (query && !list.children.length) list.append(el('div', 'muted', 'Không tìm thấy bảng hoặc thư mục.'));
-  list.ondragover = e => {
-    if (e.target === list) e.preventDefault();
-  };
-  list.ondrop = e => {
-    if (e.target === list) {
-      e.preventDefault();
-      reorderTable(e.dataTransfer.getData('text/plain'), null, false, null);
-    }
-  };
-}
 function formatNumber(v) {
   if (v == null || v === '') return '';
   const s = String(v).trim();
@@ -1386,7 +1176,7 @@ function historyFor(table) {
   if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
   return state.history.get(id);
 }
-function updateHistoryButtons() {
+export function updateHistoryButtons() {
   const history = state.table && historyFor(state.table);
   $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
   $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
@@ -2699,7 +2489,7 @@ function validRules(rules, table) {
 function currentView() {
   return state.view;
 }
-function persistView() {
+export function persistView() {
   if (!state.table || !state.view) return;
   state.view.search = $('#search').value;
   state.view.freezeDefaultInitialized = true;
@@ -3614,7 +3404,7 @@ function updateFrozen() {
     offset += head.offsetWidth;
   }
 }
-function render() {
+export function render() {
   if (!state.table || !state.view) return;
   syncPromotionsView();
   updateRowSelection();
@@ -3809,7 +3599,7 @@ function render() {
   });
 }
 
-let selectionAnchor = null,
+export let selectionAnchor = null,
   selectedCells = [],
   bulkBusy = false,
   dragSelection = null,
@@ -4286,7 +4076,7 @@ function toggleSidebar() {
   } catch {}
 }
 const sidebarToggleBtn = $('#sidebarToggleBtn');
-function syncEditorReadiness() {
+export function syncEditorReadiness() {
   if (!$('#editor').open || !state.table) return;
   const hasKey = !!state.table.primary_keys?.length;
   for (const input of $('#formFields').querySelectorAll('[data-column]')) {
