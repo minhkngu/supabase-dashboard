@@ -1,3 +1,4 @@
+import { syncChrome } from './chrome.js';
 import { api, message, toast } from './api.js';
 import { choose, render } from './grid/render.js';
 import { updateHistoryButtons } from './history.js';
@@ -47,7 +48,7 @@ async function loadConfigs(request) {
   const attempt = ++state.configAttempt;
   state.configReady = false;
   showConfigStatus('Đang tải cấu hình cột…');
-  $('#add').disabled = true;
+  syncChrome();
   updateHistoryButtons();
   try {
     const [formula, cloud] = await (request || Promise.all([api('/api/formula-config'), api('/api/lookup-config')]));
@@ -66,7 +67,7 @@ async function loadConfigs(request) {
     showConfigStatus('');
     syncEditorReadiness();
     if (state.table) {
-      $('#add').disabled = !state.table.primary_keys?.length;
+      syncChrome();
       updateHistoryButtons();
       render();
       loadLookups();
@@ -79,7 +80,7 @@ async function loadConfigs(request) {
     syncEditorReadiness();
     showConfigStatus('Không thể tải cấu hình cột. Bảng đang ở chế độ chỉ đọc.', true);
     if (state.table) {
-      $('#add').disabled = true;
+      syncChrome();
       updateHistoryButtons();
       render();
     }

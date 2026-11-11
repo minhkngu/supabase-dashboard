@@ -67,8 +67,10 @@ export async function readAllTableRows(api, table, signal) {
   }
   throw Error('Số trang vượt giới hạn.');
 }
-export function createTableOverview({ host, api, getTables }) {
+// onEdit(row) opens the record editor; canEdit() says whether editing is possible now.
+export function createTableOverview({ host, api, getTables, onEdit = null, canEdit = () => true }) {
   let rows = [],
+    detailRow = null,
     table = null,
     columns = [],
     branchNames = new Map(),
@@ -181,6 +183,8 @@ export function createTableOverview({ host, api, getTables }) {
           block.append(title, value);
           detail.append(block);
         }
+        detailRow = row;
+        host.querySelector('[data-overview-edit]').hidden = !onEdit || !canEdit();
         host.querySelector('dialog').showModal();
       };
       list.append(button);
@@ -239,9 +243,13 @@ export function createTableOverview({ host, api, getTables }) {
       if (!loaded) render();
     }
   }
-  host.innerHTML = `<div class="promo-heading"><div><h2>Tổng quan</h2><p>Thông tin chính của bảng.</p></div><button type="button" class="secondary" data-overview-refresh>Làm mới</button></div><div class="promo-feedback" role="status" data-overview-feedback></div><div class="promo-metrics" data-overview-metrics></div><div class="overview-search"><label>Tìm bản ghi<input type="search" placeholder="Tìm kiếm…" data-overview-search></label></div><div class="promo-section-title"><h3>Danh sách bản ghi</h3><span data-overview-count></span></div><div class="overview-list" data-overview-list></div><dialog class="promo-detail-dialog" aria-labelledby="overviewDetailTitle"><div class="dialog-head"><h2 id="overviewDetailTitle">Chi tiết bản ghi</h2><button type="button" class="icon" data-overview-close aria-label="Đóng chi tiết">×</button></div><dl class="overview-detail" data-overview-detail></dl></dialog>`;
+  host.innerHTML = `<div class="promo-heading"><div><h2>Tổng quan</h2><p>Thông tin chính của bảng.</p></div><button type="button" class="secondary" data-overview-refresh>Làm mới</button></div><div class="promo-feedback" role="status" data-overview-feedback></div><div class="promo-metrics" data-overview-metrics></div><div class="overview-search"><label>Tìm bản ghi<input type="search" placeholder="Tìm kiếm…" data-overview-search></label></div><div class="promo-section-title"><h3>Danh sách bản ghi</h3><span data-overview-count></span></div><div class="overview-list" data-overview-list></div><dialog class="promo-detail-dialog" aria-labelledby="overviewDetailTitle"><div class="dialog-head"><h2 id="overviewDetailTitle">Chi tiết bản ghi</h2><div class="dialog-head-actions"><button type="button" class="secondary" data-overview-edit hidden>Sửa bản ghi</button><button type="button" class="icon" data-overview-close aria-label="Đóng chi tiết">×</button></div></div><dl class="overview-detail" data-overview-detail></dl></dialog>`;
   host.querySelector('[data-overview-search]').oninput = render;
   host.querySelector('[data-overview-refresh]').onclick = () => void load(table);
   host.querySelector('[data-overview-close]').onclick = () => host.querySelector('dialog').close();
+  host.querySelector('[data-overview-edit]').onclick = () => {
+    host.querySelector('dialog').close();
+    if (detailRow) onEdit?.(detailRow);
+  };
   return { load, cancel };
 }

@@ -783,6 +783,12 @@ main {
   min-width: 0;
 }
 
+/* The mode switch sits right after the table name, so switching modes never
+   moves it; the actions on the right only change their own state. */
+.title-wrap .promotions-view-switch {
+  margin-left: 6px;
+}
+
 .table-identity {
   display: flex;
   align-items: center;
@@ -4293,8 +4299,13 @@ dialog.confirm-dialog {
     margin-left: auto;
   }
 
-  .promotions-view-switch {
+  .title-wrap {
+    flex-wrap: wrap;
+  }
+
+  .title-wrap .promotions-view-switch {
     flex: 1 1 100%;
+    margin-left: 0;
   }
 
   .promotions-view-switch > button {
@@ -4338,4 +4349,10 @@ dialog.confirm-dialog {
   .overview-detail-link {
     align-self: flex-end;
   }
+}
+
+.dialog-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

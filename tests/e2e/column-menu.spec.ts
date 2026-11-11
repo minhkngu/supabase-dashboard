@@ -59,6 +59,7 @@ test('menu tiêu đề cột thêm bộ lọc và nhóm theo cột', async ({ pa
   const requests = await mock(page);
   await header(page, 'name').click();
   await page.getByRole('menuitem', { name: 'Lọc theo cột này' }).click();
+  await expect(page.locator('#filterMenu input:not([type="checkbox"])').last()).toBeFocused();
   await expect(page.locator('#filterMenu')).toBeVisible();
   await page.keyboard.type('Mi');
   await expect
@@ -75,6 +76,7 @@ test('bộ lọc, nhóm và sắp xếp đang bật hiện thành thẻ có th�
   await expect(page.locator('#ruleChips')).toBeHidden();
   await header(page, 'name').click();
   await page.getByRole('menuitem', { name: 'Lọc theo cột này' }).click();
+  await expect(page.locator('#filterMenu input:not([type="checkbox"])').last()).toBeFocused();
   await page.keyboard.type('Mi');
   await expect.poll(() => JSON.parse(requests.at(-1)?.get('filters') || '[]')[0]?.value).toBe('Mi');
   await page.keyboard.press('Escape');

@@ -1,3 +1,4 @@
+import { syncChrome } from './chrome.js';
 import { confirmDialog } from './confirm.js';
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
@@ -74,7 +75,7 @@ export function updateRowSelection() {
   bar.hidden = !active || isPromotionsOverview();
   $('#rowSelectionSummary').textContent = deletionBusy ? deletionProgress : `Đã chọn ${selectedRecords.size} dòng`;
   $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
-  $('#add').disabled = deletionBusy || !state.configReady || !state.table?.primary_keys?.length;
+  syncChrome();
   $('#clearRowSelection').disabled = deletionBusy;
   $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
   $('#rowDeleteResults').hidden = !deletionNotice;
@@ -160,7 +161,7 @@ export async function deleteRecords(rows) {
   promotionsOverview.cancel();
   clearBulk();
   clearPageCache();
-  $('#add').disabled = true;
+  syncChrome();
   updateHistoryButtons();
   syncEditorReadiness();
   render();
@@ -230,7 +231,7 @@ export async function deleteRecords(rows) {
     setDeletionBusy(false);
     setDeletionTable(null);
     clearPageCache();
-    $('#add').disabled = !state.configReady || !state.table?.primary_keys?.length;
+    syncChrome();
     updateHistoryButtons();
     syncEditorReadiness();
     render();

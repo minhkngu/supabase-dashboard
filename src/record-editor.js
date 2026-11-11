@@ -1,3 +1,4 @@
+import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
 import { nativeRelations, relationDisplayField } from './relation-display.js';
 import { fieldHints } from '../table-config.mjs';
@@ -35,7 +36,8 @@ export function openEditor(row) {
   $('#dialogTitle').textContent = row ? 'Chỉnh sửa bản ghi' : 'Thêm bản ghi';
   $('#dialogEyebrow').textContent = name(state.table);
   $('#save').textContent = row ? 'Lưu thay đổi' : 'Thêm bản ghi';
-  $('#delete').hidden = !row;
+  // Deleting stays in the grid, where rows are selected deliberately.
+  $('#delete').hidden = !row || isPromotionsOverview();
   $('#delete').disabled = deletionBusy || !state.configReady || !state.table.primary_keys?.length;
   $('#save').disabled = deletionBusy || !state.configReady;
   $('#formError').textContent = '';

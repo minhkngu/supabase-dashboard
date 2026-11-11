@@ -5,7 +5,9 @@ import { api } from '../api.js';
 import { createCustomSelect } from '../custom-select.js';
 import { load } from '../grid/render.js';
 import { clearBulk } from '../grid/selection.js';
-import { $, deletionBusy, deletionNotice, selectedRecords, state } from '../state.js';
+import { syncChrome } from '../chrome.js';
+import { openEditor } from '../record-editor.js';
+import { $, deletionBusy, state } from '../state.js';
 import { closeViewMenus } from '../view-menus.js';
 
 let overviewMode = false;
@@ -34,27 +36,25 @@ export const promotionsOverview = createPromotionsOverview({
   createSelect: createCustomSelect,
   getColumns: () => state.table?.columns || [],
   getTables: () => state.tables,
+  onEdit: row => openEditor(row),
+  canEdit,
 });
-export const tableOverview = createTableOverview({ host: $('#tableDashboard'), api, getTables: () => state.tables });
+export const tableOverview = createTableOverview({
+  host: $('#tableDashboard'),
+  api,
+  getTables: () => state.tables,
+  onEdit: row => openEditor(row),
+  canEdit,
+});
+function canEdit() {
+  return state.configReady && !deletionBusy && !!state.table?.primary_keys?.length;
+}
 export function isPromotionsOverview() {
   return !!state.table && overviewMode;
 }
+// Kept for callers that switch tables or modes; the header itself is derived in syncChrome().
 export function syncPromotionsView() {
-  const available = !!state.table,
-    overview = available && overviewMode,
-    isPromo = state.table?.name === PROMOTIONS_TABLE;
-  $('#promotionsViewSwitch').hidden = !available;
-  $('#promotionsDashboard').hidden = !overview || !isPromo;
-  $('#tableDashboard').hidden = !overview || isPromo;
-  $('.grid-shell').hidden = overview;
-  $('.toolbar').hidden = overview;
-  $('#ruleChips').hidden = overview || !$('#ruleChips').children.length;
-  $('#undoCell').hidden = overview;
-  $('#redoCell').hidden = overview;
-  $('#add').hidden = overview;
-  $('#rowSelectionBar').hidden = overview || !(deletionBusy || selectedRecords.size || deletionNotice);
-  $('#promotionsOverviewButton').setAttribute('aria-pressed', String(overview));
-  $('#promotionsTableButton').setAttribute('aria-pressed', String(!overview));
+  syncChrome();
 }
 export function initMode() {
   $('#promotionsOverviewButton').onclick = () => {

@@ -80,7 +80,16 @@ export async function readAllPromotions(api, table, signal) {
   }
 }
 
-export function createPromotionsOverview({ host, api, createSelect, getColumns, getTables }) {
+// onEdit(row) opens the record editor; canEdit() says whether editing is possible now.
+export function createPromotionsOverview({
+  host,
+  api,
+  createSelect,
+  getColumns,
+  getTables,
+  onEdit = null,
+  canEdit = () => true,
+}) {
   let rows = [],
     selected = null,
     request = null,
@@ -97,7 +106,7 @@ export function createPromotionsOverview({ host, api, createSelect, getColumns, 
  <div class="promo-metrics" data-promo-metrics></div>
  <div class="promo-filters"><label class="promo-search"><span>Tìm chương trình</span><input type="search" placeholder="Tên hoặc mô tả…" aria-label="Tìm chương trình khuyến mãi" data-promo-search></label><div data-promo-status></div><div data-promo-type></div><div data-promo-basis></div><button type="button" class="quiet" data-promo-clear>Xóa lọc</button></div>
  <div class="promo-section-title"><h3>Danh sách chương trình</h3><span data-promo-count></span></div>
- <div class="promo-workspace"><div class="promo-list" data-promo-list></div></div><dialog class="promo-detail-dialog" aria-labelledby="promoDetailTitle"><div class="dialog-head"><h2 id="promoDetailTitle">Chi tiết chương trình</h2><button type="button" class="icon" data-promo-close aria-label="Đóng chi tiết">×</button></div><div class="promo-detail" data-promo-detail></div></dialog>
+ <div class="promo-workspace"><div class="promo-list" data-promo-list></div></div><dialog class="promo-detail-dialog" aria-labelledby="promoDetailTitle"><div class="dialog-head"><h2 id="promoDetailTitle">Chi tiết chương trình</h2><div class="dialog-head-actions"><button type="button" class="secondary" data-promo-edit hidden>Sửa bản ghi</button><button type="button" class="icon" data-promo-close aria-label="Đóng chi tiết">×</button></div></div><div class="promo-detail" data-promo-detail></div></dialog>
  `;
   const selectControls = [];
   /** @type {[string, string, string[][]][]} */
@@ -160,6 +169,10 @@ export function createPromotionsOverview({ host, api, createSelect, getColumns, 
   };
   find('[data-promo-refresh]').onclick = () => void load();
   find('[data-promo-close]').onclick = () => find('.promo-detail-dialog').close();
+  find('[data-promo-edit]').onclick = () => {
+    find('.promo-detail-dialog').close();
+    if (selected) onEdit?.(selected);
+  };
   function scope(row) {
     if (row.room_type_id) {
       const room = rooms.get(row.room_type_id);
@@ -238,6 +251,7 @@ export function createPromotionsOverview({ host, api, createSelect, getColumns, 
       item.onclick = () => {
         selected = row;
         renderDetail();
+        find('[data-promo-edit]').hidden = !onEdit || !canEdit();
         find('.promo-detail-dialog').showModal();
       };
       wrapper.append(item);

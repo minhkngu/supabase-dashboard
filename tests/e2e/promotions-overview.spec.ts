@@ -239,13 +239,13 @@ test('refresh giữ bảng promotions, chế độ bảng dữ liệu và trang 
   await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
 });
 
-test('dashboard chỉ xem, còn bảng dữ liệu giữ chọn dòng để quản lý', async ({ page }) => {
+test('dashboard thêm được bản ghi, còn chọn dòng để xóa chỉ ở bảng dữ liệu', async ({ page }) => {
   await mock(page);
   await page.goto('/');
   await openDashboard(page);
   await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
   await expect(page.locator('#promotionsDashboard input[type="checkbox"]')).toHaveCount(0);
-  await expect(page.locator('#add')).toBeHidden();
+  await expect(page.locator('#add')).toBeVisible();
   await expect(page.locator('#rowSelectionBar')).toBeHidden();
   await page.getByRole('button', { name: 'Bảng dữ liệu', exact: true }).click();
   await expect(page.locator('#add')).toBeVisible();

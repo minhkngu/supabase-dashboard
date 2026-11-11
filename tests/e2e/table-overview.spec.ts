@@ -57,7 +57,9 @@ test('dashboard xem thông tin, chi tiết, tìm kiếm và giữ chế độ th
   await openDashboard(page);
   await expect(page.locator('#tableDashboard')).toContainText('Tổng quan chi nhánh');
   await expect(page.locator('#tableDashboard')).toContainText('Mia');
-  await expect(page.locator('#add')).toBeHidden();
+  // Adding records also works from the dashboard.
+  await expect(page.locator('#add')).toBeVisible();
+  await expect(page.locator('#undoCell')).toBeHidden();
   await page.getByRole('button', { name: 'room_types', exact: true }).click();
   await openDashboard(page);
   await expect(page.locator('#tableDashboard')).toContainText('Studio');

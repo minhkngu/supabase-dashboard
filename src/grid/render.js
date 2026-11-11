@@ -1,3 +1,4 @@
+import { syncChrome } from '../chrome.js';
 import { columnKind, icon } from '../icons.js';
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { restoreCellFocus } from './keyboard.js';
@@ -111,7 +112,7 @@ export function choose(t) {
   $('#search').value = state.view.search;
   $('#title').textContent = tableLabel(t);
   syncPromotionsView();
-  $('#add').disabled = !state.configReady || !t.primary_keys?.length;
+  syncChrome();
   updateHistoryButtons();
   state.lookupResults = new Map();
   state.collapsed = new Set(state.view.collapsed);
