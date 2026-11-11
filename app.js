@@ -4,6 +4,7 @@ import { initSidebar, initSidebar2 } from './src/sidebar.js';
 import { initCellEdit } from './src/grid/cell-edit.js';
 import { initHistory } from './src/history.js';
 import { initLookup } from './src/lookup.js';
+import { initRelationDisplay } from './src/relation-display.js';
 import { initMain, initMain2 } from './src/main.js';
 
 // Event wiring runs in the original top-to-bottom order of the former app.js.
@@ -13,6 +14,7 @@ initSidebar();
 initCellEdit();
 initHistory();
 initLookup();
+initRelationDisplay();
 initMain();
 initSidebar2();
 await initMain2();

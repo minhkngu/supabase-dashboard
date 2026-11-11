@@ -27,6 +27,15 @@ import {
   syncPromotionsView,
   tableOverview,
 } from './overview/mode.js';
+import {
+  displaySettingKey,
+  loadNativeDisplays,
+  nativeDisplayRows,
+  nativeDisplayValue,
+  nativeRelations,
+  openRelationDisplay,
+  relationDisplaySettings,
+} from './relation-display.js';
 import { closeNav, nav, restoreSidebar } from './sidebar.js';
 import {
   $,
@@ -46,53 +55,120 @@ import {
   writable,
 } from './state.js';
 
-export function nativeRelations(table = state.table) {
-  return (table?.foreign_key_constraints || [])
-    .filter(f => f.source_table === table.name && f.source_columns?.length === 1 && f.target_columns?.length === 1)
-    .map(f => ({
-      id: 'native:' + f.name,
-      kind: 'native',
-      source_table: name(table),
-      label: f.source_columns[0],
-      config: {
-        targetTable: f.target_table.replace(/^public\./, ''),
-        sourceColumn: f.source_columns[0],
-        targetKey: f.target_columns[0],
-      },
-    }));
+async function refreshMetadata() {
+  const d = await api('/api/meta');
+  state.adminAvailable = !!d.adminAvailable;
+  state.adminError = d.adminError || '';
+  state.enumTypes = Array.isArray(d.enumTypes) ? d.enumTypes : [];
+  state.token = d.token;
+  const current = state.table && name(state.table);
+  state.tables = d.tables;
+  restoreSidebar();
+  const selected = state.tables.find(t => name(t) === current);
+  if (selected && state.view) {
+    state.table = selected;
+    state.view.filters = validFilterRules(state.view.filters, selected);
+    state.view.groups = validRules(state.view.groups, selected);
+    state.view.sorts = validRules(state.view.sorts, selected);
+    render();
+    persistView();
+    nav();
+    await load({ silent: true });
+  } else if (state.tables.length) choose(state.tables[0]);
+  else {
+    state.table = null;
+    message('Không có bảng nào để hiển thị.');
+  }
+  return d;
 }
-const relationDisplayKey = 'siris-relation-display-v1';
-export let relationDisplaySettings = {};
+function updateColumnForm() {
+  const editing = state.columnEdit;
+  $('#columnCreateOptions').hidden = !!editing;
+  $('#columnEditDetails').hidden = !editing;
+  $('#columnEnumWrap').hidden = !!editing || $('#columnType').value !== 'enum';
+}
+function openColumnDialog(spec) {
+  if (!state.configReady) {
+    toast('Đang tải cấu hình cột.');
+    return;
+  }
+  if ($('#saveColumn').disabled) {
+    toast('Đang lưu thiết lập cột.');
+    return;
+  }
+  if (!state.adminAvailable) {
+    toast(state.adminError || 'Cần cấu hình kết nối database.');
+    return;
+  }
+  state.columnEdit = spec || null;
+  $('#columnForm').reset();
+  $('#columnType').querySelector('option[data-current-type]')?.remove();
+  $('#columnName').disabled = false;
+  $('#columnType').disabled = false;
+  $('#deleteColumn').disabled = false;
+  $('#columnTypeInfo').hidden = true;
+  $('#columnTypeInfo').textContent = '';
+  fillOptions($('#columnEnum'), state.enumTypes, 'Chọn kiểu enum');
+  fillTableOptions($('#columnForeignTable'), 'Không có');
+  fillOptions($('#columnForeignColumn'), [], 'Chọn cột');
+  $('#columnNullable').disabled = false;
+  $('#columnDefaultValueWrap').hidden = true;
+  $('#columnError').textContent = '';
+  const editing = !!spec;
+  $('#columnDialogTitle').textContent = editing ? 'Thiết lập cột' : 'Thêm cột';
+  $('#deleteColumn').hidden = !editing;
+  $('#duplicateColumn').hidden = !spec?.column;
+  if (editing) {
+    const c = spec.column;
+    $('#columnName').value = c.name;
+    const actual = c.format || c.data_type || 'Không xác định',
+      option = new Option(actual + ' — kiểu hiện tại', '__current__');
+    option.dataset.currentType = 'true';
+    $('#columnType').prepend(option);
+    $('#columnType').value = '__current__';
+    const reasons = [];
+    if (state.table.primary_keys?.includes(c.name)) reasons.push('khóa chính');
+    if (c.options.includes('generated')) reasons.push('cột tự sinh');
+    if (c.options.includes('identity')) reasons.push('cột identity');
+    if (c.protected && !reasons.length) reasons.push('có ràng buộc, chỉ mục hoặc phụ thuộc');
+    const isUnique =
+      (state.table.unique_constraints || []).some(u => u.columns?.length === 1 && u.columns[0] === c.name) ||
+      (state.table.primary_keys?.length === 1 && state.table.primary_keys[0] === c.name);
+    $('#editColumnDescription').value = c.description || '';
+    $('#editColumnNullable').checked = c.options.includes('nullable');
+    $('#editColumnUnique').checked = !!isUnique;
+    $('#editColumnDefaultKind').value = 'keep';
+    $('#editColumnDefaultCurrent').textContent = `Hiện tại: ${c.default_value || 'không có'}`;
+    $('#editColumnDefaultWrap').hidden = true;
+    const settingsBlocked = c.options.includes('generated') || c.options.includes('identity');
+    for (const id of ['editColumnDescription', 'editColumnNullable', 'editColumnUnique', 'editColumnDefaultKind'])
+      $('#' + id).disabled = settingsBlocked;
+    const protectedColumn = c.protected || reasons.length > 0;
+    const typeBlocked =
+      c.type_protected === undefined
+        ? (protectedColumn && !state.table.primary_keys?.includes(c.name)) ||
+          c.options.includes('identity') ||
+          c.options.includes('generated')
+        : c.type_protected;
+    $('#columnName').disabled = !!protectedColumn;
+    $('#columnType').disabled = !!typeBlocked;
+    $('#deleteColumn').disabled = !!protectedColumn;
+    $('#columnTypeInfo').hidden = false;
+    $('#columnTypeInfo').textContent = typeBlocked
+      ? `Kiểu trong Supabase: ${actual}. Không thể đổi kiểu vì cột có ràng buộc hoặc phụ thuộc cần xử lý trước.`
+      : protectedColumn
+        ? `Kiểu trong Supabase: ${actual}. Có thể đổi kiểu sau khi kiểm tra dữ liệu; tên và việc xóa bị khóa vì đây là ${reasons.join(', ')}.`
+        : `Kiểu hiện tại trong Supabase: ${actual}.`;
+    updateColumnForm();
+  } else updateColumnForm();
+  setupColumnSync(spec);
+  setupColumnFormula(spec);
+  $('#columnDialog').showModal();
+  $('#columnDialog')
+    .querySelectorAll('select')
+    .forEach(select => select._syncColumnSelect?.());
+}
 export function initMain() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(relationDisplayKey) || '{}');
-    if (saved && typeof saved === 'object' && !Array.isArray(saved)) relationDisplaySettings = saved;
-  } catch {}
-  $('#closeRelationDisplay').onclick = $('#cancelRelationDisplay').onclick = () => $('#relationDisplayDialog').close();
-  $('#relationDisplayForm').onsubmit = e => {
-    e.preventDefault();
-    const relation = relationDisplayEditing,
-      field = $('#relationDisplayField').value,
-      target = relation && lookupTable(relation.config.targetTable);
-    if (!target?.columns.some(c => c.name === field)) {
-      $('#relationDisplayError').textContent = 'Chọn trường hiển thị hợp lệ.';
-      return;
-    }
-    const key = displaySettingKey(relation),
-      previous = relationDisplaySettings[key];
-    relationDisplaySettings[key] = field;
-    try {
-      localStorage.setItem(relationDisplayKey, JSON.stringify(relationDisplaySettings));
-    } catch {
-      if (previous === undefined) delete relationDisplaySettings[key];
-      else relationDisplaySettings[key] = previous;
-      $('#relationDisplayError').textContent = 'Không thể lưu lựa chọn trên trình duyệt.';
-      return;
-    }
-    $('#relationDisplayDialog').close();
-    void load({ silent: true });
-    toast('Đã cập nhật trường hiển thị');
-  };
   $('#editColumnDefaultKind').onchange = () => {
     $('#editColumnDefaultWrap').hidden = !['literal', 'expression'].includes($('#editColumnDefaultKind').value);
   };
@@ -650,197 +726,6 @@ export function initMain() {
   };
 }
 
-export function displaySettingKey(relation) {
-  return JSON.stringify([relation.source_table, relation.id, relation.config.targetTable, relation.config.targetKey]);
-}
-export function relationDisplayField(relation) {
-  const target = lookupTable(relation.config.targetTable),
-    saved = relationDisplaySettings[displaySettingKey(relation)];
-  return target?.columns.some(c => c.name === saved) ? saved : relation.config.labelField || relation.config.targetKey;
-}
-let relationDisplayEditing = null,
-  nativeDisplayRows = new Map(),
-  nativeDisplayVersion = 0;
-function openRelationDisplay(relation) {
-  const target = lookupTable(relation.config.targetTable);
-  if (!target) return toast('Không tìm thấy bảng liên kết.');
-  relationDisplayEditing = relation;
-  fillOptions(
-    $('#relationDisplayField'),
-    target.columns.map(c => c.name),
-    'Chọn trường',
-  );
-  $('#relationDisplayField').value = relationDisplayField(relation);
-  $('#relationDisplayField')._syncColumnSelect?.();
-  $('#relationDisplayError').textContent = '';
-  $('#relationDisplayDialog').showModal();
-}
-function nativeDisplayValue(column, value) {
-  const relation = nativeRelations().find(
-    rel => rel.config.sourceColumn === column && relationDisplaySettings[displaySettingKey(rel)],
-  );
-  if (!relation || value == null) return null;
-  const linked = nativeDisplayRows.get(relation.id)?.get(String(value));
-  if (!linked) return null;
-  const display = linked[relationDisplayField(relation)];
-  return { text: display == null ? '—' : typeof display === 'object' ? JSON.stringify(display) : String(display) };
-}
-async function loadNativeDisplays() {
-  const table = state.table,
-    version = ++nativeDisplayVersion,
-    rows = state.rows.slice(),
-    relations = nativeRelations(table).filter(
-      r =>
-        relationDisplaySettings[displaySettingKey(r)] &&
-        lookupTable(r.config.targetTable)?.columns.some(c => c.name === relationDisplaySettings[displaySettingKey(r)]),
-    );
-  nativeDisplayRows = new Map();
-  if (!relations.length) return;
-  await Promise.all(
-    relations.map(async relation => {
-      const values = [
-        ...new Map(
-          rows
-            .map(row => row[relation.config.sourceColumn])
-            .filter(v => v != null)
-            .map(v => [String(v), v]),
-        ).values(),
-      ];
-      if (!values.length) return;
-      try {
-        const result = await api(`/api/lookup/${relation.config.targetTable}`, {
-          method: 'POST',
-          body: JSON.stringify({
-            column: relation.config.targetKey,
-            values,
-            fields: [relationDisplaySettings[displaySettingKey(relation)]],
-          }),
-        });
-        if (version === nativeDisplayVersion)
-          nativeDisplayRows.set(
-            relation.id,
-            new Map(result.rows.map(row => [String(row[relation.config.targetKey]), row])),
-          );
-      } catch {
-        if (version === nativeDisplayVersion) nativeDisplayRows.set(relation.id, null);
-      }
-    }),
-  );
-  if (version === nativeDisplayVersion && state.table === table && !state.cellEdit) render();
-}
-async function refreshMetadata() {
-  const d = await api('/api/meta');
-  state.adminAvailable = !!d.adminAvailable;
-  state.adminError = d.adminError || '';
-  state.enumTypes = Array.isArray(d.enumTypes) ? d.enumTypes : [];
-  state.token = d.token;
-  const current = state.table && name(state.table);
-  state.tables = d.tables;
-  restoreSidebar();
-  const selected = state.tables.find(t => name(t) === current);
-  if (selected && state.view) {
-    state.table = selected;
-    state.view.filters = validFilterRules(state.view.filters, selected);
-    state.view.groups = validRules(state.view.groups, selected);
-    state.view.sorts = validRules(state.view.sorts, selected);
-    render();
-    persistView();
-    nav();
-    await load({ silent: true });
-  } else if (state.tables.length) choose(state.tables[0]);
-  else {
-    state.table = null;
-    message('Không có bảng nào để hiển thị.');
-  }
-  return d;
-}
-function updateColumnForm() {
-  const editing = state.columnEdit;
-  $('#columnCreateOptions').hidden = !!editing;
-  $('#columnEditDetails').hidden = !editing;
-  $('#columnEnumWrap').hidden = !!editing || $('#columnType').value !== 'enum';
-}
-function openColumnDialog(spec) {
-  if (!state.configReady) {
-    toast('Đang tải cấu hình cột.');
-    return;
-  }
-  if ($('#saveColumn').disabled) {
-    toast('Đang lưu thiết lập cột.');
-    return;
-  }
-  if (!state.adminAvailable) {
-    toast(state.adminError || 'Cần cấu hình kết nối database.');
-    return;
-  }
-  state.columnEdit = spec || null;
-  $('#columnForm').reset();
-  $('#columnType').querySelector('option[data-current-type]')?.remove();
-  $('#columnName').disabled = false;
-  $('#columnType').disabled = false;
-  $('#deleteColumn').disabled = false;
-  $('#columnTypeInfo').hidden = true;
-  $('#columnTypeInfo').textContent = '';
-  fillOptions($('#columnEnum'), state.enumTypes, 'Chọn kiểu enum');
-  fillTableOptions($('#columnForeignTable'), 'Không có');
-  fillOptions($('#columnForeignColumn'), [], 'Chọn cột');
-  $('#columnNullable').disabled = false;
-  $('#columnDefaultValueWrap').hidden = true;
-  $('#columnError').textContent = '';
-  const editing = !!spec;
-  $('#columnDialogTitle').textContent = editing ? 'Thiết lập cột' : 'Thêm cột';
-  $('#deleteColumn').hidden = !editing;
-  $('#duplicateColumn').hidden = !spec?.column;
-  if (editing) {
-    const c = spec.column;
-    $('#columnName').value = c.name;
-    const actual = c.format || c.data_type || 'Không xác định',
-      option = new Option(actual + ' — kiểu hiện tại', '__current__');
-    option.dataset.currentType = 'true';
-    $('#columnType').prepend(option);
-    $('#columnType').value = '__current__';
-    const reasons = [];
-    if (state.table.primary_keys?.includes(c.name)) reasons.push('khóa chính');
-    if (c.options.includes('generated')) reasons.push('cột tự sinh');
-    if (c.options.includes('identity')) reasons.push('cột identity');
-    if (c.protected && !reasons.length) reasons.push('có ràng buộc, chỉ mục hoặc phụ thuộc');
-    const isUnique =
-      (state.table.unique_constraints || []).some(u => u.columns?.length === 1 && u.columns[0] === c.name) ||
-      (state.table.primary_keys?.length === 1 && state.table.primary_keys[0] === c.name);
-    $('#editColumnDescription').value = c.description || '';
-    $('#editColumnNullable').checked = c.options.includes('nullable');
-    $('#editColumnUnique').checked = !!isUnique;
-    $('#editColumnDefaultKind').value = 'keep';
-    $('#editColumnDefaultCurrent').textContent = `Hiện tại: ${c.default_value || 'không có'}`;
-    $('#editColumnDefaultWrap').hidden = true;
-    const settingsBlocked = c.options.includes('generated') || c.options.includes('identity');
-    for (const id of ['editColumnDescription', 'editColumnNullable', 'editColumnUnique', 'editColumnDefaultKind'])
-      $('#' + id).disabled = settingsBlocked;
-    const protectedColumn = c.protected || reasons.length > 0;
-    const typeBlocked =
-      c.type_protected === undefined
-        ? (protectedColumn && !state.table.primary_keys?.includes(c.name)) ||
-          c.options.includes('identity') ||
-          c.options.includes('generated')
-        : c.type_protected;
-    $('#columnName').disabled = !!protectedColumn;
-    $('#columnType').disabled = !!typeBlocked;
-    $('#deleteColumn').disabled = !!protectedColumn;
-    $('#columnTypeInfo').hidden = false;
-    $('#columnTypeInfo').textContent = typeBlocked
-      ? `Kiểu trong Supabase: ${actual}. Không thể đổi kiểu vì cột có ràng buộc hoặc phụ thuộc cần xử lý trước.`
-      : protectedColumn
-        ? `Kiểu trong Supabase: ${actual}. Có thể đổi kiểu sau khi kiểm tra dữ liệu; tên và việc xóa bị khóa vì đây là ${reasons.join(', ')}.`
-        : `Kiểu hiện tại trong Supabase: ${actual}.`;
-    updateColumnForm();
-  } else updateColumnForm();
-  setupColumnSync(spec);
-  setupColumnFormula(spec);
-  $('#columnDialog').showModal();
-  $('#columnDialog')
-    .querySelectorAll('select')
-    .forEach(select => select._syncColumnSelect?.());
-}
 async function schemaOperation(operation) {
   const preview = await api('/api/admin/schema/preview', { method: 'POST', body: JSON.stringify(operation) });
   const action = {

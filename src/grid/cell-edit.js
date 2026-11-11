@@ -1,17 +1,13 @@
 import { toast } from '../api.js';
 import { commitCell } from '../history.js';
 import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
+import { createCustomSelect, load, openEditor, render, valueFor } from '../main.js';
 import {
-  createCustomSelect,
   displaySettingKey,
-  load,
   nativeRelations,
-  openEditor,
   relationDisplayField,
   relationDisplaySettings,
-  render,
-  valueFor,
-} from '../main.js';
+} from '../relation-display.js';
 import { el, name, pendingRows, state, writable } from '../state.js';
 
 export function initCellEdit() {
