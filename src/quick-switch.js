@@ -1,3 +1,4 @@
+import { tableLabel } from './sidebar.js';
 // Global shortcuts: "/" focuses the table search and Ctrl/⌘+K opens a
 // searchable table switcher.
 import { choose } from './grid/render.js';
@@ -19,12 +20,14 @@ function isTyping(target) {
 
 function drawResults() {
   const term = normalize($('#quickSwitchInput').value.trim());
-  matches = state.tables.filter(t => !term || normalize(name(t)).includes(term));
+  matches = state.tables.filter(
+    t => !term || normalize(name(t)).includes(term) || normalize(tableLabel(t)).includes(term),
+  );
   active = Math.min(active, Math.max(0, matches.length - 1));
   const list = $('#quickSwitchList');
   list.replaceChildren(
     ...matches.map((table, index) => {
-      const option = el('li', 'quick-switch-option', name(table));
+      const option = el('li', 'quick-switch-option', tableLabel(table));
       option.id = `quickSwitchOption${index}`;
       option.setAttribute('role', 'option');
       option.setAttribute('aria-selected', String(index === active));

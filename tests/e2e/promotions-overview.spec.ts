@@ -69,7 +69,7 @@ const rows = Array.from({ length: 51 }, (_, i) => ({
   created_at: '2026-11-02T08:00:00Z',
 }));
 
-const openDashboard = (page: Page) => page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+const openDashboard = (page: Page) => page.getByRole('button', { name: 'Tổng quan', exact: true }).click();
 
 async function mock(page: Page, { empty = false, failRefresh = false, delay = false } = {}) {
   const pages: number[] = [];
@@ -166,7 +166,7 @@ test('chuyển giữa dashboard, bảng dữ liệu và bảng khác trong cùng
   await expect(page.locator('#promotionsDashboard')).toBeHidden();
   await expect(page.locator('.grid-shell')).toBeVisible();
   await expect(page.locator('#grid tbody tr')).toHaveCount(50);
-  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Tổng quan', exact: true }).click();
   await expect(page.locator('#promotionsDashboard')).toBeVisible();
   await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
   await page.getByRole('button', { name: 'branches', exact: true }).click();
@@ -232,7 +232,7 @@ test('refresh giữ bảng promotions, chế độ bảng dữ liệu và trang 
   await page.getByRole('button', { name: 'promotions', exact: true }).click();
   await expect(page.locator('#promotionsDashboard')).toBeHidden();
   await expect(page.locator('#page')).toHaveText('Trang 2');
-  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Tổng quan', exact: true }).click();
   await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
   await page.reload();
   await expect(page.locator('#promotionsDashboard')).toBeVisible();
@@ -252,7 +252,7 @@ test('dashboard chỉ xem, còn bảng dữ liệu giữ chọn dòng để qu�
   await expect(page.locator('#grid input[data-row-select]').first()).toBeVisible();
   await page.locator('#grid input[data-row-select]').first().check();
   await expect(page.locator('#rowSelectionBar')).toBeVisible();
-  await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+  await page.getByRole('button', { name: 'Tổng quan', exact: true }).click();
   await expect(page.locator('#rowSelectionBar')).toBeHidden();
 });
 

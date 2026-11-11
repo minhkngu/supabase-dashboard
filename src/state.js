@@ -32,6 +32,7 @@ export const state = {
   collapsed: new Set(),
   folders: [],
   tableFolders: {},
+  tableLabels: {},
   lookups: [],
   lookupResults: new Map(),
   lookupVersion: 0,

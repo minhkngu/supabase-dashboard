@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
-const openDashboard = (page: Page) => page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+const openDashboard = (page: Page) => page.getByRole('button', { name: 'Tổng quan', exact: true }).click();
 const col = (name: string) => ({ name, data_type: 'text', options: ['nullable', 'updatable'] });
 const branches = {
   name: 'public.branches',

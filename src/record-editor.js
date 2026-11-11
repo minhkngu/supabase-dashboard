@@ -9,13 +9,6 @@ import { load } from './grid/render.js';
 import { $, $$, PAGE_SIZES, deletionBusy, el, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
-export function typeIcon(c) {
-  if (c.data_type === 'boolean') return 'B';
-  if (/int|numeric|decimal|real|double/.test(c.data_type)) return '#';
-  if (/date|time/.test(c.data_type)) return '◷';
-  if (c.data_type === 'jsonb' || c.data_type === 'json') return '{}';
-  return 'T';
-}
 export function recordFieldHint(column, row = null) {
   if (!state.configReady) return 'Đang tải cấu hình cột.';
   const details = (column.description || column.comment || '').trim();

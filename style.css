@@ -4211,3 +4211,59 @@ dialog.confirm-dialog {
   background: var(--danger-bg);
   color: var(--danger-text);
 }
+
+/* ICONS */
+.type-icon .icon,
+.type-pill .icon,
+.column-pin .icon,
+.column-action .icon {
+  display: block;
+}
+
+.type-pill.type-uuid {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+}
+
+.type-pill.type-enum {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.type-pill.type-link {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* TABLE DISPLAY NAME */
+.title-rename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.heading:hover .title-rename,
+.title-rename:focus-visible {
+  opacity: 1;
+}
+
+.title-rename:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+@media (hover: none) {
+  .title-rename {
+    opacity: 1;
+  }
+}

@@ -9,9 +9,29 @@ function persistSidebar() {
     localStorage.setItem('siris-table-order', JSON.stringify(state.tables.map(name)));
     localStorage.setItem(
       'siris-table-folders',
-      JSON.stringify({ folders: state.folders, tableFolders: state.tableFolders }),
+      JSON.stringify({ folders: state.folders, tableFolders: state.tableFolders, labels: state.tableLabels }),
     );
   } catch {}
+}
+// A display name chosen for the table, kept in this browser only.
+export function tableLabel(t) {
+  return state.tableLabels?.[name(t)] || name(t);
+}
+export async function renameTableLabel(t) {
+  const n = name(t);
+  const next = await promptDialog({
+    title: 'Tên hiển thị của bảng',
+    message: `Chỉ đổi tên hiển thị trên trình duyệt này; bảng ${n} trong Supabase giữ nguyên. Để trống để dùng lại tên gốc.`,
+    label: 'Tên hiển thị',
+    value: tableLabel(t),
+  });
+  if (next === null) return;
+  state.tableLabels = { ...state.tableLabels };
+  if (!next || next === n) delete state.tableLabels[n];
+  else state.tableLabels[n] = next;
+  persistSidebar();
+  nav();
+  if (state.table === t) $('#title').textContent = tableLabel(t);
 }
 export function restoreSidebar() {
   try {
@@ -27,9 +47,14 @@ export function restoreSidebar() {
       ? data.folders.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string')
       : [];
     state.tableFolders = data.tableFolders && typeof data.tableFolders === 'object' ? data.tableFolders : {};
+    state.tableLabels =
+      data.labels && typeof data.labels === 'object' && !Array.isArray(data.labels)
+        ? Object.fromEntries(Object.entries(data.labels).filter(([, v]) => typeof v === 'string' && v.trim()))
+        : {};
   } catch {
     state.folders = [];
     state.tableFolders = {};
+    state.tableLabels = {};
   }
 }
 function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
@@ -128,14 +153,15 @@ function tableNode(t, list) {
     visual = getTableVisual(n),
     b = el('button', 'nav-item' + (state.table === t ? ' active' : ''));
   b.draggable = true;
-  b.setAttribute('aria-label', n);
-  b.title = `${n} · Kéo để sắp xếp hoặc đưa vào thư mục`;
+  const shown = tableLabel(t);
+  b.setAttribute('aria-label', shown);
+  b.title = `${shown === n ? n : `${shown} (${n})`} · Kéo để sắp xếp hoặc đưa vào thư mục`;
   const avatar = el('span', 'table-avatar', visual.initials);
   avatar.style.background = visual.palette.bg;
   avatar.style.color = visual.palette.color;
   avatar.style.borderColor = visual.palette.border;
   avatar.title = n;
-  const label = el('span', 'table-name-text', n);
+  const label = el('span', 'table-name-text', shown);
   b.append(avatar, label);
   b.onclick = () => choose(t);
   b.ondragstart = e => {
@@ -170,7 +196,8 @@ export function nav() {
   const list = $('#tables');
   list.replaceChildren();
   const query = $('#tableSearch').value.trim().toLocaleLowerCase();
-  const visible = t => !query || name(t).toLocaleLowerCase().includes(query);
+  const visible = t =>
+    !query || name(t).toLocaleLowerCase().includes(query) || tableLabel(t).toLocaleLowerCase().includes(query);
   const addDrop = (node, folderId) => {
     node.ondragover = e => {
       e.preventDefault();
@@ -251,6 +278,7 @@ export function nav() {
   };
 }
 export function initSidebar() {
+  $('#renameTable').onclick = () => state.table && void renameTableLabel(state.table);
   $('#addFolder').onclick = () => {
     const form = $('#createFolderForm'),
       open = form.hidden;

@@ -1,6 +1,12 @@
 import { el } from './state.js';
 import { closeAllCustomSelects } from './view-menus.js';
 
+// A pill is short text or an SVG icon, which is cloned so options can be redrawn.
+function pillElement(option) {
+  const pill = el('span', 'type-pill type-' + (option.pillType || 't'));
+  pill.append(typeof option.pill === 'string' ? option.pill : option.pill.cloneNode(true));
+  return pill;
+}
 /**
  * @param {{ options: any[], value?: any, onChange?: (value: any) => void, ariaLabel?: string,
  *   searchPlaceholder?: string, className?: string }} config
@@ -23,7 +29,7 @@ export function createCustomSelect({ options, value, onChange, ariaLabel, search
     labelWrap.replaceChildren();
     const selected = currentOptions.find(o => o.value === currentVal) || currentOptions[0];
     if (selected) {
-      if (selected.pill) labelWrap.append(el('span', 'type-pill type-' + (selected.pillType || 't'), selected.pill));
+      if (selected.pill) labelWrap.append(pillElement(selected));
       labelWrap.append(el('span', 'custom-select-label', selected.label));
     }
   }
@@ -59,7 +65,7 @@ export function createCustomSelect({ options, value, onChange, ariaLabel, search
       item.role = 'option';
       item.tabIndex = opt.disabled ? -1 : 0;
       item.setAttribute('aria-selected', String(opt.value === currentVal));
-      if (opt.pill) item.append(el('span', 'type-pill type-' + (opt.pillType || 't'), opt.pill));
+      if (opt.pill) item.append(pillElement(opt));
       item.append(el('span', 'custom-select-item-text', opt.label));
       if (opt.sub) item.append(el('span', 'custom-select-item-type', opt.sub));
       if (opt.value === currentVal) item.append(el('span', 'custom-select-item-check', '✓'));

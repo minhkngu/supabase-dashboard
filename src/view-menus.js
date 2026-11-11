@@ -1,9 +1,10 @@
+import { columnKind, icon } from './icons.js';
 import { toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
 import { load, render } from './grid/render.js';
 import { clearBulk } from './grid/selection.js';
 import { activeLookups } from './lookup.js';
-import { typeIcon } from './record-editor.js';
+
 import { $, el, name, state, $$ } from './state.js';
 
 const viewStorageKey = 'siris-views-v1';
@@ -187,31 +188,10 @@ function renderColumnVisibility(filterQuery = '') {
     const slider = el('span', 'column-switch-slider');
     switchWrap.append(box, slider);
 
-    let icon = 'T',
-      typeClass = 't';
-    if (spec.lookup) {
-      icon = '↗';
-      typeClass = 'key';
-    } else if (spec.column) {
-      const col = spec.column;
-      if (state.table?.primary_keys?.includes(col.name)) {
-        icon = '🔑';
-        typeClass = 'key';
-      } else if (col.data_type === 'boolean') {
-        icon = 'B';
-        typeClass = 'bool';
-      } else if (/int|numeric|decimal|real|double/.test(col.data_type)) {
-        icon = '#';
-        typeClass = 'num';
-      } else if (/date|time/.test(col.data_type)) {
-        icon = '◷';
-        typeClass = 'date';
-      } else if (col.data_type === 'jsonb' || col.data_type === 'json') {
-        icon = '{}';
-        typeClass = 'json';
-      }
-    }
-    const badge = el('span', 'type-pill type-' + typeClass, icon);
+    const kind = spec.lookup ? { icon: 'lookup', type: 'key', label: 'Lookup' } : columnKind(spec.column, state.table);
+    const badge = el('span', 'type-pill type-' + kind.type);
+    badge.title = kind.label;
+    badge.append(icon(kind.icon, { size: 11 }));
     const nameText = spec.column?.name || spec.lookup?.label;
     const nameSpan = el('span', 'column-item-name', nameText);
 
@@ -283,22 +263,16 @@ export function closeViewMenus() {
 
 function getColumnSelectOptions(cols, rules, currentIndex) {
   return cols.map(c => {
-    let pill = typeIcon(c),
-      pillType = 't';
-    if (state.table?.primary_keys?.includes(c.name)) {
-      pill = '🔑';
-      pillType = 'key';
-    } else if (c.data_type === 'boolean') {
-      pillType = 'bool';
-    } else if (/int|numeric|decimal|real|double/.test(c.data_type)) {
-      pillType = 'num';
-    } else if (/date|time/.test(c.data_type)) {
-      pillType = 'date';
-    } else if (c.data_type === 'jsonb' || c.data_type === 'json') {
-      pillType = 'json';
-    }
-    const isUsed = rules && rules.some((r, i) => i !== currentIndex && r.column === c.name);
-    return { value: c.name, label: c.name, sub: c.data_type, pill, pillType, disabled: isUsed };
+    const kind = columnKind(c, state.table),
+      isUsed = rules && rules.some((r, i) => i !== currentIndex && r.column === c.name);
+    return {
+      value: c.name,
+      label: c.name,
+      sub: c.data_type,
+      pill: icon(kind.icon, { size: 10 }),
+      pillType: kind.type,
+      disabled: isUsed,
+    };
   });
 }
 

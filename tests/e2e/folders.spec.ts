@@ -61,3 +61,22 @@ test('xóa thư mục cần xác nhận trong hộp thoại', async ({ page }) =
   await page.locator('#confirmDialog').getByRole('button', { name: 'Xóa thư mục' }).click();
   await expect(page.locator('.folder-name')).toHaveText(['Phòng']);
 });
+
+test('đặt tên hiển thị cho bảng, giữ sau khi tải lại và trả về tên gốc khi để trống', async ({ page }) => {
+  await mock(page);
+  await expect(page.locator('#title')).toHaveText('rooms');
+  await page.getByRole('button', { name: 'Đổi tên hiển thị của bảng' }).click();
+  await page.locator('#confirmInput').fill('Loại phòng');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#title')).toHaveText('Loại phòng');
+  await expect(page.getByRole('button', { name: 'Loại phòng', exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.locator('#title')).toHaveText('Loại phòng');
+  await page.locator('#tableSearch').fill('rooms');
+  await expect(page.getByRole('button', { name: 'Loại phòng', exact: true })).toBeVisible();
+  await page.locator('#tableSearch').fill('');
+  await page.getByRole('button', { name: 'Đổi tên hiển thị của bảng' }).click();
+  await page.locator('#confirmInput').fill('');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#title')).toHaveText('rooms');
+});

@@ -1,3 +1,4 @@
+import { columnKind, icon } from '../icons.js';
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { restoreCellFocus } from './keyboard.js';
 import { renderRuleChips } from '../rule-chips.js';
@@ -16,7 +17,7 @@ import {
   syncPromotionsView,
   tableOverview,
 } from '../overview/mode.js';
-import { openEditor, typeIcon } from '../record-editor.js';
+import { openEditor } from '../record-editor.js';
 import {
   hasRelationDisplay,
   loadNativeDisplays,
@@ -25,7 +26,7 @@ import {
   nativeRelations,
   openRelationDisplay,
 } from '../relation-display.js';
-import { closeNav, nav } from '../sidebar.js';
+import { closeNav, nav, tableLabel } from '../sidebar.js';
 import {
   $,
   $$,
@@ -108,7 +109,7 @@ export function choose(t) {
   };
   state.page = state.view.page;
   $('#search').value = state.view.search;
-  $('#title').textContent = name(t);
+  $('#title').textContent = tableLabel(t);
   syncPromotionsView();
   $('#add').disabled = !state.configReady || !t.primary_keys?.length;
   updateHistoryButtons();
@@ -238,8 +239,14 @@ function columnHeader(spec) {
     openColumnMenu(spec, th);
   };
   const label = el('span', 'column-label');
-  label.append(el('span', 'type-icon', x ? '↗' : typeIcon(c)), document.createTextNode(x ? x.label : c.name));
-  const pin = el('button', 'column-pin', state.view.frozen.includes(spec.id) ? '◆' : '◇');
+  const kind = x ? { icon: 'lookup', label: 'Lookup' } : columnKind(c, state.table),
+    typeIconEl = el('span', 'type-icon');
+  typeIconEl.title = kind.label;
+  typeIconEl.append(icon(kind.icon, { size: 12 }));
+  label.append(typeIconEl, document.createTextNode(x ? x.label : c.name));
+  const pinned = state.view.frozen.includes(spec.id),
+    pin = el('button', 'column-pin');
+  pin.append(icon('pin', { size: 12, filled: pinned }));
   pin.type = 'button';
   pin.title = state.view.frozen.includes(spec.id) ? 'Bỏ ghim cột' : 'Ghim cột';
   pin.setAttribute('aria-label', `${pin.title} ${x ? x.label : c.name}`);
@@ -251,7 +258,8 @@ function columnHeader(spec) {
     persistView();
     render();
   };
-  const edit = el('button', 'column-action', '⋯');
+  const edit = el('button', 'column-action');
+  edit.append(icon('more', { size: 14 }));
   edit.type = 'button';
   edit.setAttribute('aria-label', `Thiết lập cột ${x ? x.label : c.name}`);
   edit.title = state.adminAvailable ? 'Thiết lập cột' : state.adminError;
