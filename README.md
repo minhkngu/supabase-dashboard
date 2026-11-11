@@ -64,4 +64,7 @@ Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.look
 
 ## Nhân bản cột
 
+
+Cột công thức tạo trực tiếp trong Supabase (`GENERATED ALWAYS AS`) có thể xóa trong **Thiết lập cột** nếu không có phụ thuộc. Máy chủ kiểm tra phụ thuộc PostgreSQL, liên kết và lookup trước khi hiện xác nhận, rồi kiểm tra lại trong transaction sau khi khóa bảng. Xác nhận hiển thị công thức và số giá trị bị xóa; thao tác dùng `DROP COLUMN ... RESTRICT`, không xóa dây chuyền. Khóa chính và identity vẫn được bảo vệ. Phụ thuộc trong mã ứng dụng bên ngoài database cần được người quản trị kiểm tra riêng.
+
 Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.

@@ -280,7 +280,9 @@ export function initRecordEditor() {
   };
   $('#add').onclick = () => openEditor(null);
   $('#closeEditor').onclick = $('#cancel').onclick = () => $('#editor').close();
-  $('#refresh').onclick = () => load();
+  // Keep the current grid usable while refreshing; silent loads also avoid
+  // replacing an active editor or a row whose changes are still saving.
+  $('#refresh').onclick = () => load({ silent: true });
   $('#prev').onclick = () => {
     state.page--;
     persistView();

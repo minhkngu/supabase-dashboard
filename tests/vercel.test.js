@@ -1,0 +1,140 @@
+import { describe, expect, it } from 'vitest';
+import { Readable } from 'node:stream';
+import { createVercelHandler } from '../server/vercel.mjs';
+import { createSessionAuth } from '../server/session-auth.mjs';
+
+const env = { SIRIS_LOGIN_USER: 'owner', SIRIS_LOGIN_PASSWORD: 'test-password-with-16-characters' };
+const authorization = `Basic ${Buffer.from(`${env.SIRIS_LOGIN_USER}:${env.SIRIS_LOGIN_PASSWORD}`).toString('base64')}`;
+const tables = [{ name: 'public.rooms', columns: [], primary_keys: ['id'] }];
+async function call(app, { url = '/api/meta', method = 'GET', headers = {}, body = undefined } = {}) {
+  const req = Object.assign(Readable.from([]), {
+    url,
+    method,
+    headers: { host: 'siris.vercel.app', authorization, ...headers },
+  });
+  if (body !== undefined) Object.assign(req, { body });
+  let status, text;
+  /** @type {Record<string, string>} */
+  let resultHeaders = {};
+  await app(req, {
+    writeHead(code, values) {
+      status = code;
+      resultHeaders = values;
+    },
+    end(value) {
+      text = String(value);
+    },
+  });
+  return { status, headers: resultHeaders, text };
+}
+
+describe('Vercel adapter', () => {
+  it('expires sessions after eight hours and does not accept forged cookie signatures', () => {
+    let time = 1800000000000;
+    const auth = createSessionAuth(env.SIRIS_LOGIN_USER, env.SIRIS_LOGIN_PASSWORD, { now: () => time });
+    const cookie = auth.sessionCookie().split(';')[0];
+    expect(auth.authenticated({ cookie })).toBe(true);
+    expect(auth.authenticated({ cookie: cookie.slice(0, -1) + (cookie.endsWith('a') ? 'b' : 'a') })).toBe(false);
+    time += 8 * 60 * 60 * 1000;
+    expect(auth.authenticated({ cookie })).toBe(false);
+  });
+  it('fails closed until the login is configured', async () => {
+    const app = await createVercelHandler({}, tables, process.cwd());
+    expect((await call(app)).status).toBe(503);
+  });
+  it('protects both the interface and API without revealing metadata', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    for (const url of ['/', '/assets/example.js', '/api/meta']) {
+      const result = await call(app, { url, headers: { authorization: '' } });
+      expect(result.status).toBe(url.startsWith('/api/') ? 401 : 303);
+      expect(result.headers['WWW-Authenticate']).toBeUndefined();
+      expect(result.text).not.toContain('public.rooms');
+    }
+  });
+  it('shows a login page and explains incorrect credentials without browser challenges', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const form = await call(app, { url: '/auth/login', headers: { authorization: '' } });
+    expect(form.status).toBe(200);
+    expect(form.text).toContain('autocomplete="current-password"');
+    const failed = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+      body: { username: env.SIRIS_LOGIN_USER, password: 'wrong' },
+    });
+    expect(failed.status).toBe(401);
+    expect(failed.text).toContain('Tên đăng nhập hoặc mật khẩu chưa đúng');
+    expect(failed.headers['WWW-Authenticate']).toBeUndefined();
+    expect(failed.headers['Set-Cookie']).toBeUndefined();
+  });
+  it('logs in once and authenticates HTML and API requests across separate instances by cookie', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const login = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+      body: new URLSearchParams({ username: env.SIRIS_LOGIN_USER, password: env.SIRIS_LOGIN_PASSWORD }).toString(),
+    });
+    expect(login.status).toBe(303);
+    expect(login.headers.Location).toBe('/');
+    const cookie = login.headers['Set-Cookie'];
+    for (const flag of ['__Host-siris_session=', 'HttpOnly', 'SameSite=Strict', 'Secure', 'Path=/'])
+      expect(cookie).toContain(flag);
+    expect(cookie).not.toContain(env.SIRIS_LOGIN_PASSWORD);
+    const next = await createVercelHandler(env, tables, process.cwd());
+    const meta = await call(next, { headers: { authorization: '', cookie: cookie.split(';')[0] } });
+    expect(meta.status).toBe(200);
+    expect(JSON.parse(meta.text).tables).toHaveLength(1);
+    const tampered = await call(next, { headers: { authorization: '', cookie: cookie.split(';')[0] + 'bad' } });
+    expect(tampered.status).toBe(401);
+    const rotated = await createVercelHandler(
+      { ...env, SIRIS_LOGIN_PASSWORD: 'new-password-long-enough' },
+      tables,
+      process.cwd(),
+    );
+    expect((await call(rotated, { headers: { authorization: '', cookie: cookie.split(';')[0] } })).status).toBe(401);
+  });
+  it('rejects cross-origin login and malformed login bodies', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const input = { username: env.SIRIS_LOGIN_USER, password: env.SIRIS_LOGIN_PASSWORD };
+    const cross = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://attacker.example' },
+      body: input,
+    });
+    expect(cross.status).toBe(403);
+    expect(cross.headers['Set-Cookie']).toBeUndefined();
+    const oversized = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+      body: 'a'.repeat(5000),
+    });
+    expect(oversized.status).toBe(400);
+  });
+  it('provides the same session across separate function instances and disables caching', async () => {
+    const first = await call(await createVercelHandler(env, tables, process.cwd()));
+    const second = await call(await createVercelHandler(env, tables, process.cwd()));
+    expect(first.status).toBe(200);
+    expect(JSON.parse(first.text).token).toBe(JSON.parse(second.text).token);
+    expect(first.headers['Cache-Control']).toBe('private, no-store');
+  });
+  it('rejects cross-origin and tokenless writes', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    for (const origin of [undefined, 'https://attacker.example', 'https://siris.vercel.app']) {
+      expect((await call(app, { method: 'POST', headers: origin ? { origin } : {} })).status).toBe(403);
+    }
+  });
+  it('passes authenticated same-origin requests to the shared routes', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const { token } = JSON.parse((await call(app)).text);
+    const result = await call(app, {
+      url: '/api/unknown',
+      method: 'POST',
+      headers: { origin: 'https://siris.vercel.app', 'x-siris-token': token },
+      body: {},
+    });
+    expect(result.status).toBe(404);
+  });
+});

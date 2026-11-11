@@ -147,6 +147,7 @@ export function createAdmin(connectionString, poolOverride) {
         default_value: r.default_value,
         identity_generation: r.attidentity === 'a' ? 'ALWAYS' : r.attidentity ? 'BY DEFAULT' : undefined,
         protected: !!(r.is_primary || r.attgenerated || r.attidentity || r.has_constraint || r.has_index || r.has_view),
+        delete_protected: !!(r.is_primary || r.attidentity || r.has_constraint || r.has_index || r.has_view),
         type_protected: !!(r.attgenerated || r.attidentity || r.has_type_constraint || r.has_type_index || r.has_view),
       });
       if (r.is_primary) t.primary_keys.push(r.column_name);
@@ -421,9 +422,30 @@ export function createAdmin(connectionString, poolOverride) {
         }
       }
     }
+    if (col && req.action === 'delete') {
+      // A generated column owns its expression; that expression is removed
+      // with the column. Every other dependent object must be handled first,
+      // including auto-dependencies that DROP RESTRICT alone would remove.
+      const dependencies = await client.query(
+        `SELECT DISTINCT pg_describe_object(d.classid,d.objid,d.objsubid) AS description
+         FROM pg_depend d
+         WHERE d.refclassid='pg_class'::regclass AND d.refobjid=$1::oid AND d.refobjsubid=$2
+           AND NOT (d.classid='pg_attrdef'::regclass AND d.objid IN (
+             SELECT a.oid FROM pg_attrdef a WHERE a.adrelid=$1::oid AND a.adnum=$2
+           ))
+         ORDER BY description`,
+        [t.table_oid, col.column_id],
+      );
+      if (dependencies.rows.length)
+        throw Error(
+          'Không thể xóa cột vì đang được sử dụng bởi: ' + dependencies.rows.map(d => d.description).join('; '),
+        );
+    }
     if (
       col &&
-      ((req.action === 'type' && col.type_protected) || (['delete', 'rename'].includes(req.action) && col.protected))
+      ((req.action === 'type' && col.type_protected) ||
+        (req.action === 'rename' && col.protected) ||
+        (req.action === 'delete' && (col.delete_protected ?? col.protected)))
     )
       throw Error('Cột có chỉ mục, ràng buộc hoặc phụ thuộc; cần xử lý trong Supabase trước.');
     if (col) {
@@ -503,6 +525,12 @@ export function createAdmin(connectionString, poolOverride) {
       signature,
       affected,
       action: req.action,
+      ...(req.action === 'delete'
+        ? {
+            dependenciesChecked: true,
+            generatedExpression: col.options.includes('generated') ? col.default_value : null,
+          }
+        : {}),
       table: req.table,
       column: req.column,
       newName: req.newName,

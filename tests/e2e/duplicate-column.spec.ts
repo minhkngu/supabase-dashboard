@@ -115,3 +115,94 @@ test('nhân bản lỗi giữ tên để thử lại và không sửa dữ liệ
   await expect(page.locator('#duplicateColumnName')).toHaveValue('another_price');
   await expect(page.locator('td[data-bulk-column="price"]')).toHaveText('42');
 });
+
+for (const source of ['total', 'branch_name']) {
+  test(`nhân bản ${source} đang tự tính không yêu cầu tắt cấu hình`, async ({ page }) => {
+    let copied = false;
+    const writes: string[] = [];
+    await page.route('**/api/**', async route => {
+      const req = route.request(),
+        path = new URL(req.url()).pathname;
+      const columns = [
+        { name: 'id', data_type: 'integer', options: ['updatable'] },
+        ...['price', 'total', 'branchid', 'branch_name', ...(copied ? [source + '_copy'] : [])].map(name => ({
+          name,
+          data_type: name.includes('branch_name') ? 'text' : 'numeric',
+          options: ['nullable', 'updatable'],
+        })),
+      ];
+      if (path === '/api/meta')
+        return route.fulfill({
+          json: {
+            tables: [
+              { name: 'public.rooms', columns, primary_keys: ['id'] },
+              {
+                name: 'public.branches',
+                columns: [
+                  { name: 'id', data_type: 'numeric', options: ['updatable'] },
+                  { name: 'name', data_type: 'text', options: ['updatable'] },
+                ],
+                primary_keys: ['id'],
+              },
+            ],
+            token: 'csrf',
+            adminAvailable: true,
+          },
+        });
+      if (req.method() !== 'GET') writes.push(path);
+      if (path === '/api/formula-config')
+        return route.fulfill({
+          json: { items: [{ table: 'rooms', column: 'total', expression: '[price] * 2', enabled: true }] },
+        });
+      if (path === '/api/lookup-config')
+        return route.fulfill({
+          json: {
+            available: true,
+            items: [
+              {
+                id: 'lookup',
+                sourceTable: 'rooms',
+                targetTable: 'branches',
+                conditions: [{ sourceColumn: 'branchid', targetKey: 'id' }],
+                targetField: 'name',
+                columnBound: true,
+                label: 'branch_name',
+                sync: { enabled: true, columnName: 'branch_name' },
+              },
+            ],
+          },
+        });
+      if (path === '/api/admin/schema/preview') {
+        expect(req.postDataJSON().action).toBe('duplicate');
+        return route.fulfill({ json: { signature: 'a'.repeat(64), affected: 1 } });
+      }
+      if (path === '/api/admin/schema/apply') {
+        copied = true;
+        return route.fulfill({ json: { ok: true } });
+      }
+      return route.fulfill({
+        json: {
+          rows: [
+            {
+              id: 1,
+              price: 10,
+              total: 20,
+              branchid: 1,
+              branch_name: 'Huế',
+              ...(copied ? { [source + '_copy']: source === 'total' ? 20 : 'Huế' } : {}),
+            },
+          ],
+          total: 1,
+          results: [],
+        },
+      });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: `Thiết lập cột ${source}`, exact: true }).click();
+    await page.locator('#duplicateColumn').click();
+    await page.locator('#saveDuplicateColumn').click();
+    await expect(page.locator(`td[data-bulk-column="${source}_copy"]`)).toBeVisible();
+    await expect(page.locator(`td[data-bulk-column="${source}"]`)).toHaveClass(/cell-readonly/);
+    expect(writes).toEqual(['/api/admin/schema/preview', '/api/admin/schema/apply']);
+  });
+}
