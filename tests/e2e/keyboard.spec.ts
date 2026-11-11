@@ -100,3 +100,37 @@ test('bấm sang ô khác khi đang sửa thì lưu ô cũ và mở ô mới nga
   await expect(cell(page, 2, 'city').locator('input')).toHaveValue('Hội An');
   expect(api.patches).toEqual([{ name: 'Mai' }]);
 });
+
+test('ô đang lưu có trạng thái riêng và toast cho hoàn tác', async ({ page }) => {
+  let release = () => {};
+  const gate = new Promise<void>(resolve => (release = resolve));
+  const rows = [{ id: 1, name: 'Mia', city: 'Huế', note: 'a' }];
+  const patches: Record<string, unknown>[] = [];
+  await page.route('**/api/**', async route => {
+    const request = route.request(),
+      url = new URL(request.url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 't' } });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (request.method() === 'PATCH') {
+      const body = request.postDataJSON();
+      patches.push(body.values);
+      if (patches.length === 1) await gate;
+      Object.assign(rows[0], body.values);
+      return route.fulfill({ json: { rows: [rows[0]] } });
+    }
+    return route.fulfill({ json: { rows, total: 1 } });
+  });
+  await page.goto('/');
+  await cell(page, 0, 'city').click();
+  await page.locator('td.editing input').fill('Vinh');
+  await page.keyboard.press('Enter');
+  await expect(cell(page, 0, 'city')).toHaveClass(/cell-saving/);
+  await expect(cell(page, 0, 'city')).toHaveText('Vinh');
+  release();
+  await expect(cell(page, 0, 'city')).not.toHaveClass(/cell-saving/);
+  await page.locator('#toast').getByRole('button', { name: 'Hoàn tác' }).click();
+  await expect(cell(page, 0, 'city')).toHaveText('Huế');
+  expect(patches).toEqual([{ city: 'Vinh' }, { city: 'Huế' }]);
+});

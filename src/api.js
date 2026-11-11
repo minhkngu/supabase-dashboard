@@ -1,4 +1,4 @@
-import { $, clearPageCache, state } from './state.js';
+import { $, clearPageCache, state, el } from './state.js';
 
 export async function api(url, opts = {}) {
   if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/'))
@@ -24,11 +24,28 @@ export async function api(url, opts = {}) {
   return d;
 }
 let toastTimer;
-export function toast(msg) {
-  $('#toast').textContent = msg;
-  $('#toast').classList.add('show');
+/**
+ * Shows a short status message. An optional action adds a button (for
+ * example "Hoàn tác") and keeps the message up a little longer.
+ * @param {string} msg
+ * @param {{ action?: { label: string, run: () => void } }} [options]
+ */
+export function toast(msg, { action } = {}) {
+  const host = $('#toast'),
+    text = el('span', 'toast-text', msg);
+  host.replaceChildren(text);
+  if (action) {
+    const button = el('button', 'toast-action', action.label);
+    button.type = 'button';
+    button.onclick = () => {
+      host.classList.remove('show');
+      action.run();
+    };
+    host.append(button);
+  }
+  host.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3500);
+  toastTimer = setTimeout(() => host.classList.remove('show'), action ? 6000 : 3500);
 }
 export function message(msg, error = false) {
   $('#message').textContent = msg;

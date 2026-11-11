@@ -33,7 +33,7 @@ async function editName(page: Page) {
   await page.locator('td.cell-editable').filter({ hasText: 'Mia' }).click();
   await page.locator('td.editing input').fill('Lune');
   await page.locator('td.editing input').press('Enter');
-  await expect(page.locator('#toast')).toHaveText('Đã lưu thay đổi');
+  await expect(page.locator('#toast .toast-text')).toHaveText('Đã lưu thay đổi');
 }
 
 test('lưu ô ở bảng không có formula không tải lại dữ liệu', async ({ page }) => {

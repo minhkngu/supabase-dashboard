@@ -6,6 +6,9 @@ export let deletionBusy = false,
   deletionNotice = '';
 export const selectedRecords = new Map();
 export const pendingRows = new WeakSet();
+// Columns of each row whose new value is being saved, shown as saving.
+/** @type {WeakMap<object, Set<string>>} */
+export const savingCells = new WeakMap();
 // Rows per grid page; the server accepts the same default.
 export const PAGE_SIZE = 50;
 // Page sizes offered in the grid footer; the choice is saved per table.

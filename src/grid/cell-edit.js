@@ -1,10 +1,10 @@
 import { toast } from '../api.js';
 import { createCustomSelect } from '../custom-select.js';
-import { commitCell } from '../history.js';
+import { commitCell, historyFor, undoLatest } from '../history.js';
 import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
 import { openEditor, valueFor } from '../record-editor.js';
 import { nativeRelations, relationDisplayField } from '../relation-display.js';
-import { el, name, pendingRows, state, writable, $$ } from '../state.js';
+import { $$, el, name, pendingRows, savingCells, state, writable } from '../state.js';
 import { clearCellFocus, neighbourCell, queueCellFocus } from './keyboard.js';
 import { load, render } from './render.js';
 
@@ -198,6 +198,7 @@ function startCellEdit(td, row, c, table) {
     edit.saving = true;
     const request = commitCell(table, row, c, value);
     pendingRows.add(row);
+    savingCells.set(row, new Set([...(savingCells.get(row) || []), c.name]));
     row[c.name] = value;
     state.cellEdit = null;
     if (state.table === table) render();
@@ -205,15 +206,18 @@ function startCellEdit(td, row, c, table) {
       const saved = await request;
       Object.assign(row, saved);
       pendingRows.delete(row);
+      savingCells.get(row)?.delete(c.name);
       if (state.table === table && !state.cellEdit) {
         render();
         if (writeAffectsOtherCells(table)) void load({ silent: true });
         else loadLookups();
       }
-      toast('Đã lưu thay đổi');
+      const entry = historyFor(table).undo.at(-1);
+      toast('Đã lưu thay đổi', { action: { label: 'Hoàn tác', run: () => undoLatest(table, entry) } });
     } catch (error) {
       row[c.name] = original;
       pendingRows.delete(row);
+      savingCells.get(row)?.delete(c.name);
       toast(error.message);
       if (state.table === table && !state.cellEdit) {
         render();

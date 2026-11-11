@@ -28,23 +28,24 @@ import {
 import { closeNav, nav } from '../sidebar.js';
 import {
   $,
-  PAGE_SIZE,
-  PAGE_SIZES,
-  pageSize,
+  $$,
   countedKey,
   deletionBusy,
   deletionTable,
   el,
   loadController,
   name,
+  PAGE_SIZE,
+  PAGE_SIZES,
   pageCache,
+  pageSize,
   pendingRows,
+  savingCells,
   selectedRecords,
   setCountedKey,
   setDeletionNotice,
   setLoadController,
   state,
-  $$,
 } from '../state.js';
 import {
   closeViewMenus,
@@ -475,6 +476,10 @@ export function render() {
       td.dataset.bulkRow = String(i);
       td.dataset.bulkColumn = c.name;
       if (isUuidId(c)) td.classList.add('uuid-id');
+      if (savingCells.get(row)?.has(c.name)) {
+        td.classList.add('cell-saving');
+        td.setAttribute('aria-busy', 'true');
+      }
       td.onpaste = e => {
         const text = e.clipboardData?.getData('text/plain');
         if (text === undefined || text === '' || bulkBusy) return;

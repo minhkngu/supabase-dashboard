@@ -34,7 +34,15 @@ export async function commitCell(table, row, column, value) {
   updateHistoryButtons();
   return saved;
 }
-async function changeHistory(direction) {
+// Undo a specific saved change, but only while it is still the latest one.
+export function undoLatest(table, entry) {
+  if (historyFor(table).undo.at(-1) !== entry || state.table !== table) {
+    toast('Không thể hoàn tác vì đã có thay đổi khác sau đó.');
+    return;
+  }
+  void changeHistory('undo');
+}
+export async function changeHistory(direction) {
   if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
   const table = state.table,
     history = historyFor(table),
