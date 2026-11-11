@@ -9,7 +9,8 @@ import { initColumnDialog } from './src/column-dialog.js';
 import { initViewMenus, initViewMenus2 } from './src/view-menus.js';
 import { initCustomSelect } from './src/custom-select.js';
 import { initSelection } from './src/grid/selection.js';
-import { initMain, initMain2 } from './src/main.js';
+import { initRecordEditor } from './src/record-editor.js';
+import { initMain } from './src/main.js';
 
 // Event wiring runs in the original top-to-bottom order of the former app.js.
 initMode();
@@ -24,6 +25,6 @@ initViewMenus();
 initCustomSelect();
 initViewMenus2();
 initSelection();
-initMain();
+initRecordEditor();
 initSidebar2();
-await initMain2();
+await initMain();

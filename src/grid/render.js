@@ -3,7 +3,7 @@ import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
 import { updateHistoryButtons } from '../history.js';
 import { activeLookups, loadLookups, lookupCell, showLookupDialog } from '../lookup.js';
-import { openEditor, scheduleLookupCleanup, typeIcon } from '../main.js';
+import { scheduleLookupCleanup } from '../main.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -12,6 +12,7 @@ import {
   syncPromotionsView,
   tableOverview,
 } from '../overview/mode.js';
+import { openEditor, typeIcon } from '../record-editor.js';
 import {
   displaySettingKey,
   loadNativeDisplays,

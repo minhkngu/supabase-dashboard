@@ -1,6 +1,6 @@
 import { api, toast } from '../api.js';
 import { historyFor, updateHistoryButtons } from '../history.js';
-import { valueFor } from '../main.js';
+import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
 import { $, el, name, pendingRows, state, writable } from '../state.js';
 import { displayedColumns } from '../view-menus.js';

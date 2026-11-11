@@ -3,7 +3,7 @@ import { createCustomSelect } from './custom-select.js';
 import { load, render } from './grid/render.js';
 import { clearBulk } from './grid/selection.js';
 import { activeLookups } from './lookup.js';
-import { typeIcon } from './main.js';
+import { typeIcon } from './record-editor.js';
 import { $, el, name, state } from './state.js';
 
 const viewStorageKey = 'siris-views-v1';
