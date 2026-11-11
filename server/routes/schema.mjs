@@ -30,6 +30,8 @@ export async function handleSchema(ctx, req, res, u) {
     if (operation.column && COLUMN_ACTIONS.includes(operation.action))
       await ctx.assertNotUsedByFormula(operation.table, operation.column);
     const result = await admin.apply(operation, input.signature);
+    // The preflight may have warmed metadata before the schema transaction.
+    ctx.invalidateCaches();
     try {
       await ctx.refreshTables();
     } catch {

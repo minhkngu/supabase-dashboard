@@ -1,11 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { createAdmin } from '../admin.mjs';
-function fixture({ dependent = false, fail = false, typeConstraint = false } = {}) {
+function fixture({
+  dependent = false,
+  fail = false,
+  typeConstraint = false,
+  generated = false,
+  dependencies = [],
+  lockedDependencies = [],
+} = {}) {
   const calls = [];
+  let locked = false;
   const client = {
     release() {},
     async query(sql) {
       calls.push(sql);
+      if (sql.startsWith('LOCK TABLE')) locked = true;
+      if (sql.includes('pg_describe_object'))
+        return {
+          rows: (locked ? [...dependencies, ...lockedDependencies] : dependencies).map(description => ({
+            description,
+          })),
+        };
       if (sql.startsWith('SELECT c.oid::text'))
         return {
           rows: [
@@ -25,6 +40,8 @@ function fixture({ dependent = false, fail = false, typeConstraint = false } = {
               table_name: 'rooms',
               column_id: 2,
               column_name: 'note',
+              attgenerated: generated ? 's' : '',
+              default_value: generated ? '(0.45 * amount)' : null,
               data_type: 'text',
               format: 'text',
               attnotnull: false,
@@ -56,6 +73,32 @@ function fixture({ dependent = false, fail = false, typeConstraint = false } = {
   return { calls, admin: createAdmin(null, { query: client.query, connect: async () => client, end: async () => {} }) };
 }
 describe('quản lý cột', () => {
+  it('cho phép xóa cột generated sau khi kiểm tra phụ thuộc và xác nhận preview', async () => {
+    const { admin, calls } = fixture({ generated: true });
+    const operation = { table: 'rooms', action: 'delete', column: 'note' };
+    const preview = await admin.preview(operation);
+    expect('generatedExpression' in preview && preview.generatedExpression).toBe('(0.45 * amount)');
+    expect('dependenciesChecked' in preview && preview.dependenciesChecked).toBe(true);
+    await admin.apply(operation, preview.signature);
+    expect(calls).toContain('ALTER TABLE public."rooms" DROP COLUMN "note" RESTRICT');
+    expect(calls).toContain('COMMIT');
+    expect(calls.filter(sql => sql.includes('pg_describe_object'))).toHaveLength(3);
+  });
+  it('chặn cột generated có view, ràng buộc hoặc cột khác phụ thuộc', async () => {
+    for (const dependency of ['view room_totals', 'constraint rooms_total_check', 'default for column tax']) {
+      const { admin, calls } = fixture({ generated: true, dependencies: [dependency] });
+      await expect(admin.preview({ table: 'rooms', action: 'delete', column: 'note' })).rejects.toThrow(dependency);
+      expect(calls.some(sql => sql.startsWith('ALTER TABLE'))).toBe(false);
+    }
+  });
+  it('kiểm tra lại phụ thuộc sau khi khóa bảng trước khi xóa', async () => {
+    const { admin, calls } = fixture({ generated: true, lockedDependencies: ['view created_after_preview'] });
+    const operation = { table: 'rooms', action: 'delete', column: 'note' };
+    const preview = await admin.preview(operation);
+    await expect(admin.apply(operation, preview.signature)).rejects.toThrow('created_after_preview');
+    expect(calls).toContain('ROLLBACK');
+    expect(calls.some(sql => sql.startsWith('ALTER TABLE'))).toBe(false);
+  });
   it('cho phép xem trước đổi kiểu khóa chính khi không có phụ thuộc và chặn khi có khóa ngoại', async () => {
     const op = { table: 'rooms', action: 'type', column: 'id', newType: 'bigint' },
       allowed = fixture(),
@@ -280,12 +323,18 @@ describe('tải metadata', () => {
 });
 
 describe('nhân bản cột', () => {
-  function duplicateFixture({ format = 'numeric(12,2)', failUpdate = false } = {}) {
+  function duplicateFixture({ format = 'numeric(12,2)', failUpdate = false, formulas = [], lookups = [] } = {}) {
     const calls = [];
     const client = {
       release() {},
       async query(sql) {
         calls.push(sql);
+        if (sql.includes("to_regclass('siris_admin.formula_configs')")) return { rows: [{ present: true }] };
+        if (sql.includes("to_regclass('siris_admin.lookup_configs')")) return { rows: [{ present: true }] };
+        if (sql.startsWith('SELECT config FROM siris_admin.formula_configs'))
+          return { rows: formulas.map(config => ({ config })) };
+        if (sql.startsWith('SELECT config FROM siris_admin.lookup_configs'))
+          return { rows: lookups.map(config => ({ config })) };
         if (sql.startsWith('SELECT c.oid::text'))
           return {
             rows: [
@@ -316,6 +365,20 @@ describe('nhân bản cột', () => {
       admin: createAdmin(null, { query: client.query, connect: async () => client, end: async () => {} }),
     };
   }
+  it('nhân bản giá trị cột đang có formula hoặc lookup mà không tắt cấu hình', async () => {
+    const formulas = [{ table: 'rooms', column: 'price', enabled: true }];
+    const lookups = [{ sourceTable: 'rooms', sync: { enabled: true, columnName: 'price' } }];
+    for (const config of [{ formulas }, { lookups }]) {
+      const { admin, calls } = duplicateFixture(config);
+      const operation = { table: 'rooms', action: 'duplicate', column: 'price', newName: 'copy' };
+      const preview = await admin.preview(operation);
+      await admin.apply(operation, preview.signature);
+      expect(calls).toContain('ALTER TABLE public."rooms" ADD COLUMN "copy" numeric(12,2)');
+      expect(calls.some(sql => /DROP TRIGGER|UPDATE siris_admin|DELETE FROM siris_admin/.test(sql))).toBe(false);
+    }
+    expect(formulas[0].enabled).toBe(true);
+    expect(lookups[0].sync.enabled).toBe(true);
+  });
   it('sao chép kiểu chính xác và giá trị trong transaction, không sao chép identity hay khóa', async () => {
     const { admin, calls } = duplicateFixture(),
       op = { table: 'rooms', action: 'duplicate', column: 'price', newName: 'price_copy' };

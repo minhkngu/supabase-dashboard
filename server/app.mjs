@@ -33,7 +33,11 @@ export async function createApp(config, tables, { serveFiles = true, liveMetadat
         if (serveFiles) return await serveStatic(config.root, req, res, u);
         return response(res, 404, { error: 'Không tìm thấy' });
       }
-      if (invalidatesCaches(req.method, u.pathname)) ctx.invalidateCaches();
+      if (
+        invalidatesCaches(req.method, u.pathname) ||
+        (req.method === 'GET' && u.pathname === '/api/meta' && u.searchParams.get('refresh') === '1')
+      )
+        ctx.invalidateCaches();
       if (liveMetadataEachRequest && ctx.admin.enabled) ctx.tables = (await ctx.cachedMetadata()).tables;
       for (const route of routes) if (await route(ctx, req, res, u)) return;
       response(res, 404, { error: 'Không tìm thấy' });

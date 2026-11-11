@@ -18,7 +18,8 @@ import { $, el, name, state } from './state.js';
 import { displayedColumns, persistView, validFilterRules, validRules } from './view-menus.js';
 
 async function refreshMetadata() {
-  const d = await api('/api/meta');
+  // Another serverless instance may still cache the schema from before a DDL write.
+  const d = await api('/api/meta?refresh=1');
   state.adminAvailable = !!d.adminAvailable;
   state.adminError = d.adminError || '';
   state.enumTypes = Array.isArray(d.enumTypes) ? d.enumTypes : [];
@@ -114,13 +115,16 @@ export function openColumnDialog(spec) {
         : c.type_protected;
     $('#columnName').disabled = !!protectedColumn;
     $('#columnType').disabled = !!typeBlocked;
-    $('#deleteColumn').disabled = !!protectedColumn;
+    $('#deleteColumn').disabled = c.delete_protected ?? !!protectedColumn;
     $('#columnTypeInfo').hidden = false;
     $('#columnTypeInfo').textContent = typeBlocked
       ? `Kiểu trong Supabase: ${actual}. Không thể đổi kiểu vì cột có ràng buộc hoặc phụ thuộc cần xử lý trước.`
       : protectedColumn
         ? `Kiểu trong Supabase: ${actual}. Có thể đổi kiểu sau khi kiểm tra dữ liệu; tên và việc xóa bị khóa vì đây là ${reasons.join(', ')}.`
         : `Kiểu hiện tại trong Supabase: ${actual}.`;
+    if (c.options.includes('generated') && !$('#deleteColumn').disabled)
+      $('#columnTypeInfo').textContent =
+        `Cột công thức Supabase: ${c.default_value || actual}. Chỉ đọc; có thể xóa sau khi kiểm tra phụ thuộc và xác nhận.`;
     updateColumnForm();
   } else updateColumnForm();
   setupColumnSync(spec);
@@ -231,7 +235,8 @@ export function initColumnDialog() {
     $('#duplicateColumnError').textContent = '';
     $('#duplicateColumnDialog').close();
     try {
-      await schemaOperation({ ...source, action: 'duplicate', newName });
+      const changed = await schemaOperation({ ...source, action: 'duplicate', newName });
+      if (!changed) return;
       if (state.table && name(state.table) === source.table) {
         await refreshMetadata();
         if (!state.table || name(state.table) !== source.table) return;
@@ -297,6 +302,10 @@ async function schemaOperation(operation) {
   }
   if (['delete', 'type'].includes(operation.action))
     msg += `\nGiá trị hiện có: ${preview.affected}. ${operation.action === 'delete' ? 'Dữ liệu trong cột sẽ bị xóa.' : 'Hãy kiểm tra các ứng dụng đang sử dụng cột này.'}`;
+  if (operation.action === 'delete' && preview.dependenciesChecked)
+    msg += '\nĐã kiểm tra: không có thành phần phụ thuộc đang chặn xóa.';
+  if (operation.action === 'delete' && preview.generatedExpression)
+    msg += `\nCông thức Supabase: ${preview.generatedExpression}\nCông thức và toàn bộ giá trị của cột này sẽ bị xóa.`;
   if (
     operation.action === 'delete' &&
     !(await confirmDialog({ title: 'Xóa cột?', message: msg, confirmLabel: 'Xóa cột', danger: true }))
