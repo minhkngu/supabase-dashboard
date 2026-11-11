@@ -1,4 +1,5 @@
 import { api, message, toast } from './api.js';
+import { choose, load, render } from './grid/render.js';
 import {
   activeLookups,
   checkLookupSync,
@@ -11,7 +12,6 @@ import {
   lookupType,
   persistLookups,
 } from './lookup.js';
-import { choose, load, render } from './main.js';
 import { nav, restoreSidebar } from './sidebar.js';
 import { $, el, name, state } from './state.js';
 import { displayedColumns, persistView, validFilterRules, validRules } from './view-menus.js';

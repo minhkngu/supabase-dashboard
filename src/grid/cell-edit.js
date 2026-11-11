@@ -2,7 +2,7 @@ import { toast } from '../api.js';
 import { createCustomSelect } from '../custom-select.js';
 import { commitCell } from '../history.js';
 import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
-import { load, openEditor, render, valueFor } from '../main.js';
+import { openEditor, valueFor } from '../main.js';
 import {
   displaySettingKey,
   nativeRelations,
@@ -10,6 +10,7 @@ import {
   relationDisplaySettings,
 } from '../relation-display.js';
 import { el, name, pendingRows, state, writable } from '../state.js';
+import { load, render } from './render.js';
 
 export function initCellEdit() {
   document.addEventListener(

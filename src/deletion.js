@@ -1,7 +1,8 @@
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, toast } from './api.js';
+import { load, render } from './grid/render.js';
 import { updateHistoryButtons } from './history.js';
-import { bulkBusy, clearBulk, load, render, syncEditorReadiness } from './main.js';
+import { bulkBusy, clearBulk, syncEditorReadiness } from './main.js';
 import { isPromotionsOverview, promotionsOverview } from './overview/mode.js';
 import {
   $,

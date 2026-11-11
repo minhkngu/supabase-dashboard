@@ -1,7 +1,8 @@
 import { toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
+import { load, render } from './grid/render.js';
 import { activeLookups } from './lookup.js';
-import { clearBulk, load, render, typeIcon } from './main.js';
+import { clearBulk, typeIcon } from './main.js';
 import { $, el, name, state } from './state.js';
 
 const viewStorageKey = 'siris-views-v1';

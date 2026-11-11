@@ -1,4 +1,4 @@
-import { choose } from './main.js';
+import { choose } from './grid/render.js';
 import { $, el, name, state } from './state.js';
 
 function persistSidebar() {

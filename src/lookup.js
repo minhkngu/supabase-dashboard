@@ -1,5 +1,5 @@
 import { api, toast } from './api.js';
-import { load, render } from './main.js';
+import { load, render } from './grid/render.js';
 import { $, el, name, state } from './state.js';
 
 const lookupStorageKey = 'siris-lookups-v1';

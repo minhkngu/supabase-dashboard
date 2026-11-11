@@ -1,6 +1,6 @@
 import { api, toast } from './api.js';
+import { load, render } from './grid/render.js';
 import { fillOptions, lookupTable } from './lookup.js';
-import { load, render } from './main.js';
 import { $, name, state } from './state.js';
 
 export function nativeRelations(table = state.table) {

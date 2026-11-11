@@ -1,5 +1,5 @@
 import { api, toast } from './api.js';
-import { load } from './main.js';
+import { load } from './grid/render.js';
 import { $, deletionBusy, name, state } from './state.js';
 
 export function historyFor(table) {
