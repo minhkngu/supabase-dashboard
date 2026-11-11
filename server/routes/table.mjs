@@ -18,7 +18,54 @@ function cleanValues(values, t, method) {
   return values;
 }
 
+// Counts rows per group across the whole filtered table, so group headers do
+// not only describe the current page. paths is a JSON list of group paths,
+// each a list of [column, value] pairs.
+async function groupCounts(ctx, t, name, params) {
+  let paths;
+  try {
+    paths = JSON.parse(params.get('paths') || '[]');
+  } catch {
+    throw Error('Nhóm không hợp lệ.');
+  }
+  const cols = columns(t);
+  if (!Array.isArray(paths) || paths.length > 100) throw Error('Nhóm không hợp lệ.');
+  for (const path of paths)
+    if (
+      !Array.isArray(path) ||
+      !path.length ||
+      path.length > 5 ||
+      path.some(
+        pair =>
+          !Array.isArray(pair) ||
+          !cols.has(pair[0]) ||
+          (pair[1] !== null && !['string', 'number', 'boolean'].includes(typeof pair[1])),
+      )
+    )
+      throw Error('Nhóm không hợp lệ.');
+  const counts = new Array(paths.length);
+  for (let start = 0; start < paths.length; start += 5)
+    await Promise.all(
+      paths.slice(start, start + 5).map(async (path, offset) => {
+        const q = filterQuery(params, t);
+        for (const [column, value] of path) q.append(column, value === null ? 'is.null' : `eq.${value}`);
+        q.set('select', '"' + path[0][0].replaceAll('"', '\\"') + '"');
+        q.set('limit', '1');
+        const { range } = await ctx.upstream(`${name}?${q}`, { headers: { Prefer: 'count=exact' } });
+        const total = Number(range?.split('/')[1]);
+        counts[start + offset] = Number.isFinite(total) ? total : null;
+      }),
+    );
+  return counts;
+}
+
 export async function handleTable(ctx, req, res, u) {
+  const grouped = u.pathname.match(/^\/api\/table\/([a-zA-Z0-9_]+)\/group-counts$/);
+  if (grouped && req.method === 'GET') {
+    const t = ctx.meta(grouped[1]);
+    response(res, 200, { counts: await groupCounts(ctx, t, grouped[1], u.searchParams) });
+    return true;
+  }
   const match = u.pathname.match(/^\/api\/table\/([a-zA-Z0-9_]+)$/);
   if (!match) return false;
   const name = match[1],

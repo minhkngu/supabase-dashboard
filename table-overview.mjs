@@ -134,10 +134,9 @@ export function createTableOverview({ host, api, getTables }) {
         columns.some(c => normalize(fmt(row[c.name])).includes(term)) ||
         fields.some(k => normalize(cell(row, k)).includes(term)),
     );
-    const metrics = [
-      ['Tổng bản ghi', rows.length],
-      ['Trong kết quả', visible.length],
-    ];
+    const metrics = [['Tổng bản ghi', rows.length]];
+    // Only meaningful while searching; otherwise it repeats the total.
+    if (term) metrics.push(['Trong kết quả', visible.length]);
     if (HIDDEN_FLAG_TABLES.includes(short) && available.has('is_hidden'))
       metrics.push(['Đang hiển thị', rows.filter(r => r.is_hidden === false).length]);
     if (QUANTITY_TABLES.includes(short) && available.has('quantity'))

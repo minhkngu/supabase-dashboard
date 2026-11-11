@@ -88,3 +88,14 @@ test('bộ lọc, nhóm và sắp xếp đang bật hiện thành thẻ có th�
   await page.getByRole('button', { name: 'Bỏ sắp xếp theo city' }).click();
   await expect(page.locator('#ruleChips')).toBeHidden();
 });
+
+test('số đếm của nhóm tính trên toàn bộ dữ liệu đã lọc', async ({ page }) => {
+  await mock(page);
+  await page.route('**/api/table/demo/group-counts**', async route => {
+    const paths = JSON.parse(new URL(route.request().url()).searchParams.get('paths') || '[]');
+    return route.fulfill({ json: { counts: paths.map(() => 42) } });
+  });
+  await header(page, 'city').click();
+  await page.getByRole('menuitem', { name: 'Nhóm theo cột này' }).click();
+  await expect(page.locator('.group-count').first()).toHaveText('42 bản ghi');
+});

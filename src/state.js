@@ -33,6 +33,7 @@ export const state = {
   folders: [],
   tableFolders: {},
   tableLabels: {},
+  groupCounts: null,
   lookups: [],
   lookupResults: new Map(),
   lookupVersion: 0,

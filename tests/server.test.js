@@ -95,6 +95,19 @@ describe('API trên máy cục bộ', () => {
     await fetch(`${origin}/api/table/branches?limit=5000`);
     expect(upstreamRequests.at(-1).url).toContain('limit=1000&offset=0');
   });
+  it('đếm theo nhóm trên toàn bảng với bộ lọc hiện tại', async () => {
+    const paths = JSON.stringify([[['name', 'A']], [['name', null]]]);
+    const q = new URLSearchParams({ search: '', filters: '[]', paths });
+    const result = await (await fetch(`${origin}/api/table/branches/group-counts?${q}`)).json();
+    expect(result.counts).toEqual([1, 1]);
+    const urls = upstreamRequests.slice(-2).map(x => decodeURIComponent(x.url));
+    expect(urls.some(url => url.includes('name=eq.A'))).toBe(true);
+    expect(urls.some(url => url.includes('name=is.null'))).toBe(true);
+    const bad = await fetch(
+      `${origin}/api/table/branches/group-counts?paths=${encodeURIComponent('[[["missing",1]]]')}`,
+    );
+    expect(bad.status).toBe(400);
+  });
   it('phục vụ giao diện build và chặn tệp cấu hình', async () => {
     const response = await fetch(origin);
     expect(response.status).toBe(200);

@@ -134,6 +134,33 @@ function serverOrder() {
     }
   return result;
 }
+// Fetches whole-table counts for the groups visible on this page.
+async function loadGroupCounts(table, version) {
+  const groups = state.view.groups;
+  if (!groups.length || !state.rows.length) return;
+  const paths = new Map();
+  for (const row of state.rows)
+    for (let level = 0; level < groups.length; level++) {
+      const path = groups.slice(0, level + 1).map(g => [g.column, row[g.column] ?? null]);
+      if (path.some(([, value]) => value !== null && typeof value === 'object')) break;
+      paths.set(JSON.stringify(path), path);
+    }
+  const keys = [...paths.keys()];
+  const q = new URLSearchParams({
+    search: $('#search').value,
+    filters: JSON.stringify(state.view.filters || []),
+    paths: JSON.stringify([...paths.values()]),
+  });
+  try {
+    const { counts } = await api(`/api/table/${name(table)}/group-counts?${q}`);
+    if (version !== state.loadVersion || table !== state.table) return;
+    state.groupCounts = new Map();
+    keys.forEach((key, i) => Number.isFinite(counts[i]) && state.groupCounts.set(key, counts[i]));
+    if (!state.cellEdit) render();
+  } catch {
+    // Keep the per-page counts when whole-table counts are unavailable.
+  }
+}
 export async function load({ silent = false } = {}) {
   if (!state.table) return;
   if (deletionBusy && deletionTable?.name === state.table.name) return;
@@ -200,6 +227,8 @@ export async function load({ silent = false } = {}) {
     } else state.rows = d.rows;
     state.total = total;
     state.initialRowsReady = true;
+    state.groupCounts = null;
+    void loadGroupCounts(table, version);
     render();
     scheduleLookupCleanup();
     loadLookups();
@@ -421,7 +450,13 @@ export function render() {
         toggle.append(
           el('span', 'group-arrow', closed ? '▸' : '▾'),
           el('span', 'group-label', label),
-          el('span', 'group-count', `${formatNumber(count)} trên trang`),
+          el(
+            'span',
+            'group-count',
+            state.groupCounts?.has(key)
+              ? `${formatNumber(state.groupCounts.get(key))} bản ghi`
+              : `${formatNumber(count)} trên trang`,
+          ),
         );
         toggle.onclick = () => {
           if (state.collapsed.has(key)) state.collapsed.delete(key);
