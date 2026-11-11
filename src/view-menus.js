@@ -61,12 +61,18 @@ export function persistView() {
     toast('Không thể lưu cấu hình trên trình duyệt');
   }
 }
+// A uuid primary key named id carries no meaning for people; by default it
+// goes last and is shown narrow.
+export function isUuidId(column) {
+  return column?.name === 'id' && column.data_type === 'uuid';
+}
 export function displayedColumns(includeHidden = false) {
   const all = [
-      ...state.table.columns.map(c => ({ id: `col:${c.name}`, column: c })),
+      ...state.table.columns.filter(c => !isUuidId(c)).map(c => ({ id: `col:${c.name}`, column: c })),
       ...activeLookups()
         .filter(x => !x.sync?.enabled && !x.columnBound)
         .map(x => ({ id: `lookup:${x.id}`, lookup: x })),
+      ...state.table.columns.filter(isUuidId).map(c => ({ id: `col:${c.name}`, column: c })),
     ],
     byId = new Map(all.map(x => [x.id, x])),
     v = currentView();

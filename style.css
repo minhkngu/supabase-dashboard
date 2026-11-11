@@ -3998,3 +3998,15 @@ dialog.quick-switch {
 .page-size .custom-select-wrap {
   width: 104px;
 }
+
+/* UUID ID COLUMN */
+#grid th.uuid-id,
+#grid td.uuid-id {
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

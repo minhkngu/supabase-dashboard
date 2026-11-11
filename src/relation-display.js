@@ -55,10 +55,25 @@ export function initRelationDisplay() {
 export function displaySettingKey(relation) {
   return JSON.stringify([relation.source_table, relation.id, relation.config.targetTable, relation.config.targetKey]);
 }
+// Without a saved choice, show the linked record's name (or its first text
+// column) instead of the raw key.
+function defaultDisplayField(relation, target) {
+  const key = relation.config.targetKey,
+    columns = (target?.columns || []).filter(c => c.name !== key);
+  return (
+    columns.find(c => c.name === 'name')?.name ||
+    columns.find(c => ['text', 'character varying'].includes(c.data_type))?.name ||
+    key
+  );
+}
 export function relationDisplayField(relation) {
   const target = lookupTable(relation.config.targetTable),
     saved = relationDisplaySettings[displaySettingKey(relation)];
-  return target?.columns.some(c => c.name === saved) ? saved : relation.config.labelField || relation.config.targetKey;
+  return target?.columns.some(c => c.name === saved) ? saved : defaultDisplayField(relation, target);
+}
+// True when the column shows a field of the linked record rather than its key.
+export function hasRelationDisplay(relation) {
+  return !!lookupTable(relation.config.targetTable) && relationDisplayField(relation) !== relation.config.targetKey;
 }
 export let relationDisplayEditing = null,
   nativeDisplayRows = new Map(),
@@ -78,9 +93,7 @@ export function openRelationDisplay(relation) {
   $('#relationDisplayDialog').showModal();
 }
 export function nativeDisplayValue(column, value) {
-  const relation = nativeRelations().find(
-    rel => rel.config.sourceColumn === column && relationDisplaySettings[displaySettingKey(rel)],
-  );
+  const relation = nativeRelations().find(rel => rel.config.sourceColumn === column && hasRelationDisplay(rel));
   if (!relation || value == null) return null;
   const linked = nativeDisplayRows.get(relation.id)?.get(String(value));
   if (!linked) return null;
@@ -91,11 +104,7 @@ export async function loadNativeDisplays() {
   const table = state.table,
     version = ++nativeDisplayVersion,
     rows = state.rows.slice(),
-    relations = nativeRelations(table).filter(
-      r =>
-        relationDisplaySettings[displaySettingKey(r)] &&
-        lookupTable(r.config.targetTable)?.columns.some(c => c.name === relationDisplaySettings[displaySettingKey(r)]),
-    );
+    relations = nativeRelations(table).filter(hasRelationDisplay);
   nativeDisplayRows = new Map();
   if (!relations.length) return;
   await Promise.all(
@@ -115,7 +124,7 @@ export async function loadNativeDisplays() {
           body: JSON.stringify({
             column: relation.config.targetKey,
             values,
-            fields: [relationDisplaySettings[displaySettingKey(relation)]],
+            fields: [relationDisplayField(relation)],
           }),
         });
         if (version === nativeDisplayVersion)

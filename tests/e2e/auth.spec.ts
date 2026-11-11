@@ -486,7 +486,9 @@ test('chọn và bỏ liên kết khóa ngoại', async ({ page }) => {
   await expect(page.locator('td[data-bulk-column="branchid"]')).toHaveText('1');
   await page.locator('td[data-bulk-column="branchid"]').click();
   await page.getByRole('button', { name: /Chi nhánh mới/ }).click();
-  await expect(page.locator('td[data-bulk-column="branchid"]')).toHaveText('2');
+  // Foreign keys show the linked record's name by default; the key stays in the title.
+  await expect(page.locator('td[data-bulk-column="branchid"]')).toHaveText('Chi nhánh mới');
+  await expect(page.locator('td[data-bulk-column="branchid"]')).toHaveAttribute('title', '2');
   await page.locator('td[data-bulk-column="branchid"]').click();
   await page.locator('#pickerClear').click();
   await expect(page.locator('td[data-bulk-column="branchid"]')).toHaveText('—');

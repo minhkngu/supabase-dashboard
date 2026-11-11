@@ -17,13 +17,12 @@ import {
 } from '../overview/mode.js';
 import { openEditor, typeIcon } from '../record-editor.js';
 import {
-  displaySettingKey,
+  hasRelationDisplay,
   loadNativeDisplays,
   nativeDisplayRows,
   nativeDisplayValue,
   nativeRelations,
   openRelationDisplay,
-  relationDisplaySettings,
 } from '../relation-display.js';
 import { closeNav, nav } from '../sidebar.js';
 import {
@@ -49,6 +48,7 @@ import {
 import {
   closeViewMenus,
   displayedColumns,
+  isUuidId,
   persistView,
   renderViewMenu,
   setVisibleOrder,
@@ -223,6 +223,7 @@ function columnHeader(spec) {
           : '',
     );
   th.dataset.columnId = spec.id;
+  if (isUuidId(c)) th.classList.add('uuid-id');
   th.draggable = true;
   th.title = 'Bấm để mở tùy chọn cột, kéo để đổi vị trí';
   th.tabIndex = 0;
@@ -399,8 +400,7 @@ export function render() {
             ? display.text
             : value == null
               ? nativeRelations().some(
-                  rel =>
-                    rel.config.sourceColumn === groups[level].column && relationDisplaySettings[displaySettingKey(rel)],
+                  rel => rel.config.sourceColumn === groups[level].column && hasRelationDisplay(rel),
                 )
                 ? '—'
                 : 'null'
@@ -463,9 +463,7 @@ export function render() {
         td.textContent = str;
         td.title = str;
       }
-      const native = nativeRelations().find(
-          rel => rel.config.sourceColumn === c.name && relationDisplaySettings[displaySettingKey(rel)],
-        ),
+      const native = nativeRelations().find(rel => rel.config.sourceColumn === c.name && hasRelationDisplay(rel)),
         display = nativeDisplayValue(c.name, v);
       if (display) {
         td.textContent = display.text;
@@ -475,6 +473,7 @@ export function render() {
       editableCell(td, row, c);
       td.dataset.bulkRow = String(i);
       td.dataset.bulkColumn = c.name;
+      if (isUuidId(c)) td.classList.add('uuid-id');
       td.onpaste = e => {
         const text = e.clipboardData?.getData('text/plain');
         if (text === undefined || text === '' || bulkBusy) return;

@@ -3,12 +3,7 @@ import { createCustomSelect } from '../custom-select.js';
 import { commitCell } from '../history.js';
 import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
 import { openEditor, valueFor } from '../record-editor.js';
-import {
-  displaySettingKey,
-  nativeRelations,
-  relationDisplayField,
-  relationDisplaySettings,
-} from '../relation-display.js';
+import { nativeRelations, relationDisplayField } from '../relation-display.js';
 import { el, name, pendingRows, state, writable, $$ } from '../state.js';
 import { clearCellFocus, neighbourCell, queueCellFocus } from './keyboard.js';
 import { load, render } from './render.js';
@@ -104,11 +99,7 @@ export function editableCell(td, row, c) {
           sourceColumn: c.name,
           targetTable: native.config.targetTable,
           targetKey: native.config.targetKey,
-          targetField: relationDisplaySettings[displaySettingKey(native)]
-            ? relationDisplayField(native)
-            : target.columns.find(x => x.name === 'name')?.name ||
-              target.columns.find(x => x.data_type === 'text')?.name ||
-              native.config.targetKey,
+          targetField: relationDisplayField(native),
         });
     }
     if (links.length) {
