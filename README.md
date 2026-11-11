@@ -28,6 +28,14 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+Nếu máy đã có sẵn Chromium, bỏ bước `npx playwright install` và trỏ Playwright tới nó:
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e
+```
+
+Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
+
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
 
 ## Các tính năng đang chuyển đổi
