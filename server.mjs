@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createTtlCache, invalidatesCaches } from './server-cache.mjs';
 const root = path.dirname(fileURLToPath(import.meta.url));
 function envFile(file) {
   if (!existsSync(file)) return {};
@@ -75,17 +76,14 @@ async function cachedMetadata() {
   metadataPending = pending;
   return pending;
 }
-const configCache = new Map();
-async function cachedConfig(key, read) {
-  const entry = configCache.get(key);
-  if (entry && Date.now() - entry.time < 60000) return entry.value;
-  const current = Promise.resolve().then(read);
-  const entryNew = { time: Date.now(), value: current };
-  configCache.set(key, entryNew);
+const configCache = createTtlCache();
+const cachedConfig = (key, read) => configCache.get(key, read);
+const LOOKUP_STORE_MISSING = 'Chưa thiết lập nơi lưu lookup trên Supabase.';
+async function cachedLookups() {
   try {
-    return await current;
+    return await cachedConfig('lookup', () => lookupStore.list());
   } catch (error) {
-    if (configCache.get(key) === entryNew) configCache.delete(key);
+    if (error.message === LOOKUP_STORE_MISSING) return [];
     throw error;
   }
 }
@@ -216,7 +214,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'GET' && !req.headers.origin) return response(res, 403, { error: 'Thiếu nguồn truy cập' });
       if (req.method !== 'GET' && req.headers['x-siris-token'] !== csrf)
         return response(res, 403, { error: 'Phiên không hợp lệ' });
-      if (req.method !== 'GET' && !u.pathname.startsWith('/api/lookup/')) {
+      if (invalidatesCaches(req.method, u.pathname)) {
         metadataGeneration++;
         metadataCache = null;
         metadataPending = null;
@@ -291,8 +289,7 @@ const server = http.createServer(async (req, res) => {
         try {
           return response(res, 200, { available: true, items: await cachedConfig('lookup', () => lookupStore.list()) });
         } catch (error) {
-          if (error.message === 'Chưa thiết lập nơi lưu lookup trên Supabase.')
-            return response(res, 200, { available: false, items: [] });
+          if (error.message === LOOKUP_STORE_MISSING) return response(res, 200, { available: false, items: [] });
           throw error;
         }
       }
@@ -417,12 +414,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (!['POST', 'PATCH', 'DELETE'].includes(method)) return response(res, 405, { error: 'Không hỗ trợ' });
       if (method !== 'DELETE') {
-        const formulas = (await admin.formulaSync.list()).filter(f => f.enabled && f.table === name);
+        const formulas = (await cachedConfig('formula', () => admin.formulaSync.list())).filter(
+          f => f.enabled && f.table === name,
+        );
         if (formulas.some(f => Object.hasOwn(b.values || {}, f.column)))
           throw Error('Cột formula đang tự tính; hãy tắt formula trước khi sửa.');
       }
-      if (method !== 'DELETE' && (await lookupStore.available())) {
-        const synced = (await lookupStore.list()).filter(c => c.sourceTable === name && c.sync?.enabled);
+      if (method !== 'DELETE') {
+        const synced = (await cachedLookups()).filter(c => c.sourceTable === name && c.sync?.enabled);
         if (synced.some(c => Object.hasOwn(b.values || {}, c.sync.columnName)))
           throw Error('Cột lookup đang đồng bộ tự động; hãy tắt đồng bộ trước khi sửa.');
       }
