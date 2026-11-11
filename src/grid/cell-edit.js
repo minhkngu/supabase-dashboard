@@ -10,6 +10,7 @@ import {
   relationDisplaySettings,
 } from '../relation-display.js';
 import { el, name, pendingRows, state, writable, $$ } from '../state.js';
+import { clearCellFocus, neighbourCell, queueCellFocus } from './keyboard.js';
 import { load, render } from './render.js';
 
 export function initCellEdit() {
@@ -20,7 +21,13 @@ export function initCellEdit() {
       if (edit && !edit.td.contains(e.target)) {
         e.preventDefault();
         e.stopPropagation();
-        if (!edit.saving) edit.input.blur();
+        if (edit.saving) return;
+        // Saving re-renders the grid, so remember the clicked cell and open it
+        // afterwards instead of swallowing the click.
+        const target = /** @type {HTMLElement} */ (e.target).closest?.('#grid td[data-bulk-column]');
+        const plain = !(e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) && e.button === 0;
+        queueCellFocus(target && plain ? target : null, { activate: true });
+        edit.input.blur();
       }
     },
     true,
@@ -185,6 +192,7 @@ function startCellEdit(td, row, c, table) {
       if (value === null && !c.options.includes('nullable')) throw Error(`Cột ${c.name} không được để trống.`);
     } catch (error) {
       td.classList.add('cell-error');
+      clearCellFocus();
       toast(error.message);
       input.focus();
       return;
@@ -238,9 +246,13 @@ function startCellEdit(td, row, c, table) {
     e.stopPropagation();
     if (e.key === 'Escape') {
       e.preventDefault();
+      queueCellFocus(td);
       cancel();
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
+      // Enter moves down, Tab right and Shift+Tab left, as in a spreadsheet.
+      const next = e.key === 'Enter' ? neighbourCell(td, 1, 0) : neighbourCell(td, 0, e.shiftKey ? -1 : 1);
+      queueCellFocus(next || td);
       save();
     }
   };

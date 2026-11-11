@@ -1,4 +1,5 @@
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
+import { restoreCellFocus } from './keyboard.js';
 import { api, message, toast } from '../api.js';
 import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
@@ -515,6 +516,7 @@ export function render() {
   });
   grid.append(body);
   syncGrid(liveGrid, grid);
+  restoreCellFocus();
   updateRowSelection();
   $('#hiddenColumnCount').textContent = state.view.hidden.length ? String(state.view.hidden.length) : '';
   $('#count').textContent = `${formatNumber(state.total)} bản ghi`;
