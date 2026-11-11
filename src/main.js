@@ -1,7 +1,13 @@
-import { createPromotionsOverview } from '../promotions-overview.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
-import { createTableOverview } from '../table-overview.mjs';
 import { api, message, toast } from './api.js';
+import {
+  isPromotionsOverview,
+  promotionsOverview,
+  savedPromotionsMode,
+  setPromotionsMode,
+  syncPromotionsView,
+  tableOverview,
+} from './overview/mode.js';
 import {
   $,
   clearPageCache,
@@ -26,70 +32,76 @@ import {
   writable,
 } from './state.js';
 
-let promotionsMode = false;
-function savedPromotionsMode(table) {
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
-    return (
-      (saved[table.name] ??
-        (table.name === 'public.promotions' ? localStorage.getItem('siris-promotions-display-v1') : null)) ===
-      'dashboard'
-    );
-  } catch {
-    return false;
+function toggleRecordSelection(row, checked) {
+  if (deletionBusy) return;
+  const identity = recordIdentity(state.table, row);
+  if (!identity) return;
+  if (checked) selectedRecords.set(identity, row);
+  else selectedRecords.delete(identity);
+  updateRowSelection();
+}
+function toggleManyRecordSelection(rows, checked) {
+  if (deletionBusy) return;
+  for (const row of rows) {
+    const identity = recordIdentity(state.table, row);
+    if (!identity) continue;
+    if (checked) selectedRecords.set(identity, row);
+    else selectedRecords.delete(identity);
   }
+  updateRowSelection();
 }
-function savePromotionsMode(mode) {
-  promotionsMode = mode;
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
-    saved[state.table.name] = mode ? 'dashboard' : 'table';
-    localStorage.setItem('siris-table-display-v1', JSON.stringify(saved));
-  } catch {}
+function rowCheckbox(row, index) {
+  const input = el('input', 'row-select');
+  input.type = 'checkbox';
+  input.dataset.rowSelect = String(index);
+  input.setAttribute('aria-label', `Chọn dòng ${state.page * 50 + index + 1}`);
+  input.onclick = event => event.stopPropagation();
+  return input;
 }
-const promotionsOverview = createPromotionsOverview({
-  host: $('#promotionsDashboard'),
-  api,
-  createSelect: createCustomSelect,
-  getColumns: () => state.table?.columns || [],
-  getTables: () => state.tables,
-});
-const tableOverview = createTableOverview({ host: $('#tableDashboard'), api, getTables: () => state.tables });
-function isPromotionsOverview() {
-  return !!state.table && promotionsMode;
+function rowSelectionHeader() {
+  const head = el('th', 'row-selection-header');
+  if (!state.table?.primary_keys?.length) {
+    head.textContent = '#';
+    return head;
+  }
+  const input = el('input', 'row-select');
+  input.type = 'checkbox';
+  input.dataset.rowsSelectAll = '';
+  input.setAttribute('aria-label', 'Chọn tất cả dòng hiển thị trên trang');
+  input.onclick = event => event.stopPropagation();
+  head.append(input);
+  return head;
 }
-function syncPromotionsView() {
-  const available = !!state.table,
-    overview = available && promotionsMode,
-    isPromo = state.table?.name === 'public.promotions';
-  $('#promotionsViewSwitch').hidden = !available;
-  $('#promotionsDashboard').hidden = !overview || !isPromo;
-  $('#tableDashboard').hidden = !overview || isPromo;
-  $('.grid-shell').hidden = overview;
-  $('.toolbar').hidden = overview;
-  $('#undoCell').hidden = overview;
-  $('#redoCell').hidden = overview;
-  $('#add').hidden = overview;
-  $('#rowSelectionBar').hidden = overview || !(deletionBusy || selectedRecords.size || deletionNotice);
-  $('#promotionsOverviewButton').setAttribute('aria-pressed', String(overview));
-  $('#promotionsTableButton').setAttribute('aria-pressed', String(!overview));
+function updateRowSelection() {
+  const bar = $('#rowSelectionBar'),
+    active = deletionBusy || selectedRecords.size > 0 || !!deletionNotice;
+  bar.hidden = !active || isPromotionsOverview();
+  $('#rowSelectionSummary').textContent = deletionBusy ? deletionProgress : `Đã chọn ${selectedRecords.size} dòng`;
+  $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
+  $('#add').disabled = deletionBusy || !state.configReady || !state.table?.primary_keys?.length;
+  $('#clearRowSelection').disabled = deletionBusy;
+  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
+  $('#rowDeleteResults').hidden = !deletionNotice;
+  $('#rowDeleteResults').textContent = deletionNotice;
+  const inputs = [...document.querySelectorAll('#grid input[data-row-select]')];
+  for (const input of inputs) {
+    const row = state.rows[Number(input.dataset.rowSelect)],
+      identity = recordIdentity(state.table, row);
+    input.checked = !!identity && selectedRecords.has(identity);
+    input.disabled = deletionBusy || !identity;
+    input.closest('tr')?.classList.toggle('record-selected', input.checked);
+  }
+  const header = $('#grid input[data-rows-select-all]');
+  if (header) {
+    const eligible = inputs.filter(input => recordIdentity(state.table, state.rows[Number(input.dataset.rowSelect)])),
+      count = eligible.filter(input => input.checked).length;
+    header.checked = eligible.length > 0 && count === eligible.length;
+    header.indeterminate = count > 0 && count < eligible.length;
+    header.disabled = deletionBusy || !eligible.length;
+  }
+  promotionsOverview.syncSelection();
 }
 export async function initMain() {
-  $('#promotionsOverviewButton').onclick = () => {
-    if (!state.table) return;
-    clearBulk();
-    closeViewMenus();
-    savePromotionsMode(true);
-    syncPromotionsView();
-    void load();
-  };
-  $('#promotionsTableButton').onclick = () => {
-    promotionsOverview.cancel();
-    tableOverview.cancel();
-    savePromotionsMode(false);
-    syncPromotionsView();
-    void load();
-  };
   $('#grid').addEventListener('change', event => {
     const input = event.target;
     if (input.matches('[data-row-select]'))
@@ -921,75 +933,6 @@ export async function initMain() {
   await initialize();
 }
 
-function toggleRecordSelection(row, checked) {
-  if (deletionBusy) return;
-  const identity = recordIdentity(state.table, row);
-  if (!identity) return;
-  if (checked) selectedRecords.set(identity, row);
-  else selectedRecords.delete(identity);
-  updateRowSelection();
-}
-function toggleManyRecordSelection(rows, checked) {
-  if (deletionBusy) return;
-  for (const row of rows) {
-    const identity = recordIdentity(state.table, row);
-    if (!identity) continue;
-    if (checked) selectedRecords.set(identity, row);
-    else selectedRecords.delete(identity);
-  }
-  updateRowSelection();
-}
-function rowCheckbox(row, index) {
-  const input = el('input', 'row-select');
-  input.type = 'checkbox';
-  input.dataset.rowSelect = String(index);
-  input.setAttribute('aria-label', `Chọn dòng ${state.page * 50 + index + 1}`);
-  input.onclick = event => event.stopPropagation();
-  return input;
-}
-function rowSelectionHeader() {
-  const head = el('th', 'row-selection-header');
-  if (!state.table?.primary_keys?.length) {
-    head.textContent = '#';
-    return head;
-  }
-  const input = el('input', 'row-select');
-  input.type = 'checkbox';
-  input.dataset.rowsSelectAll = '';
-  input.setAttribute('aria-label', 'Chọn tất cả dòng hiển thị trên trang');
-  input.onclick = event => event.stopPropagation();
-  head.append(input);
-  return head;
-}
-function updateRowSelection() {
-  const bar = $('#rowSelectionBar'),
-    active = deletionBusy || selectedRecords.size > 0 || !!deletionNotice;
-  bar.hidden = !active || isPromotionsOverview();
-  $('#rowSelectionSummary').textContent = deletionBusy ? deletionProgress : `Đã chọn ${selectedRecords.size} dòng`;
-  $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
-  $('#add').disabled = deletionBusy || !state.configReady || !state.table?.primary_keys?.length;
-  $('#clearRowSelection').disabled = deletionBusy;
-  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
-  $('#rowDeleteResults').hidden = !deletionNotice;
-  $('#rowDeleteResults').textContent = deletionNotice;
-  const inputs = [...document.querySelectorAll('#grid input[data-row-select]')];
-  for (const input of inputs) {
-    const row = state.rows[Number(input.dataset.rowSelect)],
-      identity = recordIdentity(state.table, row);
-    input.checked = !!identity && selectedRecords.has(identity);
-    input.disabled = deletionBusy || !identity;
-    input.closest('tr')?.classList.toggle('record-selected', input.checked);
-  }
-  const header = $('#grid input[data-rows-select-all]');
-  if (header) {
-    const eligible = inputs.filter(input => recordIdentity(state.table, state.rows[Number(input.dataset.rowSelect)])),
-      count = eligible.filter(input => input.checked).length;
-    header.checked = eligible.length > 0 && count === eligible.length;
-    header.indeterminate = count > 0 && count < eligible.length;
-    header.disabled = deletionBusy || !eligible.length;
-  }
-  promotionsOverview.syncSelection();
-}
 async function refreshAfterWrite(table = state.table) {
   if (!table || state.table?.name !== table.name) return;
   const scroller = $('.table-scroll'),
@@ -2946,7 +2889,7 @@ function closeAllCustomSelects() {
     if (btn) btn.setAttribute('aria-expanded', 'false');
   });
 }
-function closeViewMenus() {
+export function closeViewMenus() {
   closeAllCustomSelects();
   for (const kind of ['filter', 'group', 'sort', 'columns']) {
     const m = $('#' + kind + 'Menu'),
@@ -2956,7 +2899,7 @@ function closeViewMenus() {
   }
 }
 
-function createCustomSelect({ options, value, onChange, ariaLabel, searchPlaceholder, className = '' }) {
+export function createCustomSelect({ options, value, onChange, ariaLabel, searchPlaceholder, className = '' }) {
   const wrap = el('div', 'custom-select-wrap ' + (className || ''));
   const btn = el('button', 'custom-select-btn');
   btn.type = 'button';
@@ -3411,7 +3354,7 @@ function choose(t) {
   setDeletionNotice('');
   promotionsOverview.cancel();
   tableOverview.cancel();
-  promotionsMode = savedPromotionsMode(t);
+  setPromotionsMode(savedPromotionsMode(t));
   state.rows = [];
   state.loadVersion++;
   state.lookupVersion++;
@@ -3468,7 +3411,7 @@ function serverOrder() {
     }
   return result;
 }
-async function load({ silent = false } = {}) {
+export async function load({ silent = false } = {}) {
   if (!state.table) return;
   if (deletionBusy && deletionTable?.name === state.table.name) return;
   if (isPromotionsOverview()) {
@@ -3938,7 +3881,7 @@ function batchWritable(c, table = state.table) {
     !nativeRelations(table).some(r => r.config.sourceColumn === c.name)
   );
 }
-function clearBulk() {
+export function clearBulk() {
   selectionAnchor = null;
   virtualAnchor = null;
   selectedCells = [];
