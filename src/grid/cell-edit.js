@@ -9,7 +9,7 @@ import {
   relationDisplayField,
   relationDisplaySettings,
 } from '../relation-display.js';
-import { el, name, pendingRows, state, writable } from '../state.js';
+import { el, name, pendingRows, state, writable, $$ } from '../state.js';
 import { load, render } from './render.js';
 
 export function initCellEdit() {
@@ -219,7 +219,7 @@ function startCellEdit(td, row, c, table) {
       if (state.table === table && !state.cellEdit) {
         render();
         const index = state.rows.indexOf(row),
-          cell = [...document.querySelectorAll('#grid td[data-bulk-column]')].find(
+          cell = $$('#grid td[data-bulk-column]').find(
             item => item.dataset.bulkRow === String(index) && item.dataset.bulkColumn === c.name,
           );
         if (cell) {

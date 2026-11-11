@@ -4,6 +4,10 @@ export function recordIdentity(table, row) {
 }
 
 // Capture keys before the first await. Never retry an uncertain write.
+/**
+ * @param {{ api: Function, table: any, rows: any[], onDeleted?: (entry: any) => void,
+ *   onProgress?: (current: number, total: number) => void, timeoutMs?: number }} options
+ */
 export async function deleteRecordBatch({
   api,
   table,

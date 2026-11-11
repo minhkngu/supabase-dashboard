@@ -23,6 +23,7 @@ import {
   setDeletionProgress,
   setDeletionTable,
   state,
+  $$,
 } from './state.js';
 import { persistView } from './view-menus.js';
 
@@ -77,7 +78,7 @@ export function updateRowSelection() {
   $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
   $('#rowDeleteResults').hidden = !deletionNotice;
   $('#rowDeleteResults').textContent = deletionNotice;
-  const inputs = [...document.querySelectorAll('#grid input[data-row-select]')];
+  const inputs = $$('#grid input[data-row-select]');
   for (const input of inputs) {
     const row = state.rows[Number(input.dataset.rowSelect)],
       identity = recordIdentity(state.table, row);
@@ -102,9 +103,7 @@ export function initDeletion() {
       toggleRecordSelection(state.rows[Number(input.dataset.rowSelect)], input.checked);
     else if (input.matches('[data-rows-select-all]'))
       toggleManyRecordSelection(
-        [...document.querySelectorAll('#grid input[data-row-select]')].map(
-          input => state.rows[Number(input.dataset.rowSelect)],
-        ),
+        $$('#grid input[data-row-select]').map(input => state.rows[Number(input.dataset.rowSelect)]),
         input.checked,
       );
   });

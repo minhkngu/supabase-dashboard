@@ -71,7 +71,7 @@ export function initHistory() {
       !(e.metaKey || e.ctrlKey) ||
       e.altKey ||
       e.key.toLowerCase() !== 'z' ||
-      e.target.closest('input,textarea,select,[contenteditable=true]') ||
+      /** @type {HTMLElement} */ (e.target).closest('input,textarea,select,[contenteditable=true]') ||
       document.querySelector('dialog[open]')
     )
       return;

@@ -97,9 +97,9 @@ async function upstream({ url, key }, route, options = {}) {
     data = text;
   }
   if (!r.ok) {
-    const error = Error(data?.message || data?.error_description || `Supabase trả về lỗi ${r.status}`);
-    error.status = r.status;
-    throw error;
+    throw Object.assign(Error(data?.message || data?.error_description || `Supabase trả về lỗi ${r.status}`), {
+      status: r.status,
+    });
   }
   return { data, range: r.headers.get('content-range') };
 }

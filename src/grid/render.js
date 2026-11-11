@@ -40,6 +40,7 @@ import {
   setDeletionNotice,
   setLoadController,
   state,
+  $$,
 } from '../state.js';
 import {
   closeViewMenus,
@@ -148,7 +149,7 @@ export async function load({ silent = false } = {}) {
     countKey = JSON.stringify([table.name, $('#search').value, filters]),
     needsCount = countedKey !== countKey;
   const q = new URLSearchParams({
-    page: state.page,
+    page: String(state.page),
     search: $('#search').value,
     orders: JSON.stringify(serverOrder()),
     filters,
@@ -299,7 +300,7 @@ function updateFrozen() {
     cell.classList.remove('frozen-cell', 'frozen-number', 'frozen-edge');
     cell.style.left = '';
   }
-  const heads = [...grid.querySelectorAll('thead th[data-column-id]')],
+  const heads = $$('thead th[data-column-id]', grid),
     frozen = state.view.frozen,
     visibleFrozen = heads.filter(head => frozen.includes(head.dataset.columnId));
   let offset = 0;

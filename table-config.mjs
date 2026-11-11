@@ -104,7 +104,6 @@ export function fieldHints(tableName) {
     is_hidden: 'Bật true để ẩn mục khỏi giao diện.',
     fees: 'Các khoản phí và cách tính.',
     policies: 'Chính sách dạng JSON.',
-    excluded_amenities_en: 'Danh sách tiện nghi không bao gồm bằng tiếng Anh.',
     amount: 'Số tiền điều chỉnh.',
     note: 'Ghi chú bổ sung.',
     date: 'Ngày áp dụng.',

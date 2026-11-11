@@ -4,7 +4,7 @@ import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
 import { load } from './grid/render.js';
-import { $, deletionBusy, el, name, state, writable } from './state.js';
+import { $, $$, deletionBusy, el, name, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
 export function typeIcon(c) {
@@ -175,7 +175,7 @@ export function initRecordEditor() {
     $('#formError').textContent = '';
     try {
       const values = {};
-      for (const input of document.querySelectorAll('#formFields [data-column]')) {
+      for (const input of $$('#formFields [data-column]')) {
         if (input.disabled) continue;
         const c = state.table.columns.find(c => c.name === input.dataset.column);
         if (state.edit && input.value === input.dataset.original) continue;

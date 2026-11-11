@@ -2,7 +2,7 @@ import { api, toast } from '../api.js';
 import { historyFor, updateHistoryButtons } from '../history.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
-import { $, PAGE_SIZE, el, name, pendingRows, state, writable } from '../state.js';
+import { $, PAGE_SIZE, el, name, pendingRows, state, writable, $$ } from '../state.js';
 import { displayedColumns } from '../view-menus.js';
 import { load, render } from './render.js';
 
@@ -89,9 +89,7 @@ export function clearBulk() {
 }
 export function selectBulk(td, row, c, deferEditor = false) {
   if (bulkBusy || !batchWritable(c)) return;
-  const cells = [...document.querySelectorAll('#grid td[data-bulk-column]')].filter(
-    x => x.dataset.bulkColumn === c.name,
-  );
+  const cells = $$('#grid td[data-bulk-column]').filter(x => x.dataset.bulkColumn === c.name);
   if (
     !selectionAnchor ||
     selectionAnchor.column !== c.name ||
@@ -135,7 +133,7 @@ function selectRectangle(first, last, deferEditor = false) {
     hi = Math.max(first.cellIndex, last.cellIndex),
     chosen = rows.slice(Math.min(startRow, endRow), Math.max(startRow, endRow) + 1);
   clearBulk();
-  copySelection = chosen.map(row => [...row.cells].slice(lo, hi + 1));
+  copySelection = chosen.map(row => [.../** @type {HTMLTableRowElement} */ (row).cells].slice(lo, hi + 1));
   for (const row of copySelection) for (const cell of row) cell.classList.add('bulk-selected');
   if (
     lo === hi &&
@@ -146,7 +144,7 @@ function selectRectangle(first, last, deferEditor = false) {
     const column = state.table.columns.find(c => c.name === first.dataset.bulkColumn);
     selectBulk(first, Number(first.dataset.bulkRow), column, deferEditor);
     selectBulk(last, Number(last.dataset.bulkRow), column, deferEditor);
-    copySelection = chosen.map(row => [row.cells[lo]]);
+    copySelection = chosen.map(row => [/** @type {HTMLTableRowElement} */ (row).cells[lo]]);
   }
 }
 const gridSelection = $('#grid');
@@ -234,7 +232,9 @@ export function initSelection() {
             const index = Number(cell.dataset.bulkRow),
               column = cell.dataset.bulkColumn,
               value = cell.dataset.bulkVirtual
-                ? [...cell.querySelectorAll('.lookup-link')].map(button => button.textContent).join(', ') ||
+                ? $$('.lookup-link', cell)
+                    .map(button => button.textContent)
+                    .join(', ') ||
                   (cell.textContent === '—' || cell.textContent === 'Đang tải…' ? '' : cell.textContent)
                 : column
                   ? state.rows[index]?.[column]
@@ -258,7 +258,7 @@ export function initSelection() {
       state.cellEdit ||
       !copySelection.length ||
       !document.activeElement?.closest('#grid') ||
-      event.target.closest('input,textarea,select,[contenteditable=true]')
+      /** @type {HTMLElement} */ (event.target).closest('input,textarea,select,[contenteditable=true]')
     )
       return;
     event.preventDefault();
@@ -324,9 +324,7 @@ export async function pasteFromCell(rowValue, columnName, text) {
     .replace(/\n$/, '')
     .split('\n')
     .map(line => line.split('\t'));
-  const visible = [...document.querySelectorAll('#grid td[data-bulk-column]')].filter(
-      cell => cell.dataset.bulkColumn === columnName,
-    ),
+  const visible = $$('#grid td[data-bulk-column]').filter(cell => cell.dataset.bulkColumn === columnName),
     from = visible.findIndex(cell => cell.dataset.bulkRow === rowValue),
     rowIndexes = visible.slice(from, from + values.length).map(cell => Number(cell.dataset.bulkRow)),
     column = displayedColumns().findIndex(spec => spec.column?.name === columnName);

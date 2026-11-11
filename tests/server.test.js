@@ -12,7 +12,7 @@ const getPort = async () => {
   const server = net.createServer();
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
-  const port = server.address().port;
+  const port = /** @type {import('node:net').AddressInfo} */ (server.address()).port;
   await new Promise(resolve => server.close(resolve));
   return port;
 };
@@ -34,7 +34,7 @@ beforeAll(async () => {
     env: {
       ...process.env,
       PORT: String(port),
-      SUPABASE_URL: `http://127.0.0.1:${upstream.address().port}`,
+      SUPABASE_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (upstream.address()).port}`,
       SUPABASE_KEY: 'test-publishable',
       SUPABASE_DB_URL: '',
     },

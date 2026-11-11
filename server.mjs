@@ -19,7 +19,7 @@ const ctx = await createContext(config);
 const routes = [handleMeta, handleFormula, handleLookup, handleSchema, handleTable];
 
 const server = http.createServer(async (req, res) => {
-  if (config.perfTiming) res._sirisStart = process.hrtime.bigint();
+  if (config.perfTiming) Object.assign(res, { _sirisStart: process.hrtime.bigint() });
   try {
     const u = new URL(req.url, `http://127.0.0.1:${config.port}`);
     const rejected = rejectRequest(req, u, { port: config.port, csrf: ctx.csrf });

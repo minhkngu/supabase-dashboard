@@ -9,7 +9,7 @@
     "dev": "node dev.mjs",
     "build": "vite build",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.js.json",
     "test:e2e": "playwright test",
     "format": "prettier --write \"**/*.{mjs,js,ts,css,html}\"",
     "format:check": "prettier --check \"**/*.{mjs,js,ts,css,html}\""

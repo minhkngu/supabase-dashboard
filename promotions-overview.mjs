@@ -100,7 +100,8 @@ export function createPromotionsOverview({ host, api, createSelect, getColumns, 
  <div class="promo-workspace"><div class="promo-list" data-promo-list></div></div><dialog class="promo-detail-dialog" aria-labelledby="promoDetailTitle"><div class="dialog-head"><h2 id="promoDetailTitle">Chi tiết chương trình</h2><button type="button" class="icon" data-promo-close aria-label="Đóng chi tiết">×</button></div><div class="promo-detail" data-promo-detail></div></dialog>
  `;
   const selectControls = [];
-  for (const [key, label, options] of [
+  /** @type {[string, string, string[][]][]} */
+  const filterDefs = [
     [
       'status',
       'Trạng thái',
@@ -128,7 +129,8 @@ export function createPromotionsOverview({ host, api, createSelect, getColumns, 
         ['per_stay', 'Toàn lượt đặt'],
       ],
     ],
-  ]) {
+  ];
+  for (const [key, label, options] of filterDefs) {
     const holder = find(`[data-promo-${key}]`),
       text = document.createElement('span');
     text.className = 'promo-filter-label';

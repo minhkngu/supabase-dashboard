@@ -19,17 +19,16 @@ export async function api(url, opts = {}) {
   }
   const d = await r.json();
   if (!r.ok) {
-    const error = Error(d.error || 'Có lỗi xảy ra');
-    error.status = r.status;
-    throw error;
+    throw Object.assign(Error(d.error || 'Có lỗi xảy ra'), { status: r.status });
   }
   return d;
 }
+let toastTimer;
 export function toast(msg) {
   $('#toast').textContent = msg;
   $('#toast').classList.add('show');
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => $('#toast').classList.remove('show'), 3500);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3500);
 }
 export function message(msg, error = false) {
   $('#message').textContent = msg;

@@ -1,6 +1,10 @@
 import { el } from './state.js';
 import { closeAllCustomSelects } from './view-menus.js';
 
+/**
+ * @param {{ options: any[], value?: any, onChange?: (value: any) => void, ariaLabel?: string,
+ *   searchPlaceholder?: string, className?: string }} config
+ */
 export function createCustomSelect({ options, value, onChange, ariaLabel, searchPlaceholder, className = '' }) {
   const wrap = el('div', 'custom-select-wrap ' + (className || ''));
   const btn = el('button', 'custom-select-btn');

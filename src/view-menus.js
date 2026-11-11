@@ -4,7 +4,7 @@ import { load, render } from './grid/render.js';
 import { clearBulk } from './grid/selection.js';
 import { activeLookups } from './lookup.js';
 import { typeIcon } from './record-editor.js';
-import { $, el, name, state } from './state.js';
+import { $, el, name, state, $$ } from './state.js';
 
 const viewStorageKey = 'siris-views-v1';
 export function restoreViews() {
@@ -137,7 +137,7 @@ function renderColumnVisibility(filterQuery = '') {
         target = items[index + (e.key === 'ArrowUp' ? -1 : 1)];
       if (target && moveColumnInList(spec.id, target.id, e.key === 'ArrowDown')) {
         renderColumnVisibility($('#columnSearchInput')?.value || '');
-        [...list.querySelectorAll('.column-reorder-handle')]
+        $$('.column-reorder-handle', list)
           .find(item => item.getAttribute('aria-label') === handle.getAttribute('aria-label'))
           ?.focus();
       }
@@ -259,7 +259,7 @@ export function initViewMenus() {
 const showAllBtn = $('#showAllColumns');
 const colSearch = $('#columnSearchInput');
 export function closeAllCustomSelects() {
-  document.querySelectorAll('.custom-select-menu:not([hidden])').forEach(m => {
+  $$('.custom-select-menu:not([hidden])').forEach(m => {
     m.hidden = true;
     const btn = m.closest('.custom-select-wrap')?.querySelector('.custom-select-btn');
     if (btn) btn.setAttribute('aria-expanded', 'false');
@@ -562,6 +562,7 @@ export function initViewMenus2() {
     };
 
   document.addEventListener('pointerdown', e => {
+    const target = /** @type {HTMLElement} */ (e.target);
     const path = e.composedPath ? e.composedPath() : [];
     const inside =
       path.some(
@@ -572,12 +573,12 @@ export function initViewMenus2() {
             el.classList?.contains('custom-select-menu') ||
             el.classList?.contains('custom-select-item')),
       ) ||
-      e.target.closest?.('.view-menu') ||
-      e.target.closest?.('.custom-select-menu');
+      target.closest?.('.view-menu') ||
+      target.closest?.('.custom-select-menu');
 
     if (!inside) {
       closeViewMenus();
-    } else if (!e.target.closest?.('.custom-select-wrap')) {
+    } else if (!target.closest?.('.custom-select-wrap')) {
       closeAllCustomSelects();
     }
   });

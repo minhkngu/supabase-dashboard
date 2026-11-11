@@ -8,7 +8,10 @@ export const selectedRecords = new Map();
 export const pendingRows = new WeakSet();
 // Rows per grid page; the server accepts the same default.
 export const PAGE_SIZE = 50;
+/** @type {(selector: string) => any} */
 export const $ = s => document.querySelector(s);
+/** @type {(selector: string, root?: ParentNode) => any[]} */
+export const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 export const state = {
   tables: [],
   table: null,
