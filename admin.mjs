@@ -1,71 +1,611 @@
 import { createFormulaSync } from './formula-sync.mjs';
 import pg from 'pg';
 import { createLookupSync } from './lookup-sync.mjs';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
-const TYPES = {text:'text',varchar:'character varying',smallint:'smallint',integer:'integer',bigint:'bigint',numeric:'numeric',real:'real',double:'double precision',date:'date',time:'time without time zone',timestamp:'timestamp with time zone',timestamp_local:'timestamp without time zone',boolean:'boolean',json:'json',jsonb:'jsonb',uuid:'uuid',bytea:'bytea'};
-function safeDefaultExpression(value){return /^(?:now\(\)|current_timestamp|current_date|gen_random_uuid\(\))(?:\s*[+-]\s*interval\s*'\d{1,6} (?:day|days|hour|hours|minute|minutes)')?$/i.test(value.trim())}
-function addOptions(req){const o=req.options||{};if(typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['nullable','unique','identity','defaultKind','defaultValue','description','array','enumType','foreignTable','foreignColumn','onDelete','onUpdate'].includes(k)))throw Error('Tùy chọn cột không hợp lệ.');const nullable=o.nullable!==false,unique=o.unique===true,identity=o.identity===true,array=o.array===true,kind=o.defaultKind||'none';if(array&&(identity||kind==='now'||kind==='uuid'))throw Error('Mảng không hỗ trợ identity hoặc mặc định tự sinh.');if(!['none','literal','now','uuid','expression'].includes(kind))throw Error('Giá trị mặc định không hợp lệ.');if(identity&&(!['smallint','integer','bigint'].includes(req.newType)||kind!=='none'))throw Error('Identity chỉ hỗ trợ số nguyên và không dùng cùng giá trị mặc định.');if(kind==='now'&&!['timestamp','timestamp_local','date'].includes(req.newType))throw Error('Giá trị now chỉ hỗ trợ ngày và thời gian.');if(kind==='uuid'&&req.newType!=='uuid')throw Error('UUID tự sinh chỉ hỗ trợ kiểu uuid.');if(kind==='literal'&&(typeof o.defaultValue!=='string'||o.defaultValue.length>4000))throw Error('Giá trị mặc định không hợp lệ.');if(kind==='expression'&&(typeof o.defaultValue!=='string'||!safeDefaultExpression(o.defaultValue)))throw Error('Biểu thức chưa được hỗ trợ. Dùng now(), current_date, current_timestamp, gen_random_uuid() hoặc phép cộng/trừ thời gian đơn giản.');if(o.description!==undefined&&(typeof o.description!=='string'||o.description.length>1000))throw Error('Mô tả quá dài.');return {nullable,unique,identity,array,kind,value:o.defaultValue,description:o.description||''}}
-const literal=value=>"'"+String(value).replaceAll("'","''")+"'";
-const ident = value => '"' + String(value).replaceAll('"','""') + '"';
-const tableRef = value => `public.${ident(value)}`;
-const validName = value => typeof value==='string' && /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/.test(value);
-const safeError = error => error?.code==='23505'?'Giá trị đã tồn tại.':error?.code==='23503'?'Bản ghi liên kết không còn tồn tại hoặc đang được sử dụng.':error?.code==='42501'?'Kết nối database không có đủ quyền.':error?.code==='22P02'?'Dữ liệu không thể chuyển sang kiểu đã chọn.':error?.code?'Không thể thực hiện thao tác database. Kiểm tra quyền và cấu hình kết nối.':error?.message||'Không thể thực hiện thao tác.';
-export function createAdmin(connectionString, poolOverride){
- const pool=poolOverride || (connectionString?new pg.Pool({connectionString, max:4, connectionTimeoutMillis:5000}):null);
- async function transaction(fn){const client=await pool.connect();try{await client.query('BEGIN');const out=await fn(client);await client.query('COMMIT');return out}catch(e){try{await client.query('ROLLBACK')}catch{}throw e}finally{client.release()}}
- async function metadata(client=pool){
-  const pending=client===pool?Promise.all([client.query(`SELECT c.oid::text AS table_oid,c.relname AS table_name,a.attnum AS column_id,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS format,CASE WHEN t.typname='timestamptz' THEN 'timestamp with time zone' WHEN t.typname='timestamp' THEN 'timestamp without time zone' WHEN t.typname='int4' THEN 'integer' WHEN t.typname='int8' THEN 'bigint' WHEN t.typname='int2' THEN 'smallint' WHEN t.typname='float8' THEN 'double precision' WHEN t.typname='float4' THEN 'real' WHEN t.typname='bool' THEN 'boolean' WHEN t.typname='varchar' THEN 'character varying' ELSE t.typname END AS data_type,col_description(c.oid,a.attnum) AS description,a.attnotnull,a.attidentity,a.attgenerated,pg_get_expr(d.adbin,d.adrelid) AS default_value,EXISTS(SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p' AND a.attnum=ANY(k.conkey)) AS is_primary,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND a.attnum=ANY(i.indkey)) AS has_index,EXISTS(SELECT 1 FROM pg_depend dep WHERE dep.refobjid=c.oid AND dep.refobjsubid=a.attnum AND dep.classid='pg_rewrite'::regclass) AS has_view,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND k.contype<>'p' AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_type_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND NOT i.indisprimary AND a.attnum=ANY(i.indkey)) AS has_type_index FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid LEFT JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p') ORDER BY c.relname,a.attnum`),client.query(`SELECT k.conname,src.relname AS source_table,dst.relname AS target_table,array_agg(sa.attname::text ORDER BY p.n) AS source_columns,array_agg(ta.attname::text ORDER BY p.n) AS target_columns FROM pg_constraint k JOIN pg_class src ON src.oid=k.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=k.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute sa ON sa.attrelid=src.oid AND sa.attnum=k.conkey[p.n] JOIN pg_attribute ta ON ta.attrelid=dst.oid AND ta.attnum=k.confkey[p.n] WHERE k.contype='f' AND sn.nspname='public' AND dn.nspname='public' GROUP BY k.oid,src.relname,dst.relname`),client.query(`SELECT c.relname AS table_name,k.conname AS name,array_agg(a.attname::text ORDER BY p.n) AS columns FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.conkey[p.n] WHERE n.nspname='public' AND k.contype='u' GROUP BY c.relname,k.oid`),client.query(`SELECT tablename AS table_name,indexname AS name,indexdef AS definition FROM pg_indexes WHERE schemaname='public' ORDER BY tablename,indexname`),client.query(`SELECT c.relname AS table_name,a.attname AS column_name,array_agg(e.enumlabel::text ORDER BY e.enumsortorder) AS values FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid JOIN pg_enum e ON e.enumtypid=t.oid WHERE n.nspname='public' GROUP BY c.relname,a.attname`)]):null;
-  const result=pending? (await pending)[0]:await client.query(`SELECT c.oid::text AS table_oid,c.relname AS table_name,a.attnum AS column_id,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS format,CASE WHEN t.typname='timestamptz' THEN 'timestamp with time zone' WHEN t.typname='timestamp' THEN 'timestamp without time zone' WHEN t.typname='int4' THEN 'integer' WHEN t.typname='int8' THEN 'bigint' WHEN t.typname='int2' THEN 'smallint' WHEN t.typname='float8' THEN 'double precision' WHEN t.typname='float4' THEN 'real' WHEN t.typname='bool' THEN 'boolean' WHEN t.typname='varchar' THEN 'character varying' ELSE t.typname END AS data_type,col_description(c.oid,a.attnum) AS description,a.attnotnull,a.attidentity,a.attgenerated,pg_get_expr(d.adbin,d.adrelid) AS default_value,EXISTS(SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p' AND a.attnum=ANY(k.conkey)) AS is_primary,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND a.attnum=ANY(i.indkey)) AS has_index,EXISTS(SELECT 1 FROM pg_depend dep WHERE dep.refobjid=c.oid AND dep.refobjsubid=a.attnum AND dep.classid='pg_rewrite'::regclass) AS has_view,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND k.contype<>'p' AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_type_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND NOT i.indisprimary AND a.attnum=ANY(i.indkey)) AS has_type_index FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid LEFT JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p') ORDER BY c.relname,a.attnum`);
-  const map=new Map();for(const r of result.rows){if(!map.has(r.table_name))map.set(r.table_name,{name:`public.${r.table_name}`,table_oid:r.table_oid,columns:[],primary_keys:[],foreign_key_constraints:[]});const t=map.get(r.table_name),options=['updatable'];if(!r.attnotnull)options.push('nullable');if(r.attidentity)options.push('identity');if(r.attgenerated)options.push('generated');t.columns.push({name:r.column_name,column_id:r.column_id,data_type:r.data_type,format:r.format,options,description:r.description||'',default_value:r.default_value,identity_generation:r.attidentity==='a'?'ALWAYS':r.attidentity?'BY DEFAULT':undefined,protected:!!(r.is_primary||r.attgenerated||r.attidentity||r.has_constraint||r.has_index||r.has_view),type_protected:!!(r.attgenerated||r.attidentity||r.has_type_constraint||r.has_type_index||r.has_view)});if(r.is_primary)t.primary_keys.push(r.column_name)}
-  const refs=pending? (await pending)[1]:await client.query(`SELECT k.conname,src.relname AS source_table,dst.relname AS target_table,array_agg(sa.attname::text ORDER BY p.n) AS source_columns,array_agg(ta.attname::text ORDER BY p.n) AS target_columns FROM pg_constraint k JOIN pg_class src ON src.oid=k.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=k.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute sa ON sa.attrelid=src.oid AND sa.attnum=k.conkey[p.n] JOIN pg_attribute ta ON ta.attrelid=dst.oid AND ta.attnum=k.confkey[p.n] WHERE k.contype='f' AND sn.nspname='public' AND dn.nspname='public' GROUP BY k.oid,src.relname,dst.relname`);
-  for(const r of refs.rows){const f={name:r.conname,source_table:`public.${r.source_table}`,source_columns:r.source_columns,target_table:`public.${r.target_table}`,target_columns:r.target_columns};map.get(r.source_table)?.foreign_key_constraints.push(f);if(r.source_table!==r.target_table)map.get(r.target_table)?.foreign_key_constraints.push(f)}
-  const unique=pending? (await pending)[2]:await client.query(`SELECT c.relname AS table_name,k.conname AS name,array_agg(a.attname::text ORDER BY p.n) AS columns FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.conkey[p.n] WHERE n.nspname='public' AND k.contype='u' GROUP BY c.relname,k.oid`);
-  const indexes=pending? (await pending)[3]:await client.query(`SELECT tablename AS table_name,indexname AS name,indexdef AS definition FROM pg_indexes WHERE schemaname='public' ORDER BY tablename,indexname`);
-  const enums=pending? (await pending)[4]:await client.query(`SELECT c.relname AS table_name,a.attname AS column_name,array_agg(e.enumlabel::text ORDER BY e.enumsortorder) AS values FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid JOIN pg_enum e ON e.enumtypid=t.oid WHERE n.nspname='public' GROUP BY c.relname,a.attname`);
-  for(const t of map.values()){t.unique_constraints=[];t.indexes=[];t.relations=[]}
-  for(const r of unique.rows)map.get(r.table_name)?.unique_constraints.push({name:r.name,columns:r.columns});for(const r of indexes.rows)map.get(r.table_name)?.indexes.push({name:r.name,definition:r.definition});for(const r of enums.rows){const c=map.get(r.table_name)?.columns.find(x=>x.name===r.column_name);if(c)c.enum_values=r.values}
-  for(const t of map.values()){const outgoing=t.foreign_key_constraints.filter(f=>f.source_table===t.name);for(const f of outgoing)t.relations.push({kind:'many-to-one',constraint:f.name,target_table:f.target_table});const keys=new Set(outgoing.flatMap(f=>f.source_columns));if(outgoing.length===2&&t.primary_keys.length&&t.primary_keys.every(k=>keys.has(k))&&keys.size===t.primary_keys.length)t.junction=true}
-  return [...map.values()];
- }
- async function visibleMetadata(role='authenticated'){if(!['anon','authenticated'].includes(role))throw Error('Vai trò không hợp lệ.');const [tables,access]=await Promise.all([metadata(),pool.query(`SELECT c.relname,a.attname,has_table_privilege($1,c.oid,'SELECT') AS table_read FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE n.nspname='public' AND c.relkind IN ('r','p') AND has_schema_privilege($1,n.oid,'USAGE') AND has_column_privilege($1,c.oid,a.attnum,'SELECT')`,[role])]);const permitted=new Map();for(const row of access.rows){if(!permitted.has(row.relname))permitted.set(row.relname,{columns:new Set(),tableRead:row.table_read});permitted.get(row.relname).columns.add(row.attname)}return tables.filter(t=>permitted.has(t.name.slice(7))).map(t=>{const accessForTable=permitted.get(t.name.slice(7)),allowed=accessForTable.columns,columns=t.columns.filter(c=>allowed.has(c.name)),allKeysVisible=t.primary_keys.every(k=>allowed.has(k));return {...t,columns,primary_keys:allKeysVisible?t.primary_keys:[],unique_constraints:t.unique_constraints.filter(u=>u.columns.every(c=>allowed.has(c))),indexes:accessForTable.tableRead?t.indexes:[],foreign_key_constraints:t.foreign_key_constraints.filter(f=>{const source=permitted.get(f.source_table.slice(7)),target=permitted.get(f.target_table.slice(7));return source&&target&&f.source_columns.every(c=>source.columns.has(c))&&f.target_columns.every(c=>target.columns.has(c))}),relations:t.relations.filter(r=>permitted.has(r.target_table.slice(7)))}})}
- async function enumTypes(client=pool){const r=await client.query("SELECT t.typname AS name FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e' ORDER BY t.typname");return r.rows.map(x=>x.name)}
- async function columnType(req,client){if(req.newType!=='enum')return TYPES[req.newType];const enumName=req.options?.enumType;if(!validName(enumName)||!(await enumTypes(client)).includes(enumName))throw Error('Kiểu enum không tồn tại.');return `public.${ident(enumName)}`}
- async function definitions(client=pool){const check=await client.query("SELECT to_regclass('siris_admin.columns') AS name");if(!check.rows[0].name)return [];const result=await client.query('SELECT id::text,source_table,label,kind,config FROM siris_admin.columns ORDER BY created_at,id');return result.rows}
- async function ensureStore(client){await client.query('CREATE SCHEMA IF NOT EXISTS siris_admin');await client.query('REVOKE ALL ON SCHEMA siris_admin FROM PUBLIC');await client.query(`CREATE TABLE IF NOT EXISTS siris_admin.columns (id uuid PRIMARY KEY, source_table text NOT NULL,label text NOT NULL,kind text NOT NULL CHECK (kind IN ('relation','lookup')),config jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),UNIQUE(source_table,label))`);await client.query('REVOKE ALL ON ALL TABLES IN SCHEMA siris_admin FROM PUBLIC');for(const role of ['anon','authenticated']){const exists=await client.query('SELECT to_regrole($1) IS NOT NULL AS present',[role]);if(exists.rows[0].present){await client.query(`REVOKE ALL ON SCHEMA siris_admin FROM ${ident(role)}`);await client.query(`REVOKE ALL ON ALL TABLES IN SCHEMA siris_admin FROM ${ident(role)}`)}}}
- function getTable(tables,n){const t=tables.find(x=>x.name===`public.${n}`);if(!t)throw Error('Không tìm thấy bảng.');return t}
- function requirePK(t){if(!t.primary_keys.length)throw Error('Bảng cần có khóa chính để tạo liên kết.');return t.primary_keys.map(k=>{const c=t.columns.find(x=>x.name===k);if(!c)throw Error('Không đọc được khóa chính.');return c})}
- function checkLabel(label){if(typeof label!=='string'||!label.trim()||label.length>80)throw Error('Tên cột không hợp lệ.');return label.trim()}
- async function previewDuplicate(req,client){
-  if(!validName(req.table)||!validName(req.column)||!validName(req.newName))throw Error('Tên bảng hoặc cột không hợp lệ.');
-  const tables=await metadata(client),t=getTable(tables,req.table),col=t.columns.find(c=>c.name===req.column);
-  if(!col)throw Error('Không tìm thấy cột.');
-  const defs=await definitions(client);
-  if(t.columns.some(c=>c.name===req.newName)||defs.some(d=>d.source_table===req.table&&d.label===req.newName))throw Error('Tên cột đã tồn tại.');
-  const type=col.format||col.data_type;
-  if(!type||typeof type!=='string')throw Error('Không đọc được kiểu dữ liệu của cột.');
-  const count=await client.query(`SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`),affected=Number(count.rows[0].n);
-  const signature=createHash('sha256').update(JSON.stringify({table:t,defs,req,affected})).digest('hex');
-  return {signature,affected,action:'duplicate',table:req.table,column:req.column,newName:req.newName,newType:type};
- }
- async function preview(req,client=pool,ignoreLookupId=null){if(req.action==='duplicate')return previewDuplicate(req,client);const tables=await metadata(client),t=getTable(tables,req.table),defs=await definitions(client),col=t.columns.find(c=>c.name===req.column);if(!['add','rename','type','delete','settings'].includes(req.action))throw Error('Thao tác không hợp lệ.');if(req.action!=='add'&&!col)throw Error('Không tìm thấy cột.');if(req.action==='add'||req.action==='rename'){if(!validName(req.newName))throw Error('Tên cột chỉ gồm chữ, số và dấu gạch dưới, bắt đầu bằng chữ hoặc dấu gạch dưới.');if(t.columns.some(c=>c.name===req.newName)||defs.some(c=>c.source_table===req.table&&c.label===req.newName))throw Error('Tên cột đã tồn tại.')}if(['add','type'].includes(req.action)&&!TYPES[req.newType]&&!(req.action==='add'&&req.newType==='enum'))throw Error('Kiểu cột không được hỗ trợ.');if(req.action==='add'){const options=addOptions(req),type=await columnType(req,client),ref=req.options?.foreignTable;if(ref){const target=getTable(tables,ref),key=target.columns.find(c=>c.name===req.options?.foreignColumn);if(!key||!validName(key.name)||options.array||req.newType==='enum'||key.data_type!==({'varchar':'character varying','double':'double precision','timestamp':'timestamp with time zone','timestamp_local':'timestamp without time zone','time':'time without time zone'}[req.newType]||req.newType))throw Error('Khóa ngoại cần cột đích cùng kiểu dữ liệu.');if(![target.primary_keys,...(target.unique_constraints||[]).map(x=>x.columns)].some(cols=>cols.length===1&&cols[0]===key.name))throw Error('Cột được tham chiếu cần khóa chính hoặc unique.');for(const action of [req.options.onDelete||'NO ACTION',req.options.onUpdate||'NO ACTION'])if(!['NO ACTION','RESTRICT','CASCADE','SET NULL','SET DEFAULT'].includes(action))throw Error('Hành động khóa ngoại không hợp lệ.');if((req.options.onDelete==='SET NULL'||req.options.onUpdate==='SET NULL')&&!options.nullable)throw Error('SET NULL yêu cầu cột cho phép null.')}if(options.kind==='literal'){try{await client.query(`SELECT $1::${type}${options.array?'[]':''}`,[options.value])}catch{throw Error('Giá trị mặc định không phù hợp với kiểu cột.')}}if(options.kind==='expression'){try{await client.query(`EXPLAIN SELECT (${options.value.trim()})::${type}${options.array?'[]':''}`)}catch{throw Error('Biểu thức mặc định không phù hợp với kiểu cột.')}}if((!options.nullable&&!options.identity&&options.kind==='none')||(options.unique&&!options.identity&&['literal','now','expression'].includes(options.kind))){const count=await client.query(`SELECT count(*)::text AS n FROM ${tableRef(req.table)}`),n=Number(count.rows[0].n);if(!options.nullable&&!options.identity&&options.kind==='none'&&n>0)throw Error('Bảng đã có dữ liệu; cần giá trị mặc định hoặc cho phép null.');if(options.unique&&n>1&&!options.identity&&['literal','now','expression'].includes(options.kind))throw Error('Giá trị mặc định sẽ trùng trên các bản ghi hiện có.')}}if(req.action==='settings'){const o=req.options;if(!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['nullable','unique','defaultKind','defaultValue','description'].includes(k))||typeof o.nullable!=='boolean'||typeof o.unique!=='boolean'||!['keep','none','literal','expression'].includes(o.defaultKind)||typeof o.description!=='string'||o.description.length>1000)throw Error('Tùy chọn cột không hợp lệ.');if(col.options.includes('generated')||col.options.includes('identity'))throw Error('Cột tự sinh hoặc identity chưa hỗ trợ thay đổi các thuộc tính này.');if(t.primary_keys.includes(col.name)&&o.nullable)throw Error('Khóa chính không thể để trống.');if(!o.nullable){const r=await client.query(`SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NULL`);if(Number(r.rows[0].n))throw Error('Cột có giá trị trống; hãy điền trước khi tắt cho phép trống.')}const existing=t.unique_constraints.filter(x=>x.columns.length===1&&x.columns[0]===col.name);if(!o.unique&&t.primary_keys.length===1&&t.primary_keys[0]===col.name)throw Error('Không thể bỏ duy nhất khỏi khóa chính.');if(!o.unique&&existing.length>1)throw Error('Cột có nhiều ràng buộc duy nhất; hãy xử lý trong Supabase.');if(o.unique&&!existing.length&&!t.primary_keys.includes(col.name)){const r=await client.query(`SELECT 1 FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL GROUP BY ${ident(col.name)} HAVING count(*)>1 LIMIT 1`);if(r.rows.length)throw Error('Cột có giá trị trùng; hãy xử lý trước khi bật duy nhất.')}if(o.defaultKind==='literal'&&(typeof o.defaultValue!=='string'||o.defaultValue.length>4000))throw Error('Giá trị mặc định không hợp lệ.');if(o.defaultKind==='expression'&&(typeof o.defaultValue!=='string'||!safeDefaultExpression(o.defaultValue)))throw Error('Biểu thức chưa được hỗ trợ.');if(o.defaultKind==='literal'){try{await client.query(`SELECT $1::${col.format}`,[o.defaultValue])}catch{throw Error('Giá trị mặc định không phù hợp với kiểu cột.')}}}if(col&&((req.action==='type'&&col.type_protected)||(['delete','rename'].includes(req.action)&&col.protected)))throw Error('Cột có chỉ mục, ràng buộc hoặc phụ thuộc; cần xử lý trong Supabase trước.');if(col){const exists=await client.query("SELECT to_regclass('siris_admin.lookup_configs') IS NOT NULL AS present");if(exists.rows[0].present){const saved=await client.query('SELECT config FROM siris_admin.lookup_configs');if(saved.rows.some(({config:c})=>{if(c.id===ignoreLookupId&&req.action==='rename'&&c.columnBound===true&&c.sync?.enabled&&c.sourceTable===req.table&&c.sync.columnName===col.name)return false;const rules=Array.isArray(c.conditions)?c.conditions:[{sourceColumn:c.sourceColumn,targetKey:c.targetKey}];return c.sourceTable===req.table&&(c.sync?.enabled&&c.sync.columnName===col.name||rules.some(r=>r.sourceColumn===col.name))||c.targetTable===req.table&&(c.targetField===col.name||rules.some(r=>r.targetKey===col.name))}))throw Error('Cột đang được lookup sử dụng. Hãy xử lý lookup trước.')}}if(col&&defs.some(d=>{if(d.kind==='relation')return d.config.targetTable===req.table&&d.config.labelField===col.name;if(d.kind!=='lookup')return false;let target=d.config.legacy?.targetTable;let sourceColumn=d.config.legacy?.sourceColumn;if(d.config.legacy&&d.source_table===req.table&&sourceColumn===col.name)return true;if(d.config.relationId?.startsWith('legacy:')){const parent=defs.find(p=>p.id===d.config.relationId.slice(7)&&p.config.legacy);if(parent)target=parent.config.legacy.targetTable}const rel=defs.find(r=>r.id===d.config.relationId&&r.kind==='relation');if(rel)target=rel.config.targetTable;if(d.config.relationId?.startsWith('native:')){const sourceTable=tables.find(t=>t.name===`public.${d.source_table}`);const fk=sourceTable?.foreign_key_constraints.find(f=>f.source_table===sourceTable.name&&f.name===d.config.relationId.slice(7));if(fk)target=fk.target_table.slice(7)}return target===req.table&&(d.config.targetField===col.name||d.config.legacy?.targetKey===col.name)}))throw Error('Cột đang được liên kết hoặc lookup sử dụng.');let affected=0;if(col){const count=await client.query(`SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`);affected=Number(count.rows[0].n)}if(req.action==='type'){try{await client.query(`SELECT count(${ident(col.name)}::${TYPES[req.newType]}) FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`)}catch{throw Error('Có dữ liệu không thể chuyển sang kiểu đã chọn.')}}const signature=createHash('sha256').update(JSON.stringify({table:t,defs,affected,req})).digest('hex');return {signature,affected,action:req.action,table:req.table,column:req.column,newName:req.newName,newType:req.newType}}
- async function apply(req,signature){return transaction(async client=>{if(req.action==='duplicate'){await client.query("SET LOCAL lock_timeout = '5s'");await client.query("SET LOCAL statement_timeout = '60s'")}const p=await preview(req,client);if(p.signature!==signature)throw Error('Cấu trúc hoặc dữ liệu đã thay đổi. Hãy xem lại trước khi áp dụng.');await client.query(`LOCK TABLE ${tableRef(req.table)} IN ACCESS EXCLUSIVE MODE`);const checked=await preview(req,client);if(checked.signature!==signature)throw Error('Cấu trúc hoặc dữ liệu đã thay đổi. Hãy xem lại trước khi áp dụng.');if(req.action==='duplicate'){
- const t=getTable(await metadata(client),req.table),col=t.columns.find(c=>c.name===req.column);
- await client.query(`ALTER TABLE ${tableRef(req.table)} ADD COLUMN ${ident(req.newName)} ${col.format||col.data_type}`);
- await client.query(`UPDATE ${tableRef(req.table)} SET ${ident(req.newName)} = ${ident(req.column)} WHERE ${ident(req.column)} IS NOT NULL`);
- if(col.description)await client.query(`COMMENT ON COLUMN ${tableRef(req.table)}.${ident(req.newName)} IS ${literal(col.description)}`);
- await client.query("NOTIFY pgrst, 'reload schema'");return {ok:true,column:req.newName};
- }if(req.action==='settings'){const o=req.options,t=getTable(await metadata(client),req.table),c=t.columns.find(x=>x.name===req.column),column=ident(req.column),current=t.unique_constraints.filter(x=>x.columns.length===1&&x.columns[0]===req.column);if(o.nullable!==c.options.includes('nullable'))await client.query(`ALTER TABLE ${tableRef(req.table)} ALTER COLUMN ${column} ${o.nullable?'DROP':'SET'} NOT NULL`);if(o.unique&&!current.length&&!t.primary_keys.includes(req.column))await client.query(`ALTER TABLE ${tableRef(req.table)} ADD UNIQUE (${column})`);if(!o.unique&&current.length)await client.query(`ALTER TABLE ${tableRef(req.table)} DROP CONSTRAINT ${ident(current[0].name)} RESTRICT`);if(o.defaultKind!=='keep'){const def=o.defaultKind==='none'?'DROP DEFAULT':o.defaultKind==='literal'?`SET DEFAULT ${literal(o.defaultValue)}::${c.format}`:`SET DEFAULT ${o.defaultValue.trim()}`;await client.query(`ALTER TABLE ${tableRef(req.table)} ALTER COLUMN ${column} ${def}`)}await client.query(`COMMENT ON COLUMN ${tableRef(req.table)}.${column} IS ${o.description?literal(o.description):'NULL'}`);await client.query("NOTIFY pgrst, 'reload schema'");return {ok:true}}let sql;if(req.action==='add'){const o=addOptions(req),type=await columnType(req,client),def=o.kind==='literal'?` DEFAULT ${literal(o.value)}::${type}${o.array?'[]':''}`:o.kind==='now'?' DEFAULT now()':o.kind==='uuid'?' DEFAULT gen_random_uuid()':o.kind==='expression'?` DEFAULT ${o.value.trim()}`:'';sql=`ADD COLUMN ${ident(req.newName)} ${type}${o.array?'[]':''}${o.identity?' GENERATED BY DEFAULT AS IDENTITY':def}${!o.nullable&&!o.identity?' NOT NULL':''}${o.unique?' UNIQUE':''}${req.options?.foreignTable?` REFERENCES ${tableRef(req.options.foreignTable)} (${ident(req.options.foreignColumn)}) ON DELETE ${req.options.onDelete||'NO ACTION'} ON UPDATE ${req.options.onUpdate||'NO ACTION'}`:''}`}if(req.action==='rename')sql=`RENAME COLUMN ${ident(req.column)} TO ${ident(req.newName)}`;if(req.action==='type')sql=`ALTER COLUMN ${ident(req.column)} TYPE ${TYPES[req.newType]} USING ${ident(req.column)}::${TYPES[req.newType]}`;if(req.action==='delete')sql=`DROP COLUMN ${ident(req.column)} RESTRICT`;await client.query(`ALTER TABLE ${tableRef(req.table)} ${sql}`);if(req.action==='add'&&addOptions(req).description)await client.query(`COMMENT ON COLUMN ${tableRef(req.table)}.${ident(req.newName)} IS ${literal(addOptions(req).description)}`);await client.query("NOTIFY pgrst, 'reload schema'");return {ok:true}})}
- const keyType=c=>{if(!/^(uuid|text|character varying(?:\(\d+\))?|character(?:\(\d+\))?|smallint|integer|bigint|numeric(?:\(\d+(?:,\d+)?\))?|date|timestamp (?:with|without) time zone|boolean)$/.test(c.format))throw Error(`Kiểu khóa ${c.format} chưa được hỗ trợ.`);return c.format};
- const junction=id=>`siris_admin.${ident('rel_'+id.replaceAll('-',''))}`;
- function validateKeys(table,key){const ks=requirePK(table);if(!key||typeof key!=='object'||ks.some(c=>key[c.name]===undefined||key[c.name]===null))throw Error('Thiếu khóa bản ghi.');return ks.map(c=>key[c.name])}
- async function createDefinition(input){return transaction(async client=>{const tables=await metadata(client),source=getTable(tables,input.sourceTable),label=checkLabel(input.label),defs=await definitions(client);if(source.columns.some(c=>c.name.toLowerCase()===label.toLowerCase())||defs.some(d=>d.source_table===input.sourceTable&&d.label.toLowerCase()===label.toLowerCase()))throw Error('Tên cột đã tồn tại.');if(!['relation','lookup'].includes(input.kind))throw Error('Loại cột không hợp lệ.');const id=randomUUID();let config;if(input.kind==='relation'){const target=getTable(tables,input.targetTable),sourceKeys=requirePK(source),targetKeys=requirePK(target);if(!target.columns.some(c=>c.name===input.labelField))throw Error('Trường hiển thị không hợp lệ.');if(typeof input.multiple!=='boolean')throw Error('Chọn chế độ liên kết.');config={targetTable:input.targetTable,labelField:input.labelField,multiple:input.multiple,sourceKeys:sourceKeys.map(c=>c.name),targetKeys:targetKeys.map(c=>c.name)};await ensureStore(client);const left=sourceKeys.map((c,i)=>`${ident('s'+i)} ${keyType(c)} NOT NULL`),right=targetKeys.map((c,i)=>`${ident('t'+i)} ${keyType(c)} NOT NULL`),scols=sourceKeys.map((_,i)=>ident('s'+i)).join(','),tcols=targetKeys.map((_,i)=>ident('t'+i)).join(',');await client.query(`CREATE TABLE ${junction(id)} (${[...left,...right].join(',')}, FOREIGN KEY (${scols}) REFERENCES ${tableRef(input.sourceTable)} (${sourceKeys.map(c=>ident(c.name)).join(',')}) ON DELETE CASCADE, FOREIGN KEY (${tcols}) REFERENCES ${tableRef(input.targetTable)} (${targetKeys.map(c=>ident(c.name)).join(',')}) ON DELETE CASCADE, UNIQUE (${scols},${tcols})${input.multiple?'':`, UNIQUE (${scols})`})`)}else{let relation=defs.find(d=>d.id===input.relationId&&d.source_table===input.sourceTable&&d.kind==='relation');if(!relation&&typeof input.relationId==='string'&&input.relationId.startsWith('native:')){const f=source.foreign_key_constraints.find(f=>f.source_table===source.name&&f.name===input.relationId.slice(7)&&f.source_columns.length===1&&f.target_columns.length===1);if(f)relation={id:input.relationId,config:{targetTable:f.target_table.slice(7)}}}if(!relation&&input.relationId?.startsWith('legacy:')){const legacy=defs.find(d=>d.id===input.relationId.slice(7)&&d.source_table===input.sourceTable&&d.config.legacy);if(legacy)relation={id:input.relationId,config:{targetTable:legacy.config.legacy.targetTable}}}if(!relation)throw Error('Không tìm thấy cột liên kết.');const target=getTable(tables,relation.config.targetTable);if(!target.columns.some(c=>c.name===input.targetField))throw Error('Trường lookup không hợp lệ.');config={relationId:relation.id,targetField:input.targetField};await ensureStore(client)}await client.query('INSERT INTO siris_admin.columns(id,source_table,label,kind,config) VALUES($1,$2,$3,$4,$5)',[id,input.sourceTable,label,input.kind,JSON.stringify(config)]);return {id}})}
- async function updateDefinition(input){return transaction(async client=>{const defs=await definitions(client),def=defs.find(d=>d.id===input.id);if(!def)throw Error('Không tìm thấy cột.');const tables=await metadata(client),source=getTable(tables,def.source_table),label=checkLabel(input.label);if(source.columns.some(c=>c.name.toLowerCase()===label.toLowerCase())||defs.some(d=>d.id!==def.id&&d.source_table===def.source_table&&d.label.toLowerCase()===label.toLowerCase()))throw Error('Tên cột đã tồn tại.');let config=def.config;if(def.kind==='relation'&&input.labelField!==undefined){const target=getTable(tables,config.targetTable);if(!target.columns.some(c=>c.name===input.labelField))throw Error('Trường hiển thị không hợp lệ.');config={...config,labelField:input.labelField}}if(def.kind==='lookup'&&input.targetField!==undefined){let relation=defs.find(d=>d.id===config.relationId&&d.kind==='relation');if(!relation&&config.relationId?.startsWith('native:')){const f=source.foreign_key_constraints.find(f=>f.source_table===source.name&&f.name===config.relationId.slice(7));if(f)relation={config:{targetTable:f.target_table.slice(7)}}}if(!relation&&config.relationId?.startsWith('legacy:')){const parent=defs.find(d=>d.id===config.relationId.slice(7)&&d.config.legacy);if(parent)relation={config:{targetTable:parent.config.legacy.targetTable}}}if(!relation&&config.legacy)relation={config:{targetTable:config.legacy.targetTable}};if(!relation)throw Error('Không tìm thấy cột liên kết.');const target=getTable(tables,relation.config.targetTable);if(!target.columns.some(c=>c.name===input.targetField))throw Error('Trường lookup không hợp lệ.');config={...config,targetField:input.targetField}}if(def.kind==='relation'&&typeof input.multiple==='boolean'&&input.multiple!==config.multiple){const keys=config.sourceKeys.map((_,i)=>ident('s'+i)).join(',');if(!input.multiple){const dup=await client.query(`SELECT 1 FROM ${junction(def.id)} GROUP BY ${keys} HAVING count(*)>1 LIMIT 1`);if(dup.rows.length)throw Error('Một số ô đang có nhiều liên kết. Hãy bỏ bớt trước khi chuyển chế độ.');await client.query(`ALTER TABLE ${junction(def.id)} ADD CONSTRAINT ${ident('single_'+def.id.replaceAll('-',''))} UNIQUE (${keys})`)}else{const unique=await client.query(`SELECT conname FROM pg_constraint WHERE conrelid=$1::regclass AND contype='u' AND array_length(conkey,1)=$2`,[`siris_admin.rel_${def.id.replaceAll('-','')}`,config.sourceKeys.length]);if(unique.rows.length!==1)throw Error('Không thể xác định ràng buộc liên kết đơn.');await client.query(`ALTER TABLE ${junction(def.id)} DROP CONSTRAINT ${ident(unique.rows[0].conname)}`)}config={...config,multiple:input.multiple}}await client.query('UPDATE siris_admin.columns SET label=$1,config=$2 WHERE id=$3',[label,JSON.stringify(config),def.id]);return {ok:true}})}
- async function deleteDefinition(id){return transaction(async client=>{const defs=await definitions(client),def=defs.find(d=>d.id===id);if(!def)throw Error('Không tìm thấy cột.');if(defs.some(d=>d.id!==id&&d.kind==='lookup'&&(d.config.relationId===id||d.config.relationId==='legacy:'+id)))throw Error('Cột đang được lookup sử dụng. Hãy xóa lookup trước.');if(def.kind==='relation')await client.query(`DROP TABLE ${junction(id)} RESTRICT`);await client.query('DELETE FROM siris_admin.columns WHERE id=$1',[id]);return {ok:true}})}
- async function readLinks(input){const defs=await definitions();if(typeof input.id==='string'&&(input.id.startsWith('native:')||input.id.startsWith('legacy:')))return readNativeLinks(input,defs);const d=defs.find(d=>d.id===input.id&&d.kind==='relation');if(!d)throw Error('Không tìm thấy cột liên kết.');if(!Array.isArray(input.keys)||input.keys.length>50)throw Error('Danh sách bản ghi không hợp lệ.');const tables=await metadata(),source=getTable(tables,d.source_table);getTable(tables,d.config.targetTable);if(!input.keys.length)return {rows:[]};const params=[],conditions=input.keys.map(key=>{const values=validateKeys(source,key);return '('+values.map((v,i)=>{params.push(v);return `j.${ident('s'+i)}=$${params.length}`}).join(' AND ')+')'}),join=d.config.targetKeys.map((k,i)=>`t.${ident(k)}=j.${ident('t'+i)}`).join(' AND '),sourceJson=d.config.sourceKeys.map((k,i)=>`${"'"+k.replaceAll("'","''")+"'"},j.${ident('s'+i)}`).join(',');const result=await pool.query(`SELECT jsonb_build_object(${sourceJson}) AS source,to_jsonb(t) AS target FROM ${junction(d.id)} j JOIN ${tableRef(d.config.targetTable)} t ON ${join} WHERE ${conditions.join(' OR ')} ORDER BY ${d.config.targetKeys.map(k=>`t.${ident(k)}`).join(',')}`,params);return {rows:result.rows}}
- async function readNativeLinks(input,defs){if(!Array.isArray(input.keys)||input.keys.length>50)throw Error('Danh sách bản ghi không hợp lệ.');const tables=await metadata(),source=getTable(tables,input.sourceTable);let sourceColumn,targetTable,targetKey;if(input.id.startsWith('native:')){const foreign=source.foreign_key_constraints.find(f=>f.source_table===source.name&&f.name===input.id.slice(7)&&f.source_columns.length===1&&f.target_columns.length===1);if(!foreign)throw Error('Không tìm thấy khóa ngoại.');sourceColumn=foreign.source_columns[0];targetTable=foreign.target_table.slice(7);targetKey=foreign.target_columns[0]}else{const def=defs.find(d=>d.id===input.id.slice(7)&&d.source_table===input.sourceTable&&d.kind==='lookup'&&d.config.legacy);if(!def)throw Error('Không tìm thấy cấu hình liên kết.');({sourceColumn,targetTable,targetKey}=def.config.legacy);if(!source.columns.some(c=>c.name===sourceColumn)||!getTable(tables,targetTable).columns.some(c=>c.name===targetKey))throw Error('Cấu hình liên kết không còn hợp lệ.')}if(!input.keys.length)return {rows:[]};const params=[],conditions=input.keys.map(key=>{const values=validateKeys(source,key);return '('+source.primary_keys.map((k,i)=>{params.push(values[i]);return `s.${ident(k)}=$${params.length}`}).join(' AND ')+')'});const sourceJson=source.primary_keys.map(k=>`${"'"+k.replaceAll("'","''")+"'"},s.${ident(k)}`).join(',');const result=await pool.query(`SELECT jsonb_build_object(${sourceJson}) AS source,to_jsonb(t) AS target FROM ${tableRef(input.sourceTable)} s JOIN LATERAL (SELECT * FROM ${tableRef(targetTable)} candidate WHERE s.${ident(sourceColumn)}=candidate.${ident(targetKey)} LIMIT 2) t ON true WHERE ${conditions.join(' OR ')}`,params);return {rows:result.rows}}
- async function importLegacy(items){return transaction(async client=>{if(!Array.isArray(items)||!items.length||items.length>100)throw Error('Danh sách lookup không hợp lệ.');const tables=await metadata(client),defs=await definitions(client),created=[];for(const item of items){const source=getTable(tables,item.sourceTable),target=getTable(tables,item.targetTable),label=checkLabel(item.label);if(source.columns.some(c=>c.name.toLowerCase()===label.toLowerCase())||defs.some(d=>d.source_table===item.sourceTable&&d.label.toLowerCase()===label.toLowerCase())||created.some(d=>d.source_table===item.sourceTable&&d.label.toLowerCase()===label.toLowerCase()))throw Error(`Tên cột ${label} đã tồn tại.`);const from=source.columns.find(c=>c.name===item.sourceColumn),to=target.columns.find(c=>c.name===item.targetKey);if(!from||!to||from.data_type!==to.data_type||!target.columns.some(c=>c.name===item.targetField))throw Error(`Lookup ${label} có cột không còn hợp lệ hoặc không cùng kiểu.`);requirePK(source);const id=randomUUID(),foreign=source.foreign_key_constraints.find(f=>f.source_table===source.name&&f.target_table===target.name&&f.source_columns.length===1&&f.source_columns[0]===from.name&&f.target_columns[0]===to.name),config=foreign?{relationId:'native:'+foreign.name,targetField:item.targetField}:{relationId:'legacy:'+id,targetField:item.targetField,legacy:{sourceColumn:from.name,targetTable:item.targetTable,targetKey:to.name}};created.push({id,source_table:item.sourceTable,label,config})}await ensureStore(client);for(const d of created)await client.query("INSERT INTO siris_admin.columns(id,source_table,label,kind,config) VALUES($1,$2,$3,'lookup',$4)",[d.id,d.source_table,d.label,JSON.stringify(d.config)]);return {imported:created.length}})}
- async function writeLinks(input){return transaction(async client=>{const defs=await definitions(client),d=defs.find(d=>d.id===input.id&&d.kind==='relation');if(!d)throw Error('Không tìm thấy cột liên kết.');if(!Array.isArray(input.targets)||input.targets.length>200||(!d.config.multiple&&input.targets.length>1))throw Error('Số bản ghi liên kết không hợp lệ.');const tables=await metadata(client),source=getTable(tables,d.source_table),target=getTable(tables,d.config.targetTable),sourceValues=validateKeys(source,input.source),targetValues=input.targets.map(x=>validateKeys(target,x));const sourceCond=sourceValues.map((_,i)=>`${ident('s'+i)}=$${i+1}`).join(' AND ');await client.query(`DELETE FROM ${junction(d.id)} WHERE ${sourceCond}`,sourceValues);for(const vals of targetValues){const values=[...sourceValues,...vals],cols=[...sourceValues.map((_,i)=>ident('s'+i)),...vals.map((_,i)=>ident('t'+i))];await client.query(`INSERT INTO ${junction(d.id)} (${cols.join(',')}) VALUES (${values.map((_,i)=>'$'+(i+1)).join(',')})`,values)}return {ok:true}})}
- return {formulaSync:createFormulaSync(pool,metadata),lookupSync:createLookupSync(pool,metadata,(request,client,id)=>preview(request,client,id)),enabled:!!pool,metadata,visibleMetadata,enumTypes,definitions,preview,apply,createDefinition,updateDefinition,deleteDefinition,readLinks,writeLinks,importLegacy,close:()=>pool?.end()};
+const TYPES = {
+  text: 'text',
+  varchar: 'character varying',
+  smallint: 'smallint',
+  integer: 'integer',
+  bigint: 'bigint',
+  numeric: 'numeric',
+  real: 'real',
+  double: 'double precision',
+  date: 'date',
+  time: 'time without time zone',
+  timestamp: 'timestamp with time zone',
+  timestamp_local: 'timestamp without time zone',
+  boolean: 'boolean',
+  json: 'json',
+  jsonb: 'jsonb',
+  uuid: 'uuid',
+  bytea: 'bytea',
+};
+function safeDefaultExpression(value) {
+  return /^(?:now\(\)|current_timestamp|current_date|gen_random_uuid\(\))(?:\s*[+-]\s*interval\s*'\d{1,6} (?:day|days|hour|hours|minute|minutes)')?$/i.test(
+    value.trim(),
+  );
 }
-export {safeError};
+function addOptions(req) {
+  const o = req.options || {};
+  if (
+    typeof o !== 'object' ||
+    Array.isArray(o) ||
+    Object.keys(o).some(
+      k =>
+        ![
+          'nullable',
+          'unique',
+          'identity',
+          'defaultKind',
+          'defaultValue',
+          'description',
+          'array',
+          'enumType',
+          'foreignTable',
+          'foreignColumn',
+          'onDelete',
+          'onUpdate',
+        ].includes(k),
+    )
+  )
+    throw Error('Tùy chọn cột không hợp lệ.');
+  const nullable = o.nullable !== false,
+    unique = o.unique === true,
+    identity = o.identity === true,
+    array = o.array === true,
+    kind = o.defaultKind || 'none';
+  if (array && (identity || kind === 'now' || kind === 'uuid'))
+    throw Error('Mảng không hỗ trợ identity hoặc mặc định tự sinh.');
+  if (!['none', 'literal', 'now', 'uuid', 'expression'].includes(kind)) throw Error('Giá trị mặc định không hợp lệ.');
+  if (identity && (!['smallint', 'integer', 'bigint'].includes(req.newType) || kind !== 'none'))
+    throw Error('Identity chỉ hỗ trợ số nguyên và không dùng cùng giá trị mặc định.');
+  if (kind === 'now' && !['timestamp', 'timestamp_local', 'date'].includes(req.newType))
+    throw Error('Giá trị now chỉ hỗ trợ ngày và thời gian.');
+  if (kind === 'uuid' && req.newType !== 'uuid') throw Error('UUID tự sinh chỉ hỗ trợ kiểu uuid.');
+  if (kind === 'literal' && (typeof o.defaultValue !== 'string' || o.defaultValue.length > 4000))
+    throw Error('Giá trị mặc định không hợp lệ.');
+  if (kind === 'expression' && (typeof o.defaultValue !== 'string' || !safeDefaultExpression(o.defaultValue)))
+    throw Error(
+      'Biểu thức chưa được hỗ trợ. Dùng now(), current_date, current_timestamp, gen_random_uuid() hoặc phép cộng/trừ thời gian đơn giản.',
+    );
+  if (o.description !== undefined && (typeof o.description !== 'string' || o.description.length > 1000))
+    throw Error('Mô tả quá dài.');
+  return { nullable, unique, identity, array, kind, value: o.defaultValue, description: o.description || '' };
+}
+const literal = value => "'" + String(value).replaceAll("'", "''") + "'";
+const ident = value => '"' + String(value).replaceAll('"', '""') + '"';
+const tableRef = value => `public.${ident(value)}`;
+const validName = value => typeof value === 'string' && /^[a-zA-Z_][a-zA-Z0-9_]{0,62}$/.test(value);
+const safeError = error =>
+  error?.code === '23505'
+    ? 'Giá trị đã tồn tại.'
+    : error?.code === '23503'
+      ? 'Bản ghi liên kết không còn tồn tại hoặc đang được sử dụng.'
+      : error?.code === '42501'
+        ? 'Kết nối database không có đủ quyền.'
+        : error?.code === '22P02'
+          ? 'Dữ liệu không thể chuyển sang kiểu đã chọn.'
+          : error?.code
+            ? 'Không thể thực hiện thao tác database. Kiểm tra quyền và cấu hình kết nối.'
+            : error?.message || 'Không thể thực hiện thao tác.';
+const METADATA_SQL = [
+  `SELECT c.oid::text AS table_oid,c.relname AS table_name,a.attnum AS column_id,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS format,CASE WHEN t.typname='timestamptz' THEN 'timestamp with time zone' WHEN t.typname='timestamp' THEN 'timestamp without time zone' WHEN t.typname='int4' THEN 'integer' WHEN t.typname='int8' THEN 'bigint' WHEN t.typname='int2' THEN 'smallint' WHEN t.typname='float8' THEN 'double precision' WHEN t.typname='float4' THEN 'real' WHEN t.typname='bool' THEN 'boolean' WHEN t.typname='varchar' THEN 'character varying' ELSE t.typname END AS data_type,col_description(c.oid,a.attnum) AS description,a.attnotnull,a.attidentity,a.attgenerated,pg_get_expr(d.adbin,d.adrelid) AS default_value,EXISTS(SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p' AND a.attnum=ANY(k.conkey)) AS is_primary,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND a.attnum=ANY(i.indkey)) AS has_index,EXISTS(SELECT 1 FROM pg_depend dep WHERE dep.refobjid=c.oid AND dep.refobjsubid=a.attnum AND dep.classid='pg_rewrite'::regclass) AS has_view,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND k.contype<>'p' AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_type_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND NOT i.indisprimary AND a.attnum=ANY(i.indkey)) AS has_type_index FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid LEFT JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p') ORDER BY c.relname,a.attnum`,
+  `SELECT k.conname,src.relname AS source_table,dst.relname AS target_table,array_agg(sa.attname::text ORDER BY p.n) AS source_columns,array_agg(ta.attname::text ORDER BY p.n) AS target_columns FROM pg_constraint k JOIN pg_class src ON src.oid=k.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=k.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute sa ON sa.attrelid=src.oid AND sa.attnum=k.conkey[p.n] JOIN pg_attribute ta ON ta.attrelid=dst.oid AND ta.attnum=k.confkey[p.n] WHERE k.contype='f' AND sn.nspname='public' AND dn.nspname='public' GROUP BY k.oid,src.relname,dst.relname`,
+  `SELECT c.relname AS table_name,k.conname AS name,array_agg(a.attname::text ORDER BY p.n) AS columns FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum=k.conkey[p.n] WHERE n.nspname='public' AND k.contype='u' GROUP BY c.relname,k.oid`,
+  `SELECT tablename AS table_name,indexname AS name,indexdef AS definition FROM pg_indexes WHERE schemaname='public' ORDER BY tablename,indexname`,
+  `SELECT c.relname AS table_name,a.attname AS column_name,array_agg(e.enumlabel::text ORDER BY e.enumsortorder) AS values FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid JOIN pg_enum e ON e.enumtypid=t.oid WHERE n.nspname='public' GROUP BY c.relname,a.attname`,
+];
+export function createAdmin(connectionString, poolOverride) {
+  const pool =
+    poolOverride ||
+    (connectionString ? new pg.Pool({ connectionString, max: 4, connectionTimeoutMillis: 5000 }) : null);
+  async function transaction(fn) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const out = await fn(client);
+      await client.query('COMMIT');
+      return out;
+    } catch (e) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {}
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  async function metadata(client = pool) {
+    // Pool queries run in parallel; a transaction client must run them in order.
+    const rows = client === pool ? await Promise.all(METADATA_SQL.map(sql => pool.query(sql))) : [];
+    if (client !== pool) for (const sql of METADATA_SQL) rows.push(await client.query(sql));
+    const result = rows[0];
+    const map = new Map();
+    for (const r of result.rows) {
+      if (!map.has(r.table_name))
+        map.set(r.table_name, {
+          name: `public.${r.table_name}`,
+          table_oid: r.table_oid,
+          columns: [],
+          primary_keys: [],
+          foreign_key_constraints: [],
+        });
+      const t = map.get(r.table_name),
+        options = ['updatable'];
+      if (!r.attnotnull) options.push('nullable');
+      if (r.attidentity) options.push('identity');
+      if (r.attgenerated) options.push('generated');
+      t.columns.push({
+        name: r.column_name,
+        column_id: r.column_id,
+        data_type: r.data_type,
+        format: r.format,
+        options,
+        description: r.description || '',
+        default_value: r.default_value,
+        identity_generation: r.attidentity === 'a' ? 'ALWAYS' : r.attidentity ? 'BY DEFAULT' : undefined,
+        protected: !!(r.is_primary || r.attgenerated || r.attidentity || r.has_constraint || r.has_index || r.has_view),
+        type_protected: !!(r.attgenerated || r.attidentity || r.has_type_constraint || r.has_type_index || r.has_view),
+      });
+      if (r.is_primary) t.primary_keys.push(r.column_name);
+    }
+    const refs = rows[1];
+    for (const r of refs.rows) {
+      const f = {
+        name: r.conname,
+        source_table: `public.${r.source_table}`,
+        source_columns: r.source_columns,
+        target_table: `public.${r.target_table}`,
+        target_columns: r.target_columns,
+      };
+      map.get(r.source_table)?.foreign_key_constraints.push(f);
+      if (r.source_table !== r.target_table) map.get(r.target_table)?.foreign_key_constraints.push(f);
+    }
+    const unique = rows[2];
+    const indexes = rows[3];
+    const enums = rows[4];
+    for (const t of map.values()) {
+      t.unique_constraints = [];
+      t.indexes = [];
+      t.relations = [];
+    }
+    for (const r of unique.rows) map.get(r.table_name)?.unique_constraints.push({ name: r.name, columns: r.columns });
+    for (const r of indexes.rows) map.get(r.table_name)?.indexes.push({ name: r.name, definition: r.definition });
+    for (const r of enums.rows) {
+      const c = map.get(r.table_name)?.columns.find(x => x.name === r.column_name);
+      if (c) c.enum_values = r.values;
+    }
+    for (const t of map.values()) {
+      const outgoing = t.foreign_key_constraints.filter(f => f.source_table === t.name);
+      for (const f of outgoing)
+        t.relations.push({ kind: 'many-to-one', constraint: f.name, target_table: f.target_table });
+      const keys = new Set(outgoing.flatMap(f => f.source_columns));
+      if (
+        outgoing.length === 2 &&
+        t.primary_keys.length &&
+        t.primary_keys.every(k => keys.has(k)) &&
+        keys.size === t.primary_keys.length
+      )
+        t.junction = true;
+    }
+    return [...map.values()];
+  }
+  async function visibleMetadata(role = 'authenticated') {
+    if (!['anon', 'authenticated'].includes(role)) throw Error('Vai trò không hợp lệ.');
+    const [tables, access] = await Promise.all([
+      metadata(),
+      pool.query(
+        `SELECT c.relname,a.attname,has_table_privilege($1,c.oid,'SELECT') AS table_read FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE n.nspname='public' AND c.relkind IN ('r','p') AND has_schema_privilege($1,n.oid,'USAGE') AND has_column_privilege($1,c.oid,a.attnum,'SELECT')`,
+        [role],
+      ),
+    ]);
+    const permitted = new Map();
+    for (const row of access.rows) {
+      if (!permitted.has(row.relname)) permitted.set(row.relname, { columns: new Set(), tableRead: row.table_read });
+      permitted.get(row.relname).columns.add(row.attname);
+    }
+    return tables
+      .filter(t => permitted.has(t.name.slice(7)))
+      .map(t => {
+        const accessForTable = permitted.get(t.name.slice(7)),
+          allowed = accessForTable.columns,
+          columns = t.columns.filter(c => allowed.has(c.name)),
+          allKeysVisible = t.primary_keys.every(k => allowed.has(k));
+        return {
+          ...t,
+          columns,
+          primary_keys: allKeysVisible ? t.primary_keys : [],
+          unique_constraints: t.unique_constraints.filter(u => u.columns.every(c => allowed.has(c))),
+          indexes: accessForTable.tableRead ? t.indexes : [],
+          foreign_key_constraints: t.foreign_key_constraints.filter(f => {
+            const source = permitted.get(f.source_table.slice(7)),
+              target = permitted.get(f.target_table.slice(7));
+            return (
+              source &&
+              target &&
+              f.source_columns.every(c => source.columns.has(c)) &&
+              f.target_columns.every(c => target.columns.has(c))
+            );
+          }),
+          relations: t.relations.filter(r => permitted.has(r.target_table.slice(7))),
+        };
+      });
+  }
+  async function enumTypes(client = pool) {
+    const r = await client.query(
+      "SELECT t.typname AS name FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace WHERE n.nspname='public' AND t.typtype='e' ORDER BY t.typname",
+    );
+    return r.rows.map(x => x.name);
+  }
+  async function columnType(req, client) {
+    if (req.newType !== 'enum') return TYPES[req.newType];
+    const enumName = req.options?.enumType;
+    if (!validName(enumName) || !(await enumTypes(client)).includes(enumName)) throw Error('Kiểu enum không tồn tại.');
+    return `public.${ident(enumName)}`;
+  }
+  async function definitions(client = pool) {
+    const check = await client.query("SELECT to_regclass('siris_admin.columns') AS name");
+    if (!check.rows[0].name) return [];
+    const result = await client.query(
+      'SELECT id::text,source_table,label,kind,config FROM siris_admin.columns ORDER BY created_at,id',
+    );
+    return result.rows;
+  }
+  function getTable(tables, n) {
+    const t = tables.find(x => x.name === `public.${n}`);
+    if (!t) throw Error('Không tìm thấy bảng.');
+    return t;
+  }
+  async function previewDuplicate(req, client) {
+    if (!validName(req.table) || !validName(req.column) || !validName(req.newName))
+      throw Error('Tên bảng hoặc cột không hợp lệ.');
+    const tables = await metadata(client),
+      t = getTable(tables, req.table),
+      col = t.columns.find(c => c.name === req.column);
+    if (!col) throw Error('Không tìm thấy cột.');
+    const defs = await definitions(client);
+    if (
+      t.columns.some(c => c.name === req.newName) ||
+      defs.some(d => d.source_table === req.table && d.label === req.newName)
+    )
+      throw Error('Tên cột đã tồn tại.');
+    const type = col.format || col.data_type;
+    if (!type || typeof type !== 'string') throw Error('Không đọc được kiểu dữ liệu của cột.');
+    const count = await client.query(
+        `SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`,
+      ),
+      affected = Number(count.rows[0].n);
+    const signature = createHash('sha256')
+      .update(JSON.stringify({ table: t, defs, req, affected }))
+      .digest('hex');
+    return {
+      signature,
+      affected,
+      action: 'duplicate',
+      table: req.table,
+      column: req.column,
+      newName: req.newName,
+      newType: type,
+    };
+  }
+  async function preview(req, client = pool, ignoreLookupId = null) {
+    if (req.action === 'duplicate') return previewDuplicate(req, client);
+    const tables = await metadata(client),
+      t = getTable(tables, req.table),
+      defs = await definitions(client),
+      col = t.columns.find(c => c.name === req.column);
+    if (!['add', 'rename', 'type', 'delete', 'settings'].includes(req.action)) throw Error('Thao tác không hợp lệ.');
+    if (req.action !== 'add' && !col) throw Error('Không tìm thấy cột.');
+    if (req.action === 'add' || req.action === 'rename') {
+      if (!validName(req.newName))
+        throw Error('Tên cột chỉ gồm chữ, số và dấu gạch dưới, bắt đầu bằng chữ hoặc dấu gạch dưới.');
+      if (
+        t.columns.some(c => c.name === req.newName) ||
+        defs.some(c => c.source_table === req.table && c.label === req.newName)
+      )
+        throw Error('Tên cột đã tồn tại.');
+    }
+    if (
+      ['add', 'type'].includes(req.action) &&
+      !TYPES[req.newType] &&
+      !(req.action === 'add' && req.newType === 'enum')
+    )
+      throw Error('Kiểu cột không được hỗ trợ.');
+    if (req.action === 'add') {
+      const options = addOptions(req),
+        type = await columnType(req, client),
+        ref = req.options?.foreignTable;
+      if (ref) {
+        const target = getTable(tables, ref),
+          key = target.columns.find(c => c.name === req.options?.foreignColumn);
+        if (
+          !key ||
+          !validName(key.name) ||
+          options.array ||
+          req.newType === 'enum' ||
+          key.data_type !==
+            ({
+              varchar: 'character varying',
+              double: 'double precision',
+              timestamp: 'timestamp with time zone',
+              timestamp_local: 'timestamp without time zone',
+              time: 'time without time zone',
+            }[req.newType] || req.newType)
+        )
+          throw Error('Khóa ngoại cần cột đích cùng kiểu dữ liệu.');
+        if (
+          ![target.primary_keys, ...(target.unique_constraints || []).map(x => x.columns)].some(
+            cols => cols.length === 1 && cols[0] === key.name,
+          )
+        )
+          throw Error('Cột được tham chiếu cần khóa chính hoặc unique.');
+        for (const action of [req.options.onDelete || 'NO ACTION', req.options.onUpdate || 'NO ACTION'])
+          if (!['NO ACTION', 'RESTRICT', 'CASCADE', 'SET NULL', 'SET DEFAULT'].includes(action))
+            throw Error('Hành động khóa ngoại không hợp lệ.');
+        if ((req.options.onDelete === 'SET NULL' || req.options.onUpdate === 'SET NULL') && !options.nullable)
+          throw Error('SET NULL yêu cầu cột cho phép null.');
+      }
+      if (options.kind === 'literal') {
+        try {
+          await client.query(`SELECT $1::${type}${options.array ? '[]' : ''}`, [options.value]);
+        } catch {
+          throw Error('Giá trị mặc định không phù hợp với kiểu cột.');
+        }
+      }
+      if (options.kind === 'expression') {
+        try {
+          await client.query(`EXPLAIN SELECT (${options.value.trim()})::${type}${options.array ? '[]' : ''}`);
+        } catch {
+          throw Error('Biểu thức mặc định không phù hợp với kiểu cột.');
+        }
+      }
+      if (
+        (!options.nullable && !options.identity && options.kind === 'none') ||
+        (options.unique && !options.identity && ['literal', 'now', 'expression'].includes(options.kind))
+      ) {
+        const count = await client.query(`SELECT count(*)::text AS n FROM ${tableRef(req.table)}`),
+          n = Number(count.rows[0].n);
+        if (!options.nullable && !options.identity && options.kind === 'none' && n > 0)
+          throw Error('Bảng đã có dữ liệu; cần giá trị mặc định hoặc cho phép null.');
+        if (options.unique && n > 1 && !options.identity && ['literal', 'now', 'expression'].includes(options.kind))
+          throw Error('Giá trị mặc định sẽ trùng trên các bản ghi hiện có.');
+      }
+    }
+    if (req.action === 'settings') {
+      const o = req.options;
+      if (
+        !o ||
+        typeof o !== 'object' ||
+        Array.isArray(o) ||
+        Object.keys(o).some(k => !['nullable', 'unique', 'defaultKind', 'defaultValue', 'description'].includes(k)) ||
+        typeof o.nullable !== 'boolean' ||
+        typeof o.unique !== 'boolean' ||
+        !['keep', 'none', 'literal', 'expression'].includes(o.defaultKind) ||
+        typeof o.description !== 'string' ||
+        o.description.length > 1000
+      )
+        throw Error('Tùy chọn cột không hợp lệ.');
+      if (col.options.includes('generated') || col.options.includes('identity'))
+        throw Error('Cột tự sinh hoặc identity chưa hỗ trợ thay đổi các thuộc tính này.');
+      if (t.primary_keys.includes(col.name) && o.nullable) throw Error('Khóa chính không thể để trống.');
+      if (!o.nullable) {
+        const r = await client.query(
+          `SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NULL`,
+        );
+        if (Number(r.rows[0].n)) throw Error('Cột có giá trị trống; hãy điền trước khi tắt cho phép trống.');
+      }
+      const existing = t.unique_constraints.filter(x => x.columns.length === 1 && x.columns[0] === col.name);
+      if (!o.unique && t.primary_keys.length === 1 && t.primary_keys[0] === col.name)
+        throw Error('Không thể bỏ duy nhất khỏi khóa chính.');
+      if (!o.unique && existing.length > 1) throw Error('Cột có nhiều ràng buộc duy nhất; hãy xử lý trong Supabase.');
+      if (o.unique && !existing.length && !t.primary_keys.includes(col.name)) {
+        const r = await client.query(
+          `SELECT 1 FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL GROUP BY ${ident(col.name)} HAVING count(*)>1 LIMIT 1`,
+        );
+        if (r.rows.length) throw Error('Cột có giá trị trùng; hãy xử lý trước khi bật duy nhất.');
+      }
+      if (o.defaultKind === 'literal' && (typeof o.defaultValue !== 'string' || o.defaultValue.length > 4000))
+        throw Error('Giá trị mặc định không hợp lệ.');
+      if (
+        o.defaultKind === 'expression' &&
+        (typeof o.defaultValue !== 'string' || !safeDefaultExpression(o.defaultValue))
+      )
+        throw Error('Biểu thức chưa được hỗ trợ.');
+      if (o.defaultKind === 'literal') {
+        try {
+          await client.query(`SELECT $1::${col.format}`, [o.defaultValue]);
+        } catch {
+          throw Error('Giá trị mặc định không phù hợp với kiểu cột.');
+        }
+      }
+    }
+    if (
+      col &&
+      ((req.action === 'type' && col.type_protected) || (['delete', 'rename'].includes(req.action) && col.protected))
+    )
+      throw Error('Cột có chỉ mục, ràng buộc hoặc phụ thuộc; cần xử lý trong Supabase trước.');
+    if (col) {
+      const exists = await client.query("SELECT to_regclass('siris_admin.lookup_configs') IS NOT NULL AS present");
+      if (exists.rows[0].present) {
+        const saved = await client.query('SELECT config FROM siris_admin.lookup_configs');
+        if (
+          saved.rows.some(({ config: c }) => {
+            if (
+              c.id === ignoreLookupId &&
+              req.action === 'rename' &&
+              c.columnBound === true &&
+              c.sync?.enabled &&
+              c.sourceTable === req.table &&
+              c.sync.columnName === col.name
+            )
+              return false;
+            const rules = Array.isArray(c.conditions)
+              ? c.conditions
+              : [{ sourceColumn: c.sourceColumn, targetKey: c.targetKey }];
+            return (
+              (c.sourceTable === req.table &&
+                ((c.sync?.enabled && c.sync.columnName === col.name) ||
+                  rules.some(r => r.sourceColumn === col.name))) ||
+              (c.targetTable === req.table && (c.targetField === col.name || rules.some(r => r.targetKey === col.name)))
+            );
+          })
+        )
+          throw Error('Cột đang được lookup sử dụng. Hãy xử lý lookup trước.');
+      }
+    }
+    if (
+      col &&
+      defs.some(d => {
+        if (d.kind === 'relation') return d.config.targetTable === req.table && d.config.labelField === col.name;
+        if (d.kind !== 'lookup') return false;
+        let target = d.config.legacy?.targetTable;
+        let sourceColumn = d.config.legacy?.sourceColumn;
+        if (d.config.legacy && d.source_table === req.table && sourceColumn === col.name) return true;
+        if (d.config.relationId?.startsWith('legacy:')) {
+          const parent = defs.find(p => p.id === d.config.relationId.slice(7) && p.config.legacy);
+          if (parent) target = parent.config.legacy.targetTable;
+        }
+        const rel = defs.find(r => r.id === d.config.relationId && r.kind === 'relation');
+        if (rel) target = rel.config.targetTable;
+        if (d.config.relationId?.startsWith('native:')) {
+          const sourceTable = tables.find(t => t.name === `public.${d.source_table}`);
+          const fk = sourceTable?.foreign_key_constraints.find(
+            f => f.source_table === sourceTable.name && f.name === d.config.relationId.slice(7),
+          );
+          if (fk) target = fk.target_table.slice(7);
+        }
+        return target === req.table && (d.config.targetField === col.name || d.config.legacy?.targetKey === col.name);
+      })
+    )
+      throw Error('Cột đang được liên kết hoặc lookup sử dụng.');
+    let affected = 0;
+    if (col) {
+      const count = await client.query(
+        `SELECT count(*)::text AS n FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`,
+      );
+      affected = Number(count.rows[0].n);
+    }
+    if (req.action === 'type') {
+      try {
+        await client.query(
+          `SELECT count(${ident(col.name)}::${TYPES[req.newType]}) FROM ${tableRef(req.table)} WHERE ${ident(col.name)} IS NOT NULL`,
+        );
+      } catch {
+        throw Error('Có dữ liệu không thể chuyển sang kiểu đã chọn.');
+      }
+    }
+    const signature = createHash('sha256')
+      .update(JSON.stringify({ table: t, defs, affected, req }))
+      .digest('hex');
+    return {
+      signature,
+      affected,
+      action: req.action,
+      table: req.table,
+      column: req.column,
+      newName: req.newName,
+      newType: req.newType,
+    };
+  }
+  async function apply(req, signature) {
+    return transaction(async client => {
+      if (req.action === 'duplicate') {
+        await client.query("SET LOCAL lock_timeout = '5s'");
+        await client.query("SET LOCAL statement_timeout = '60s'");
+      }
+      const p = await preview(req, client);
+      if (p.signature !== signature) throw Error('Cấu trúc hoặc dữ liệu đã thay đổi. Hãy xem lại trước khi áp dụng.');
+      await client.query(`LOCK TABLE ${tableRef(req.table)} IN ACCESS EXCLUSIVE MODE`);
+      const checked = await preview(req, client);
+      if (checked.signature !== signature)
+        throw Error('Cấu trúc hoặc dữ liệu đã thay đổi. Hãy xem lại trước khi áp dụng.');
+      if (req.action === 'duplicate') {
+        const t = getTable(await metadata(client), req.table),
+          col = t.columns.find(c => c.name === req.column);
+        await client.query(
+          `ALTER TABLE ${tableRef(req.table)} ADD COLUMN ${ident(req.newName)} ${col.format || col.data_type}`,
+        );
+        await client.query(
+          `UPDATE ${tableRef(req.table)} SET ${ident(req.newName)} = ${ident(req.column)} WHERE ${ident(req.column)} IS NOT NULL`,
+        );
+        if (col.description)
+          await client.query(
+            `COMMENT ON COLUMN ${tableRef(req.table)}.${ident(req.newName)} IS ${literal(col.description)}`,
+          );
+        await client.query("NOTIFY pgrst, 'reload schema'");
+        return { ok: true, column: req.newName };
+      }
+      if (req.action === 'settings') {
+        const o = req.options,
+          t = getTable(await metadata(client), req.table),
+          c = t.columns.find(x => x.name === req.column),
+          column = ident(req.column),
+          current = t.unique_constraints.filter(x => x.columns.length === 1 && x.columns[0] === req.column);
+        if (o.nullable !== c.options.includes('nullable'))
+          await client.query(
+            `ALTER TABLE ${tableRef(req.table)} ALTER COLUMN ${column} ${o.nullable ? 'DROP' : 'SET'} NOT NULL`,
+          );
+        if (o.unique && !current.length && !t.primary_keys.includes(req.column))
+          await client.query(`ALTER TABLE ${tableRef(req.table)} ADD UNIQUE (${column})`);
+        if (!o.unique && current.length)
+          await client.query(`ALTER TABLE ${tableRef(req.table)} DROP CONSTRAINT ${ident(current[0].name)} RESTRICT`);
+        if (o.defaultKind !== 'keep') {
+          const def =
+            o.defaultKind === 'none'
+              ? 'DROP DEFAULT'
+              : o.defaultKind === 'literal'
+                ? `SET DEFAULT ${literal(o.defaultValue)}::${c.format}`
+                : `SET DEFAULT ${o.defaultValue.trim()}`;
+          await client.query(`ALTER TABLE ${tableRef(req.table)} ALTER COLUMN ${column} ${def}`);
+        }
+        await client.query(
+          `COMMENT ON COLUMN ${tableRef(req.table)}.${column} IS ${o.description ? literal(o.description) : 'NULL'}`,
+        );
+        await client.query("NOTIFY pgrst, 'reload schema'");
+        return { ok: true };
+      }
+      let sql;
+      if (req.action === 'add') {
+        const o = addOptions(req),
+          type = await columnType(req, client),
+          def =
+            o.kind === 'literal'
+              ? ` DEFAULT ${literal(o.value)}::${type}${o.array ? '[]' : ''}`
+              : o.kind === 'now'
+                ? ' DEFAULT now()'
+                : o.kind === 'uuid'
+                  ? ' DEFAULT gen_random_uuid()'
+                  : o.kind === 'expression'
+                    ? ` DEFAULT ${o.value.trim()}`
+                    : '';
+        sql = `ADD COLUMN ${ident(req.newName)} ${type}${o.array ? '[]' : ''}${o.identity ? ' GENERATED BY DEFAULT AS IDENTITY' : def}${!o.nullable && !o.identity ? ' NOT NULL' : ''}${o.unique ? ' UNIQUE' : ''}${req.options?.foreignTable ? ` REFERENCES ${tableRef(req.options.foreignTable)} (${ident(req.options.foreignColumn)}) ON DELETE ${req.options.onDelete || 'NO ACTION'} ON UPDATE ${req.options.onUpdate || 'NO ACTION'}` : ''}`;
+      }
+      if (req.action === 'rename') sql = `RENAME COLUMN ${ident(req.column)} TO ${ident(req.newName)}`;
+      if (req.action === 'type')
+        sql = `ALTER COLUMN ${ident(req.column)} TYPE ${TYPES[req.newType]} USING ${ident(req.column)}::${TYPES[req.newType]}`;
+      if (req.action === 'delete') sql = `DROP COLUMN ${ident(req.column)} RESTRICT`;
+      await client.query(`ALTER TABLE ${tableRef(req.table)} ${sql}`);
+      if (req.action === 'add' && addOptions(req).description)
+        await client.query(
+          `COMMENT ON COLUMN ${tableRef(req.table)}.${ident(req.newName)} IS ${literal(addOptions(req).description)}`,
+        );
+      await client.query("NOTIFY pgrst, 'reload schema'");
+      return { ok: true };
+    });
+  }
+  return {
+    formulaSync: createFormulaSync(pool, metadata),
+    lookupSync: createLookupSync(pool, metadata, (request, client, id) => preview(request, client, id)),
+    enabled: !!pool,
+    metadata,
+    visibleMetadata,
+    enumTypes,
+    definitions,
+    preview,
+    apply,
+    close: () => pool?.end(),
+  };
+}
+export { safeError };

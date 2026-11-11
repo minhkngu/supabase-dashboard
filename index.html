@@ -1,338 +1,1041 @@
 <!doctype html>
 <html lang="vi">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Siris — Quản lý dữ liệu</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
-</head>
-<body>
-<div class="app">
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <div class="brand" id="brandHeader" title="Siris">
-        <div class="brand-copy">
-          <span class="brand-name">Siris</span>
-        </div>
-      </div>
-      <button class="sidebar-collapse-btn" id="toggleSidebar" type="button" aria-label="Thu gọn thanh bên" title="Thu gọn thanh bên (⌘B)" aria-expanded="true">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="9" y1="3" x2="9" y2="21"></line>
-          <polyline points="15 15 12 12 15 9"></polyline>
-        </svg>
-      </button>
-      <button class="icon mobile-close" id="closeNav" aria-label="Đóng danh sách bảng">×</button>
-    </div>
-    <div class="table-tools">
-      <label class="sidebar-search">
-        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <input id="tableSearch" placeholder="Tìm bảng..." aria-label="Tìm bảng hoặc thư mục">
-      </label>
-      <button id="addFolder" class="add-folder-btn" title="Tạo thư mục mới" aria-label="Tạo thư mục" aria-expanded="false">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-      </button>
-    </div>
-    <form id="createFolderForm" class="create-folder" hidden>
-      <input id="newFolderName" placeholder="Tên thư mục mới..." aria-label="Tên thư mục mới" maxlength="40" required>
-      <div class="create-folder-actions">
-        <button type="submit" class="primary-sm">Tạo</button>
-        <button type="button" id="cancelFolder" class="ghost-sm" aria-label="Hủy tạo thư mục">×</button>
-      </div>
-    </form>
-    <nav id="tables" aria-label="Danh sách bảng"><div class="muted">Đang kết nối…</div></nav>
-    <div class="sidebar-footer">
-      <button id="sidebarToggleBtn" class="sidebar-toggle-btn" type="button" aria-label="Thu gọn hoặc mở rộng thanh bên" title="Thu gọn thanh bên (⌘B)">
-        <svg class="toggle-icon-sidebar" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-          <line x1="9" y1="3" x2="9" y2="21"></line>
-          <polyline class="toggle-arrow" points="15 15 12 12 15 9"></polyline>
-        </svg>
-        <span class="sidebar-toggle-text">Thu gọn thanh bên</span>
-        <span class="sidebar-toggle-hint">⌘B</span>
-      </button>
-    </div>
-  </aside>
-  <div class="main">
-    <main>
-      <div class="heading">
-        <div class="title-wrap">
-          <button class="icon menu" id="openNav" aria-label="Mở danh sách bảng">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-          </button>
-          <div class="table-identity">
-            <span class="table-glyph" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-            </span>
-            <h1 id="title">Cơ sở dữ liệu</h1>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Siris — Quản lý dữ liệu</title>
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="brand" id="brandHeader" title="Siris">
+            <div class="brand-copy">
+              <span class="brand-name">Siris</span>
+            </div>
           </div>
-        </div>
-        <div class="heading-actions">
-          <div id="promotionsViewSwitch" class="promotions-view-switch" role="group" aria-label="Chế độ xem bảng" hidden>
-            <button id="promotionsOverviewButton" type="button" class="secondary" aria-pressed="true">Dashboard</button>
-            <button id="promotionsTableButton" type="button" class="secondary" aria-pressed="false">Bảng dữ liệu</button>
-          </div>
-          <button type="button" id="undoCell" class="secondary" title="Hoàn tác sửa ô" aria-label="Hoàn tác sửa ô" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 0 14h-1"/></svg></button>
-          <button type="button" id="redoCell" class="secondary" title="Làm lại sửa ô" aria-label="Làm lại sửa ô" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 0 0 0 14h1"/></svg></button>
-          <button id="add" class="primary" disabled>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>Thêm bản ghi</span>
+          <button
+            class="sidebar-collapse-btn"
+            id="toggleSidebar"
+            type="button"
+            aria-label="Thu gọn thanh bên"
+            title="Thu gọn thanh bên (⌘B)"
+            aria-expanded="true"
+          >
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <polyline points="15 15 12 12 15 9"></polyline>
+            </svg>
           </button>
+          <button class="icon mobile-close" id="closeNav" aria-label="Đóng danh sách bảng">×</button>
         </div>
-      </div>
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <label class="search">
-            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input id="search" placeholder="Tìm kiếm nhanh bản ghi..." aria-label="Tìm trong bảng">
+        <div class="table-tools">
+          <label class="sidebar-search">
+            <svg
+              class="search-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input id="tableSearch" placeholder="Tìm bảng..." aria-label="Tìm bảng hoặc thư mục" />
           </label>
-        </div>
-        <div class="toolbar-right">
-          <div class="view-menu">
-            <button id="columnsButton" class="dropdown-trigger view-trigger" type="button" aria-expanded="false" title="Hiển thị hoặc ẩn các cột trong bảng">
-              <span class="btn-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-                  <line x1="9" y1="3" x2="9" y2="21"></line>
-                  <line x1="15" y1="3" x2="15" y2="21"></line>
-                </svg>
-              </span>
-              <span>Cột</span>
-              <span id="hiddenColumnCount" class="badge-count"></span>
-              <span class="dropdown-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div id="columnsMenu" class="view-popover columns-popover" hidden>
-              <div class="view-popover-head">
-                <div class="view-popover-title-wrap">
-                  <span class="view-menu-title">Hiển thị cột</span>
-                  <span class="view-menu-subtitle">Bật hoặc tắt cột trong bảng</span>
-                </div>
-                <div class="columns-head-actions">
-                  <button type="button" id="showAllColumns" class="text-btn">Hiện hết</button>
-                </div>
-              </div>
-              <div class="columns-search-box">
-                <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input id="columnSearchInput" type="text" placeholder="Tìm tên cột..." aria-label="Tìm kiếm cột">
-              </div>
-              <div id="columnVisibility" class="columns-toggle-list"></div>
-            </div>
-          </div>
-          <!-- Nút lọc và popover điều kiện lọc -->
-          <div class="view-menu">
-            <button id="filterButton" class="dropdown-trigger view-trigger" type="button" aria-expanded="false" title="Lọc các bản ghi theo điều kiện">
-              <span class="btn-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-              </span>
-              <span>Lọc</span>
-              <span id="filterCount" class="badge-count"></span>
-              <span class="dropdown-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div id="filterMenu" class="view-popover filter-popover" hidden>
-              <div class="view-popover-head">
-                <div class="view-popover-title-wrap">
-                  <span class="view-menu-title">Bộ lọc điều kiện</span>
-                  <span class="view-menu-subtitle">Hiển thị bản ghi thỏa mãn điều kiện</span>
-                </div>
-                <button type="button" id="clearFilters" class="text-btn danger-text" hidden>Xóa hết lọc</button>
-              </div>
-              <div id="filterRules" class="view-rules-list"></div>
-              <button type="button" id="addFilter" class="view-add">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Thêm điều kiện lọc</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Nút Nhóm và popover -->
-          <div class="view-menu">
-            <button id="groupButton" class="dropdown-trigger view-trigger" type="button" aria-expanded="false" title="Nhóm các hàng theo cột">
-              <span class="btn-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-              </span>
-              <span>Nhóm</span>
-              <span id="groupCount" class="badge-count"></span>
-              <span class="dropdown-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div id="groupMenu" class="view-popover" hidden>
-              <div class="view-popover-head">
-                <div class="view-popover-title-wrap">
-                  <span class="view-menu-title">Nhóm theo cột</span>
-                  <span class="view-menu-subtitle">Phân loại hàng theo giá trị cột</span>
-                </div>
-              </div>
-              <div id="groupRules" class="view-rules-list"></div>
-              <button type="button" id="addGroup" class="view-add">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Thêm nhóm</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Nút Sắp xếp và popover -->
-          <div class="view-menu">
-            <button id="sortButton" class="dropdown-trigger view-trigger" type="button" aria-expanded="false" title="Sắp xếp thứ tự bản ghi">
-              <span class="btn-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4"></path><path d="M7 20V4"></path><path d="m21 8-4-4-4 4"></path><path d="M17 4v16"></path></svg>
-              </span>
-              <span>Sắp xếp</span>
-              <span id="sortCount" class="badge-count"></span>
-              <span class="dropdown-arrow" aria-hidden="true">▾</span>
-            </button>
-            <div id="sortMenu" class="view-popover" hidden>
-              <div class="view-popover-head">
-                <div class="view-popover-title-wrap">
-                  <span class="view-menu-title">Sắp xếp thứ tự</span>
-                  <span class="view-menu-subtitle">Thứ tự hiển thị các hàng trong bảng</span>
-                </div>
-              </div>
-              <div id="sortRules" class="view-rules-list"></div>
-              <button type="button" id="addSort" class="view-add">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Thêm sắp xếp</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Tải lại -->
-          <button id="refresh" class="icon-btn square" title="Tải lại dữ liệu" aria-label="Tải lại">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          <button
+            id="addFolder"
+            class="add-folder-btn"
+            title="Tạo thư mục mới"
+            aria-label="Tạo thư mục"
+            aria-expanded="false"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
           </button>
         </div>
+        <form id="createFolderForm" class="create-folder" hidden>
+          <input
+            id="newFolderName"
+            placeholder="Tên thư mục mới..."
+            aria-label="Tên thư mục mới"
+            maxlength="40"
+            required
+          />
+          <div class="create-folder-actions">
+            <button type="submit" class="primary-sm">Tạo</button>
+            <button type="button" id="cancelFolder" class="ghost-sm" aria-label="Hủy tạo thư mục">×</button>
+          </div>
+        </form>
+        <nav id="tables" aria-label="Danh sách bảng"><div class="muted">Đang kết nối…</div></nav>
+        <div class="sidebar-footer">
+          <button
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            type="button"
+            aria-label="Thu gọn hoặc mở rộng thanh bên"
+            title="Thu gọn thanh bên (⌘B)"
+          >
+            <svg
+              class="toggle-icon-sidebar"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+              <line x1="9" y1="3" x2="9" y2="21"></line>
+              <polyline class="toggle-arrow" points="15 15 12 12 15 9"></polyline>
+            </svg>
+            <span class="sidebar-toggle-text">Thu gọn thanh bên</span>
+            <span class="sidebar-toggle-hint">⌘B</span>
+          </button>
+        </div>
+      </aside>
+      <div class="main">
+        <main>
+          <div class="heading">
+            <div class="title-wrap">
+              <button class="icon menu" id="openNav" aria-label="Mở danh sách bảng">
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="3" y1="12" x2="21" y2="12"></line>
+                  <line x1="3" y1="6" x2="21" y2="6"></line>
+                  <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+              </button>
+              <div class="table-identity">
+                <span class="table-glyph" aria-hidden="true">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18" />
+                  </svg>
+                </span>
+                <h1 id="title">Cơ sở dữ liệu</h1>
+                <button
+                  type="button"
+                  id="renameTable"
+                  class="title-rename"
+                  aria-label="Đổi tên hiển thị của bảng"
+                  title="Đổi tên hiển thị của bảng"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z" />
+                  </svg>
+                </button>
+              </div>
+              <div
+                id="promotionsViewSwitch"
+                class="promotions-view-switch"
+                role="group"
+                aria-label="Chế độ xem bảng"
+                hidden
+              >
+                <button id="promotionsOverviewButton" type="button" class="secondary" aria-pressed="true">
+                  Tổng quan
+                </button>
+                <button id="promotionsTableButton" type="button" class="secondary" aria-pressed="false">
+                  Bảng dữ liệu
+                </button>
+              </div>
+            </div>
+            <div class="heading-actions">
+              <button
+                type="button"
+                id="undoCell"
+                class="secondary"
+                title="Hoàn tác sửa ô"
+                aria-label="Hoàn tác sửa ô"
+                disabled
+              >
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M9 14 4 9l5-5" />
+                  <path d="M4 9h9a7 7 0 0 1 0 14h-1" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                id="redoCell"
+                class="secondary"
+                title="Làm lại sửa ô"
+                aria-label="Làm lại sửa ô"
+                disabled
+              >
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m15 14 5-5-5-5" />
+                  <path d="M20 9h-9a7 7 0 0 0 0 14h1" />
+                </svg>
+              </button>
+              <button id="add" class="primary" aria-label="Thêm bản ghi" title="Thêm bản ghi" disabled>
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Thêm bản ghi</span>
+              </button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <label class="search">
+                <svg
+                  class="search-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input
+                  id="search"
+                  placeholder="Tìm kiếm nhanh bản ghi... ( / )"
+                  aria-label="Tìm trong bảng"
+                  aria-keyshortcuts="/"
+                />
+              </label>
+            </div>
+            <div class="toolbar-right">
+              <div class="view-menu">
+                <button
+                  id="columnsButton"
+                  class="dropdown-trigger view-trigger"
+                  type="button"
+                  aria-expanded="false"
+                  title="Hiển thị hoặc ẩn các cột trong bảng"
+                >
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                      <line x1="9" y1="3" x2="9" y2="21"></line>
+                      <line x1="15" y1="3" x2="15" y2="21"></line>
+                    </svg>
+                  </span>
+                  <span>Cột</span>
+                  <span id="hiddenColumnCount" class="badge-count"></span>
+                  <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div id="columnsMenu" class="view-popover columns-popover" hidden>
+                  <div class="view-popover-head">
+                    <div class="view-popover-title-wrap">
+                      <span class="view-menu-title">Hiển thị cột</span>
+                      <span class="view-menu-subtitle">Bật hoặc tắt cột trong bảng</span>
+                    </div>
+                    <div class="columns-head-actions">
+                      <button type="button" id="showAllColumns" class="text-btn">Hiện hết</button>
+                    </div>
+                  </div>
+                  <div class="columns-search-box">
+                    <svg
+                      class="search-icon"
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input id="columnSearchInput" type="text" placeholder="Tìm tên cột..." aria-label="Tìm kiếm cột" />
+                  </div>
+                  <div id="columnVisibility" class="columns-toggle-list"></div>
+                </div>
+              </div>
+              <!-- Nút lọc và popover điều kiện lọc -->
+              <div class="view-menu">
+                <button
+                  id="filterButton"
+                  class="dropdown-trigger view-trigger"
+                  type="button"
+                  aria-expanded="false"
+                  title="Lọc các bản ghi theo điều kiện"
+                >
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    </svg>
+                  </span>
+                  <span>Lọc</span>
+                  <span id="filterCount" class="badge-count"></span>
+                  <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div id="filterMenu" class="view-popover filter-popover" hidden>
+                  <div class="view-popover-head">
+                    <div class="view-popover-title-wrap">
+                      <span class="view-menu-title">Bộ lọc điều kiện</span>
+                      <span class="view-menu-subtitle">Hiển thị bản ghi thỏa mãn điều kiện</span>
+                    </div>
+                    <button type="button" id="clearFilters" class="text-btn danger-text" hidden>Xóa hết lọc</button>
+                  </div>
+                  <div id="filterRules" class="view-rules-list"></div>
+                  <button type="button" id="addFilter" class="view-add">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Thêm điều kiện lọc</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Nút Nhóm và popover -->
+              <div class="view-menu">
+                <button
+                  id="groupButton"
+                  class="dropdown-trigger view-trigger"
+                  type="button"
+                  aria-expanded="false"
+                  title="Nhóm các hàng theo cột"
+                >
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <rect x="3" y="3" width="7" height="7"></rect>
+                      <rect x="14" y="3" width="7" height="7"></rect>
+                      <rect x="14" y="14" width="7" height="7"></rect>
+                      <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                  </span>
+                  <span>Nhóm</span>
+                  <span id="groupCount" class="badge-count"></span>
+                  <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div id="groupMenu" class="view-popover" hidden>
+                  <div class="view-popover-head">
+                    <div class="view-popover-title-wrap">
+                      <span class="view-menu-title">Nhóm theo cột</span>
+                      <span class="view-menu-subtitle">Phân loại hàng theo giá trị cột</span>
+                    </div>
+                  </div>
+                  <div id="groupRules" class="view-rules-list"></div>
+                  <button type="button" id="addGroup" class="view-add">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Thêm nhóm</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Nút Sắp xếp và popover -->
+              <div class="view-menu">
+                <button
+                  id="sortButton"
+                  class="dropdown-trigger view-trigger"
+                  type="button"
+                  aria-expanded="false"
+                  title="Sắp xếp thứ tự bản ghi"
+                >
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="m3 16 4 4 4-4"></path>
+                      <path d="M7 20V4"></path>
+                      <path d="m21 8-4-4-4 4"></path>
+                      <path d="M17 4v16"></path>
+                    </svg>
+                  </span>
+                  <span>Sắp xếp</span>
+                  <span id="sortCount" class="badge-count"></span>
+                  <span class="dropdown-arrow" aria-hidden="true">▾</span>
+                </button>
+                <div id="sortMenu" class="view-popover" hidden>
+                  <div class="view-popover-head">
+                    <div class="view-popover-title-wrap">
+                      <span class="view-menu-title">Sắp xếp thứ tự</span>
+                      <span class="view-menu-subtitle">Thứ tự hiển thị các hàng trong bảng</span>
+                    </div>
+                  </div>
+                  <div id="sortRules" class="view-rules-list"></div>
+                  <button type="button" id="addSort" class="view-add">
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Thêm sắp xếp</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tải lại -->
+              <button id="refresh" class="icon-btn square" title="Tải lại dữ liệu" aria-label="Tải lại">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div
+            id="ruleChips"
+            class="rule-chips"
+            role="group"
+            aria-label="Bộ lọc, nhóm và sắp xếp đang bật"
+            hidden
+          ></div>
+          <form id="bulkBar" class="bulk-bar" hidden>
+            <label id="bulkLabel" for="bulkValue"></label><span id="bulkField"></span
+            ><button type="submit" id="bulkApply" class="secondary">Áp dụng</button
+            ><button type="button" id="bulkCancel" class="secondary">Hủy</button
+            ><span id="bulkError" role="status"></span>
+          </form>
+          <div id="configStatus" class="config-status" role="status" hidden>
+            <span id="configStatusText"></span>
+            <button id="retryConfig" type="button" class="secondary" hidden>Thử lại</button>
+          </div>
+          <section
+            id="promotionsDashboard"
+            class="promotions-dashboard"
+            aria-label="Tổng quan promotions"
+            hidden
+          ></section>
+          <section id="tableDashboard" class="promotions-dashboard" aria-label="Tổng quan bảng" hidden></section>
+          <section class="grid-shell" aria-label="Dữ liệu bảng">
+            <div id="message" class="grid-message">Đang kết nối…</div>
+            <div class="table-scroll"><table id="grid"></table></div>
+            <section id="rowSelectionBar" class="row-selection-bar" aria-label="Thao tác dòng đã chọn" hidden>
+              <span id="rowSelectionSummary" role="status"></span>
+              <div class="row-selection-actions">
+                <button type="button" id="clearRowSelection" class="secondary">Bỏ chọn</button
+                ><button type="button" id="deleteSelectedRows" class="danger">Xóa</button>
+              </div>
+              <div id="rowDeleteResults" role="status" hidden></div>
+            </section>
+            <div class="grid-footer">
+              <div class="footer-left">
+                <span id="count" class="badge-total">—</span>
+                <label class="page-size"
+                  >Mỗi trang<select id="pageSize" aria-label="Số dòng mỗi trang">
+                    <option value="50">50 dòng</option>
+                    <option value="100">100 dòng</option>
+                    <option value="200">200 dòng</option>
+                  </select></label
+                >
+              </div>
+              <div class="footer-pagination">
+                <button id="prev" class="pagination-btn" aria-label="Trang trước" title="Trang trước">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                  </svg>
+                </button>
+                <span id="page" class="page-label">Trang 1</span>
+                <button id="next" class="pagination-btn" aria-label="Trang sau" title="Trang sau">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
-      <form id="bulkBar" class="bulk-bar" hidden><label id="bulkLabel" for="bulkValue"></label><span id="bulkField"></span><button type="submit" id="bulkApply" class="secondary">Áp dụng</button><button type="button" id="bulkCancel" class="secondary">Hủy</button><span id="bulkError" role="status"></span></form>
-      <div id="configStatus" class="config-status" role="status" hidden><span id="configStatusText"></span> <button id="retryConfig" type="button" class="secondary" hidden>Thử lại</button></div>
-      <section id="rowSelectionBar" class="row-selection-bar" aria-label="Thao tác dòng đã chọn" hidden>
-        <span id="rowSelectionSummary" role="status"></span>
-        <div class="row-selection-actions"><button type="button" id="deleteSelectedRows" class="danger">Xóa dòng đã chọn</button><button type="button" id="clearRowSelection" class="secondary">Bỏ chọn</button></div>
-        <div id="rowDeleteResults" role="status" hidden></div>
-      </section>
-      <section id="promotionsDashboard" class="promotions-dashboard" aria-label="Dashboard promotions" hidden></section>
-      <section id="tableDashboard" class="promotions-dashboard" aria-label="Dashboard bảng" hidden></section>
-      <section class="grid-shell" aria-label="Dữ liệu bảng">
-        <div id="message" class="grid-message">Đang kết nối…</div>
-        <div class="table-scroll"><table id="grid"></table></div>
-        <div class="grid-footer">
-          <div class="footer-left"><span id="count" class="badge-total">—</span></div>
-          <div class="footer-pagination">
-            <button id="prev" class="pagination-btn" aria-label="Trang trước" title="Trang trước">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
-            <span id="page" class="page-label">Trang 1</span>
-            <button id="next" class="pagination-btn" aria-label="Trang sau" title="Trang sau">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
+    </div>
+    <div id="scrim" class="scrim"></div>
+
+    <dialog id="relationDisplayDialog" aria-labelledby="relationDisplayTitle">
+      <form id="relationDisplayForm">
+        <div class="dialog-head">
+          <h2 id="relationDisplayTitle">Tên bản ghi liên kết</h2>
+          <button type="button" id="closeRelationDisplay" class="icon" aria-label="Đóng">×</button>
+        </div>
+        <div class="column-form">
+          <label>Trường hiển thị<select id="relationDisplayField" required></select></label>
+          <div id="relationDisplayError" class="lookup-error" role="alert"></div>
+        </div>
+        <div class="dialog-actions">
+          <div>
+            <button type="button" id="cancelRelationDisplay" class="secondary">Hủy</button
+            ><button type="submit" class="primary">Lưu</button>
           </div>
         </div>
-      </section>
-    </main>
-  </div>
-</div>
-<div id="scrim" class="scrim"></div>
-
-<dialog id="relationDisplayDialog" aria-labelledby="relationDisplayTitle">
-  <form id="relationDisplayForm"><div class="dialog-head"><h2 id="relationDisplayTitle">Tên bản ghi liên kết</h2><button type="button" id="closeRelationDisplay" class="icon" aria-label="Đóng">×</button></div>
-    <div class="column-form"><label>Trường hiển thị<select id="relationDisplayField" required></select></label><div id="relationDisplayError" class="lookup-error" role="alert"></div></div>
-    <div class="dialog-actions"><div><button type="button" id="cancelRelationDisplay" class="secondary">Hủy</button><button type="submit" class="primary">Lưu</button></div></div>
-  </form>
-</dialog>
-<dialog id="duplicateColumnDialog" aria-labelledby="duplicateColumnTitle">
- <form id="duplicateColumnForm">
-  <div class="dialog-head"><h2 id="duplicateColumnTitle">Nhân bản cột</h2><button type="button" id="closeDuplicateColumn" class="icon" aria-label="Đóng">×</button></div>
-  <div class="column-form"><label>Tên cột mới<input id="duplicateColumnName" required maxlength="63" pattern="[A-Za-z_][A-Za-z0-9_]*" autocomplete="off"></label><p id="duplicateColumnHint" class="detail"></p><p class="detail">Sao chép kiểu dữ liệu và toàn bộ giá trị hiện có. Cột mới cho phép trống, có thể sửa tay; không sao chép khóa, giá trị mặc định hoặc cấu hình tự cập nhật.</p><div id="duplicateColumnError" class="lookup-error" role="alert"></div></div>
-  <div class="dialog-actions"><div><button type="button" id="cancelDuplicateColumn" class="secondary">Hủy</button><button type="submit" id="saveDuplicateColumn" class="primary">Nhân bản</button></div></div>
- </form>
-</dialog>
-<dialog id="columnDialog" aria-labelledby="columnDialogTitle">
-  <form id="columnForm">
-    <div class="dialog-head"><h2 id="columnDialogTitle">Thêm cột</h2><button type="button" id="closeColumnDialog" class="icon" aria-label="Đóng"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"/></svg></button></div>
-    <div class="column-form">
-      <label>Tên cột<input id="columnName" required maxlength="80"><small>Tên dùng để truy cập cột trong database.</small></label>
-      <label hidden>Loại cột<select id="columnKind"><option value="data">Dữ liệu</option><option value="relation" disabled>Liên kết bản ghi (chưa hỗ trợ)</option><option value="lookup" disabled>Lookup (dùng nút Liên kết)</option></select></label>
-      <label id="columnTypeWrap">Kiểu dữ liệu<select id="columnType"><option value="text">text — văn bản</option><option value="varchar">varchar — chuỗi</option><option value="smallint">int2 — số nguyên nhỏ</option><option value="integer">int4 — số nguyên</option><option value="bigint">int8 — số nguyên lớn</option><option value="numeric">numeric — số thập phân</option><option value="real">float4</option><option value="double">float8</option><option value="date">date — ngày</option><option value="time">time — giờ</option><option value="timestamp">timestamptz — thời gian có múi giờ</option><option value="timestamp_local">timestamp — thời gian</option><option value="boolean">bool — đúng / sai</option><option value="uuid">uuid</option><option value="json">json</option><option value="jsonb">jsonb</option><option value="bytea">bytea</option><option value="enum">enum — kiểu có sẵn</option></select><small>Quy định loại giá trị có thể lưu trong cột.</small></label>
-      <div id="columnTypeInfo" class="detail" hidden></div>
-      <div id="columnEditDetails" class="column-edit-details" hidden><div class="column-section-heading">Thuộc tính hiện tại</div><label>Mô tả<input id="editColumnDescription" maxlength="1000"></label><label class="column-checkbox"><input id="editColumnNullable" type="checkbox"><span>Cho phép trống</span></label><label class="column-checkbox"><input id="editColumnUnique" type="checkbox"><span>Giá trị duy nhất</span></label><label>Giá trị mặc định<select id="editColumnDefaultKind"><option value="keep">Giữ giá trị hiện tại</option><option value="none">Không có</option><option value="literal">Giá trị cụ thể</option><option value="expression">Biểu thức</option></select><small id="editColumnDefaultCurrent"></small></label><label id="editColumnDefaultWrap" hidden>Giá trị<input id="editColumnDefaultValue" maxlength="4000"></label><p>Thay đổi tên hoặc kiểu dữ liệu ở phía trên.</p></div>
-      <div id="columnCreateOptions" class="column-create-options"><div class="column-section-heading">Thuộc tính cột</div>
-        <label id="columnEnumWrap" hidden>Kiểu enum<select id="columnEnum"></select><small>Chọn tập giá trị enum đã có trong database.</small></label>
-        <label>Mô tả <input id="columnDescription" maxlength="1000" placeholder="Không bắt buộc"><small>Ghi chú về mục đích của cột, không ảnh hưởng dữ liệu.</small></label>
-        <label>Giá trị mặc định<select id="columnDefaultKind"><option value="none">Không có</option><option value="literal">Giá trị cụ thể</option><option value="now">Thời gian hiện tại</option><option value="uuid">UUID tự sinh</option><option value="expression">Biểu thức</option></select><small>Giá trị được dùng khi thêm bản ghi mà không cung cấp cột này.</small></label>
-        <label id="columnDefaultValueWrap" hidden>Giá trị<input id="columnDefaultValue" maxlength="4000"><small>Nhập giá trị hoặc biểu thức mặc định được hỗ trợ.</small></label>
-        <label class="column-checkbox"><input type="checkbox" id="columnArray"><span>Mảng<small>Cho phép lưu nhiều giá trị cùng kiểu trong một ô.</small></span></label>
-        <label>Bảng tham chiếu<select id="columnForeignTable"><option value="">Không có</option></select><small>Chọn bảng chứa bản ghi được cột này tham chiếu.</small></label>
-        <label>Cột tham chiếu<select id="columnForeignColumn"><option value="">Chọn cột</option></select><small>Cột được tham chiếu cần cùng kiểu và có khóa chính hoặc ràng buộc duy nhất.</small></label>
-        <label>Khi xóa bản ghi nguồn<select id="columnForeignDelete"><option>NO ACTION</option><option>RESTRICT</option><option>CASCADE</option><option>SET NULL</option><option>SET DEFAULT</option></select><small>Quy định cách xử lý khi bản ghi được tham chiếu bị xóa.</small></label>
-        <label>Khi sửa khóa nguồn<select id="columnForeignUpdate"><option>NO ACTION</option><option>RESTRICT</option><option>CASCADE</option><option>SET NULL</option><option>SET DEFAULT</option></select><small>Quy định cách xử lý khi giá trị khóa được tham chiếu thay đổi.</small></label>
-        <label class="column-checkbox"><input type="checkbox" id="columnNullable" checked><span>Cho phép trống<small>Cho phép bản ghi không có giá trị trong cột này.</small></span></label>
-        <label class="column-checkbox"><input type="checkbox" id="columnUnique"><span>Giá trị duy nhất<small>Không cho phép các bản ghi có cùng giá trị.</small></span></label>
-        <label class="column-checkbox"><input type="checkbox" id="columnIdentity"><span>Identity — tự tăng<small>Database tự tạo số cho bản ghi mới; chỉ dùng với kiểu số nguyên.</small></span></label>
-      </div>
-      <label id="columnTargetWrap" hidden>Bảng liên kết<select id="columnTarget"></select></label>
-      <label id="columnDisplayWrap" hidden>Trường hiển thị<select id="columnDisplay"></select></label>
-      <label id="columnMultipleWrap" class="column-checkbox" hidden><input type="checkbox" id="columnMultiple">Cho phép nhiều bản ghi trong một ô</label>
-      <label id="columnRelationWrap" hidden>Cột liên kết<select id="columnRelation"></select></label>
-      <label id="columnLookupFieldWrap" hidden>Trường lookup<select id="columnLookupField"></select></label>
-      <div id="columnSyncSection" class="lookup-sync-section" hidden>
-        <label class="lookup-sync-toggle"><span>Đồng bộ từ lookup</span><span class="column-switch-wrap"><input id="columnSyncEnabled" class="column-switch-input" type="checkbox" role="switch"><span class="column-switch-slider" aria-hidden="true"></span></span></label>
-        <div id="columnSyncConfig" hidden>
-          <div class="lookup-pair"><label>Bảng nguồn<select id="columnSyncTable" aria-label="Bảng nguồn lookup"></select></label><label>Trường cần lấy<select id="columnSyncField" aria-label="Trường lookup cần lấy"></select></label></div>
-          <div class="lookup-rule-head"><span>Tham chiếu dữ liệu khi</span><select id="columnSyncMode" aria-label="Kết hợp điều kiện lookup"><option value="all">Tất cả</option><option value="any">Bất kỳ</option></select><span>điều kiện được thỏa mãn</span></div>
-          <div id="columnSyncConditions"></div>
-          <button type="button" id="columnSyncAddCondition" class="quiet">＋ Thêm điều kiện</button>
-          <label>Hiển thị dữ liệu<select id="columnSyncDisplay"><option value="value">Giá trị</option><option value="count">Đếm bản ghi</option></select></label>
+      </form>
+    </dialog>
+    <dialog id="duplicateColumnDialog" aria-labelledby="duplicateColumnTitle">
+      <form id="duplicateColumnForm">
+        <div class="dialog-head">
+          <h2 id="duplicateColumnTitle">Nhân bản cột</h2>
+          <button type="button" id="closeDuplicateColumn" class="icon" aria-label="Đóng">×</button>
         </div>
-        <p id="columnSyncHint" class="detail"></p>
-      </div>
-      <div id="columnFormulaSection" class="lookup-sync-section" hidden>
-        <label class="lookup-sync-toggle"><span>Formula</span><span class="column-switch-wrap"><input id="columnFormulaEnabled" class="column-switch-input" type="checkbox" role="switch"><span class="column-switch-slider" aria-hidden="true"></span></span></label>
-        <div id="columnFormulaConfig" hidden>
-          <label>Thêm cột vào công thức<select id="columnFormulaField" aria-label="Chọn cột cho công thức"></select></label>
-          <label>Công thức<input id="columnFormulaExpression" maxlength="2000" placeholder="[giá] * [số_lượng]" autocomplete="off"></label>
-          <p class="detail">Dùng +, −, *, /, %, ngoặc và ROUND, ABS, MIN, MAX.</p>
+        <div class="column-form">
+          <label
+            >Tên cột mới<input
+              id="duplicateColumnName"
+              required
+              maxlength="63"
+              pattern="[A-Za-z_][A-Za-z0-9_]*"
+              autocomplete="off"
+          /></label>
+          <p id="duplicateColumnHint" class="detail"></p>
+          <p class="detail">
+            Sao chép kiểu dữ liệu và toàn bộ giá trị hiện có. Cột mới cho phép trống, có thể sửa tay; không sao chép
+            khóa, giá trị mặc định hoặc cấu hình tự cập nhật.
+          </p>
+          <div id="duplicateColumnError" class="lookup-error" role="alert"></div>
         </div>
-        <p id="columnFormulaHint" class="detail"></p>
+        <div class="dialog-actions">
+          <div>
+            <button type="button" id="cancelDuplicateColumn" class="secondary">Hủy</button
+            ><button type="submit" id="saveDuplicateColumn" class="primary">Nhân bản</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="columnDialog" aria-labelledby="columnDialogTitle">
+      <form id="columnForm">
+        <div class="dialog-head">
+          <h2 id="columnDialogTitle">Thêm cột</h2>
+          <button type="button" id="closeColumnDialog" class="icon" aria-label="Đóng">
+            <svg
+              aria-hidden="true"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            >
+              <path d="m18 6-12 12M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="column-form">
+          <label
+            >Tên cột<input id="columnName" required maxlength="80" /><small
+              >Tên dùng để truy cập cột trong database.</small
+            ></label
+          >
+          <label id="columnTypeWrap"
+            >Kiểu dữ liệu<select id="columnType">
+              <option value="text">text — văn bản</option>
+              <option value="varchar">varchar — chuỗi</option>
+              <option value="smallint">int2 — số nguyên nhỏ</option>
+              <option value="integer">int4 — số nguyên</option>
+              <option value="bigint">int8 — số nguyên lớn</option>
+              <option value="numeric">numeric — số thập phân</option>
+              <option value="real">float4</option>
+              <option value="double">float8</option>
+              <option value="date">date — ngày</option>
+              <option value="time">time — giờ</option>
+              <option value="timestamp">timestamptz — thời gian có múi giờ</option>
+              <option value="timestamp_local">timestamp — thời gian</option>
+              <option value="boolean">bool — đúng / sai</option>
+              <option value="uuid">uuid</option>
+              <option value="json">json</option>
+              <option value="jsonb">jsonb</option>
+              <option value="bytea">bytea</option>
+              <option value="enum">enum — kiểu có sẵn</option></select
+            ><small>Quy định loại giá trị có thể lưu trong cột.</small></label
+          >
+          <div id="columnTypeInfo" class="detail" hidden></div>
+          <div id="columnEditDetails" class="column-edit-details" hidden>
+            <div class="column-section-heading">Thuộc tính hiện tại</div>
+            <label>Mô tả<input id="editColumnDescription" maxlength="1000" /></label
+            ><label class="column-checkbox"
+              ><input id="editColumnNullable" type="checkbox" /><span>Cho phép trống</span></label
+            ><label class="column-checkbox"
+              ><input id="editColumnUnique" type="checkbox" /><span>Giá trị duy nhất</span></label
+            ><label
+              >Giá trị mặc định<select id="editColumnDefaultKind">
+                <option value="keep">Giữ giá trị hiện tại</option>
+                <option value="none">Không có</option>
+                <option value="literal">Giá trị cụ thể</option>
+                <option value="expression">Biểu thức</option></select
+              ><small id="editColumnDefaultCurrent"></small></label
+            ><label id="editColumnDefaultWrap" hidden
+              >Giá trị<input id="editColumnDefaultValue" maxlength="4000"
+            /></label>
+            <p>Thay đổi tên hoặc kiểu dữ liệu ở phía trên.</p>
+          </div>
+          <div id="columnCreateOptions" class="column-create-options">
+            <div class="column-section-heading">Thuộc tính cột</div>
+            <label id="columnEnumWrap" hidden
+              >Kiểu enum<select id="columnEnum"></select
+              ><small>Chọn tập giá trị enum đã có trong database.</small></label
+            >
+            <label
+              >Mô tả <input id="columnDescription" maxlength="1000" placeholder="Không bắt buộc" /><small
+                >Ghi chú về mục đích của cột, không ảnh hưởng dữ liệu.</small
+              ></label
+            >
+            <label
+              >Giá trị mặc định<select id="columnDefaultKind">
+                <option value="none">Không có</option>
+                <option value="literal">Giá trị cụ thể</option>
+                <option value="now">Thời gian hiện tại</option>
+                <option value="uuid">UUID tự sinh</option>
+                <option value="expression">Biểu thức</option></select
+              ><small>Giá trị được dùng khi thêm bản ghi mà không cung cấp cột này.</small></label
+            >
+            <label id="columnDefaultValueWrap" hidden
+              >Giá trị<input id="columnDefaultValue" maxlength="4000" /><small
+                >Nhập giá trị hoặc biểu thức mặc định được hỗ trợ.</small
+              ></label
+            >
+            <label class="column-checkbox"
+              ><input type="checkbox" id="columnArray" /><span
+                >Mảng<small>Cho phép lưu nhiều giá trị cùng kiểu trong một ô.</small></span
+              ></label
+            >
+            <label
+              >Bảng tham chiếu<select id="columnForeignTable">
+                <option value="">Không có</option></select
+              ><small>Chọn bảng chứa bản ghi được cột này tham chiếu.</small></label
+            >
+            <label
+              >Cột tham chiếu<select id="columnForeignColumn">
+                <option value="">Chọn cột</option></select
+              ><small>Cột được tham chiếu cần cùng kiểu và có khóa chính hoặc ràng buộc duy nhất.</small></label
+            >
+            <label
+              >Khi xóa bản ghi nguồn<select id="columnForeignDelete">
+                <option>NO ACTION</option>
+                <option>RESTRICT</option>
+                <option>CASCADE</option>
+                <option>SET NULL</option>
+                <option>SET DEFAULT</option></select
+              ><small>Quy định cách xử lý khi bản ghi được tham chiếu bị xóa.</small></label
+            >
+            <label
+              >Khi sửa khóa nguồn<select id="columnForeignUpdate">
+                <option>NO ACTION</option>
+                <option>RESTRICT</option>
+                <option>CASCADE</option>
+                <option>SET NULL</option>
+                <option>SET DEFAULT</option></select
+              ><small>Quy định cách xử lý khi giá trị khóa được tham chiếu thay đổi.</small></label
+            >
+            <label class="column-checkbox"
+              ><input type="checkbox" id="columnNullable" checked /><span
+                >Cho phép trống<small>Cho phép bản ghi không có giá trị trong cột này.</small></span
+              ></label
+            >
+            <label class="column-checkbox"
+              ><input type="checkbox" id="columnUnique" /><span
+                >Giá trị duy nhất<small>Không cho phép các bản ghi có cùng giá trị.</small></span
+              ></label
+            >
+            <label class="column-checkbox"
+              ><input type="checkbox" id="columnIdentity" /><span
+                >Identity — tự tăng<small>Database tự tạo số cho bản ghi mới; chỉ dùng với kiểu số nguyên.</small></span
+              ></label
+            >
+          </div>
+          <div id="columnSyncSection" class="lookup-sync-section" hidden>
+            <label class="lookup-sync-toggle"
+              ><span>Đồng bộ từ lookup</span
+              ><span class="column-switch-wrap"
+                ><input id="columnSyncEnabled" class="column-switch-input" type="checkbox" role="switch" /><span
+                  class="column-switch-slider"
+                  aria-hidden="true"
+                ></span></span
+            ></label>
+            <div id="columnSyncConfig" hidden>
+              <div class="lookup-pair">
+                <label>Bảng nguồn<select id="columnSyncTable" aria-label="Bảng nguồn lookup"></select></label
+                ><label>Trường cần lấy<select id="columnSyncField" aria-label="Trường lookup cần lấy"></select></label>
+              </div>
+              <div class="lookup-rule-head">
+                <span>Tham chiếu dữ liệu khi</span
+                ><select id="columnSyncMode" aria-label="Kết hợp điều kiện lookup">
+                  <option value="all">Tất cả</option>
+                  <option value="any">Bất kỳ</option></select
+                ><span>điều kiện được thỏa mãn</span>
+              </div>
+              <div id="columnSyncConditions"></div>
+              <button type="button" id="columnSyncAddCondition" class="quiet">＋ Thêm điều kiện</button>
+              <label
+                >Hiển thị dữ liệu<select id="columnSyncDisplay">
+                  <option value="value">Giá trị</option>
+                  <option value="count">Đếm bản ghi</option>
+                </select></label
+              >
+            </div>
+            <p id="columnSyncHint" class="detail"></p>
+          </div>
+          <div id="columnFormulaSection" class="lookup-sync-section" hidden>
+            <label class="lookup-sync-toggle"
+              ><span>Formula</span
+              ><span class="column-switch-wrap"
+                ><input id="columnFormulaEnabled" class="column-switch-input" type="checkbox" role="switch" /><span
+                  class="column-switch-slider"
+                  aria-hidden="true"
+                ></span></span
+            ></label>
+            <div id="columnFormulaConfig" hidden>
+              <label
+                >Thêm cột vào công thức<select id="columnFormulaField" aria-label="Chọn cột cho công thức"></select
+              ></label>
+              <label
+                >Công thức<input
+                  id="columnFormulaExpression"
+                  maxlength="2000"
+                  placeholder="[giá] * [số_lượng]"
+                  autocomplete="off"
+              /></label>
+              <p class="detail">Dùng +, −, *, /, %, ngoặc và ROUND, ABS, MIN, MAX.</p>
+            </div>
+            <p id="columnFormulaHint" class="detail"></p>
+          </div>
+          <div class="column-change-warning">
+            Lưu sẽ thay đổi trực tiếp cấu trúc Supabase và có thể ảnh hưởng ứng dụng khác.
+          </div>
+          <div id="columnError" class="lookup-error" role="alert"></div>
+        </div>
+        <div class="dialog-actions">
+          <div class="column-actions-left">
+            <button type="button" id="deleteColumn" class="danger" hidden>Xóa cột</button
+            ><button type="button" id="duplicateColumn" class="secondary" hidden>Nhân bản cột</button>
+          </div>
+          <div>
+            <button type="button" id="cancelColumn" class="secondary">Hủy</button
+            ><button type="submit" id="saveColumn" class="primary">Lưu</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="lookupDialog" aria-labelledby="lookupTitle">
+      <div class="dialog-head">
+        <div>
+          <div id="lookupContext" class="dialog-context"></div>
+          <h2 id="lookupTitle">Cột lookup</h2>
+        </div>
+        <button type="button" class="icon" id="closeLookup" aria-label="Đóng">×</button>
       </div>
-      <div class="column-change-warning">Lưu sẽ thay đổi trực tiếp cấu trúc Supabase và có thể ảnh hưởng ứng dụng khác.</div><div id="columnError" class="lookup-error" role="alert"></div>
-    </div>
-    <div class="dialog-actions"><div class="column-actions-left"><button type="button" id="deleteColumn" class="danger" hidden>Xóa cột</button><button type="button" id="duplicateColumn" class="secondary" hidden>Nhân bản cột</button></div><div><button type="button" id="cancelColumn" class="secondary">Hủy</button><button type="submit" id="saveColumn" class="primary">Lưu</button></div></div>
-  </form>
-</dialog>
-<dialog id="relationPicker" aria-labelledby="relationPickerTitle">
-  <div class="dialog-head"><h2 id="relationPickerTitle">Chọn bản ghi</h2><button type="button" id="closeRelationPicker" class="icon" aria-label="Đóng">×</button></div>
-  <div class="picker-body"><label class="search picker-search"><span aria-hidden="true">⌕</span><input id="relationSearch" placeholder="Tìm bản ghi" aria-label="Tìm bản ghi liên kết"></label><div id="relationError" class="lookup-error" role="alert"></div><div id="relationOptions" class="picker-list"></div><div class="picker-footer"><button type="button" id="clearRelation" class="quiet">Bỏ chọn</button><button type="button" id="relationPrev" class="quiet" aria-label="Trang trước">‹</button><span id="relationPage">Trang 1</span><button type="button" id="relationNext" class="quiet" aria-label="Trang sau">›</button><button type="button" id="saveRelation" class="primary">Lưu</button></div></div>
-</dialog>
-<dialog id="lookupDialog" aria-labelledby="lookupTitle">
-  <div class="dialog-head"><div><div id="lookupContext" class="dialog-context"></div><h2 id="lookupTitle">Cột lookup</h2></div><button type="button" class="icon" id="closeLookup" aria-label="Đóng">×</button></div>
-  <div class="lookup-body">
-    <div id="lookupList" class="lookup-list"></div>
-    <form id="lookupForm" class="lookup-form">
-      <label>Tên cột lookup<input id="lookupLabel" required maxlength="80" placeholder="Ví dụ: Tên chi nhánh"></label>
-      <div class="lookup-wide"><label>Lấy dữ liệu từ</label><div class="lookup-pair"><select id="lookupTable" required aria-label="Bảng nguồn"></select><select id="lookupField" required aria-label="Trường cần lấy"></select></div></div>
-      <div class="lookup-wide"><div class="lookup-rule-head"><span>Tham chiếu dữ liệu khi</span><select id="lookupMode" aria-label="Kết hợp điều kiện"><option value="all">Tất cả</option><option value="any">Bất kỳ</option></select><span>điều kiện được thỏa mãn</span></div><div id="lookupConditions"></div><button type="button" id="lookupAddCondition" class="quiet">＋ Thêm điều kiện</button></div>
-      <div class="lookup-pair lookup-wide"><label>Hiển thị dữ liệu<select id="lookupDisplay"><option value="value">Giá trị</option><option value="count">Đếm bản ghi</option></select></label><label>Định dạng số<select id="lookupFormat"><option value="default">Mặc định</option><option value="grouped">Phân tách hàng nghìn</option></select></label></div>
-      <div class="lookup-wide lookup-sync-section" hidden>
-        <label class="lookup-sync-toggle"><span>Đồng bộ vào cột Supabase</span><span class="column-switch-wrap"><input id="lookupSyncEnabled" class="column-switch-input" type="checkbox" role="switch"><span class="column-switch-slider" aria-hidden="true"></span></span></label>
-        <label id="lookupSyncColumnWrap" hidden>Cột nhận dữ liệu<select id="lookupSyncColumn" aria-label="Cột nhận dữ liệu"></select></label>
-        <p id="lookupSyncHint" class="detail">Bật để tự cập nhật cột đã chọn. Tắt để xóa giá trị trong cột đó.</p>
+      <div class="lookup-body">
+        <div id="lookupList" class="lookup-list"></div>
+        <form id="lookupForm" class="lookup-form">
+          <label
+            >Tên cột lookup<input id="lookupLabel" required maxlength="80" placeholder="Ví dụ: Tên chi nhánh"
+          /></label>
+          <div class="lookup-wide">
+            <label>Lấy dữ liệu từ</label>
+            <div class="lookup-pair">
+              <select id="lookupTable" required aria-label="Bảng nguồn"></select
+              ><select id="lookupField" required aria-label="Trường cần lấy"></select>
+            </div>
+          </div>
+          <div class="lookup-wide">
+            <div class="lookup-rule-head">
+              <span>Tham chiếu dữ liệu khi</span
+              ><select id="lookupMode" aria-label="Kết hợp điều kiện">
+                <option value="all">Tất cả</option>
+                <option value="any">Bất kỳ</option></select
+              ><span>điều kiện được thỏa mãn</span>
+            </div>
+            <div id="lookupConditions"></div>
+            <button type="button" id="lookupAddCondition" class="quiet">＋ Thêm điều kiện</button>
+          </div>
+          <div class="lookup-pair lookup-wide">
+            <label
+              >Hiển thị dữ liệu<select id="lookupDisplay">
+                <option value="value">Giá trị</option>
+                <option value="count">Đếm bản ghi</option>
+              </select></label
+            ><label
+              >Định dạng số<select id="lookupFormat">
+                <option value="default">Mặc định</option>
+                <option value="grouped">Phân tách hàng nghìn</option>
+              </select></label
+            >
+          </div>
+          <div class="lookup-wide lookup-sync-section" hidden>
+            <label class="lookup-sync-toggle"
+              ><span>Đồng bộ vào cột Supabase</span
+              ><span class="column-switch-wrap"
+                ><input id="lookupSyncEnabled" class="column-switch-input" type="checkbox" role="switch" /><span
+                  class="column-switch-slider"
+                  aria-hidden="true"
+                ></span></span
+            ></label>
+            <label id="lookupSyncColumnWrap" hidden
+              >Cột nhận dữ liệu<select id="lookupSyncColumn" aria-label="Cột nhận dữ liệu"></select
+            ></label>
+            <p id="lookupSyncHint" class="detail">Bật để tự cập nhật cột đã chọn. Tắt để xóa giá trị trong cột đó.</p>
+          </div>
+          <div id="lookupError" class="lookup-error" role="alert"></div>
+          <div id="lookupColumnPreview" class="lookup-wide" role="status" hidden></div>
+          <div class="lookup-actions">
+            <button type="button" id="cancelLookupEdit" class="secondary" hidden>Hủy sửa</button
+            ><button type="button" id="previewLookupColumn" class="secondary" hidden>Kiểm tra đồng bộ</button
+            ><button type="submit" id="saveLookup" class="primary">Thêm lookup</button>
+          </div>
+        </form>
       </div>
-      <div id="lookupError" class="lookup-error" role="alert"></div><div id="lookupColumnPreview" class="lookup-wide" role="status" hidden></div>
-      <div class="lookup-actions"><button type="button" id="cancelLookupEdit" class="secondary" hidden>Hủy sửa</button><button type="button" id="previewLookupColumn" class="secondary" hidden>Kiểm tra đồng bộ</button><button type="submit" id="saveLookup" class="primary">Thêm lookup</button></div>
-    </form>
-  </div>
-</dialog>
-<dialog id="linkedRecord" aria-labelledby="linkedTitle"><div class="dialog-head"><h2 id="linkedTitle">Bản ghi liên kết</h2><button type="button" id="closeLinkedRecord" class="icon" aria-label="Đóng">×</button></div><div id="linkedFields" class="fields"></div></dialog>
-<dialog id="linkPicker" aria-labelledby="linkPickerTitle"><div class="dialog-head"><div><div id="linkPickerContext" class="dialog-context"></div><h2 id="linkPickerTitle">Chọn bản ghi liên kết</h2></div><button type="button" id="closeLinkPicker" class="icon" aria-label="Đóng">×</button></div><div class="picker-body"><select id="pickerLink" aria-label="Liên kết"></select><label class="search picker-search"><span aria-hidden="true">⌕</span><input id="pickerSearch" placeholder="Tìm bản ghi" aria-label="Tìm bản ghi liên kết"></label><div id="pickerError" class="lookup-error" role="alert"></div><div id="pickerList" class="picker-list"></div><div class="picker-footer"><button type="button" id="pickerClear" class="secondary">Bỏ liên kết</button><div><button type="button" id="pickerPrev" class="quiet" aria-label="Trang trước">‹</button><span id="pickerPage">Trang 1</span><button type="button" id="pickerNext" class="quiet" aria-label="Trang sau">›</button></div></div></div></dialog>
-<dialog id="editor">
-  <form id="form">
-    <div class="dialog-head"><div><div class="dialog-context" id="dialogEyebrow">Bản ghi</div><h2 id="dialogTitle">Chỉnh sửa bản ghi</h2></div><button type="button" class="icon" id="closeEditor" aria-label="Đóng">×</button></div>
-    <div id="formFields" class="fields"></div><div id="formError" class="form-error" role="alert"></div>
-    <div class="dialog-actions"><button type="button" class="danger" id="delete">Xóa bản ghi</button><div><button type="button" class="secondary" id="cancel">Hủy</button><button type="submit" class="primary" id="save">Lưu thay đổi</button></div></div>
-  </form>
-</dialog>
-<div id="toast" role="status"></div>
-<div id="portal"></div>
-<script type="module" src="/app.js"></script>
-</body>
+    </dialog>
+    <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <form id="confirmForm">
+        <div class="dialog-head"><h2 id="confirmTitle"></h2></div>
+        <div class="confirm-body">
+          <p id="confirmMessage"></p>
+          <label id="confirmInputWrap" hidden
+            ><span id="confirmInputLabel"></span><input id="confirmInput" maxlength="80" autocomplete="off"
+          /></label>
+          <div id="confirmError" class="lookup-error" role="alert"></div>
+        </div>
+        <div class="dialog-actions">
+          <span></span>
+          <div>
+            <button type="button" id="confirmCancel" class="secondary">Hủy</button
+            ><button type="submit" id="confirmOk" class="primary">Xác nhận</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="quickSwitch" class="quick-switch" aria-label="Chuyển bảng nhanh">
+      <input
+        id="quickSwitchInput"
+        type="search"
+        placeholder="Tìm bảng…"
+        aria-label="Tìm bảng để mở"
+        role="combobox"
+        aria-controls="quickSwitchList"
+        aria-expanded="true"
+        autocomplete="off"
+      />
+      <ul id="quickSwitchList" role="listbox" aria-label="Bảng"></ul>
+      <p class="quick-switch-hint">↑↓ để chọn · Enter để mở · Esc để đóng</p>
+    </dialog>
+    <dialog id="linkedRecord" aria-labelledby="linkedTitle">
+      <div class="dialog-head">
+        <h2 id="linkedTitle">Bản ghi liên kết</h2>
+        <button type="button" id="closeLinkedRecord" class="icon" aria-label="Đóng">×</button>
+      </div>
+      <div id="linkedFields" class="fields"></div>
+    </dialog>
+    <dialog id="linkPicker" aria-labelledby="linkPickerTitle">
+      <div class="dialog-head">
+        <div>
+          <div id="linkPickerContext" class="dialog-context"></div>
+          <h2 id="linkPickerTitle">Chọn bản ghi liên kết</h2>
+        </div>
+        <button type="button" id="closeLinkPicker" class="icon" aria-label="Đóng">×</button>
+      </div>
+      <div class="picker-body">
+        <select id="pickerLink" aria-label="Liên kết"></select
+        ><label class="search picker-search"
+          ><span aria-hidden="true">⌕</span
+          ><input id="pickerSearch" placeholder="Tìm bản ghi" aria-label="Tìm bản ghi liên kết"
+        /></label>
+        <div id="pickerError" class="lookup-error" role="alert"></div>
+        <div id="pickerList" class="picker-list"></div>
+        <div class="picker-footer">
+          <button type="button" id="pickerClear" class="secondary">Bỏ liên kết</button>
+          <div>
+            <button type="button" id="pickerPrev" class="quiet" aria-label="Trang trước">‹</button
+            ><span id="pickerPage">Trang 1</span
+            ><button type="button" id="pickerNext" class="quiet" aria-label="Trang sau">›</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+    <dialog id="editor">
+      <form id="form">
+        <div class="dialog-head">
+          <div>
+            <div class="dialog-context" id="dialogEyebrow">Bản ghi</div>
+            <h2 id="dialogTitle">Chỉnh sửa bản ghi</h2>
+          </div>
+          <button type="button" class="icon" id="closeEditor" aria-label="Đóng">×</button>
+        </div>
+        <div id="formFields" class="fields"></div>
+        <div id="formError" class="form-error" role="alert"></div>
+        <div class="dialog-actions">
+          <button type="button" class="danger" id="delete">Xóa bản ghi</button>
+          <div>
+            <button type="button" class="secondary" id="cancel">Hủy</button
+            ><button type="submit" class="primary" id="save">Lưu thay đổi</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <div id="portal"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
 </html>

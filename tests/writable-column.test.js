@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isWritableColumn } from '../writable-column.mjs';
 
-const table = (columns) => ({ name: 'public.products', columns });
+const table = columns => ({ name: 'public.products', columns });
 
 describe('isWritableColumn', () => {
   it('cho phép cột dữ liệu thông thường', () => {

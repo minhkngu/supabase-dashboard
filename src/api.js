@@ -1,0 +1,54 @@
+import { $, clearPageCache, state, el } from './state.js';
+
+export async function api(url, opts = {}) {
+  if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/'))
+    clearPageCache();
+  let r;
+  try {
+    r = await fetch(url, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(opts.method ? { 'x-siris-token': state.token } : {}),
+        ...opts.headers,
+      },
+    });
+  } catch (error) {
+    if (error.name !== 'AbortError') error.network = true;
+    throw error;
+  }
+  const d = await r.json();
+  if (!r.ok) {
+    throw Object.assign(Error(d.error || 'Có lỗi xảy ra'), { status: r.status });
+  }
+  return d;
+}
+let toastTimer;
+/**
+ * Shows a short status message. An optional action adds a button (for
+ * example "Hoàn tác") and keeps the message up a little longer.
+ * @param {string} msg
+ * @param {{ action?: { label: string, run: () => void } }} [options]
+ */
+export function toast(msg, { action } = {}) {
+  const host = $('#toast'),
+    text = el('span', 'toast-text', msg);
+  host.replaceChildren(text);
+  if (action) {
+    const button = el('button', 'toast-action', action.label);
+    button.type = 'button';
+    button.onclick = () => {
+      host.classList.remove('show');
+      action.run();
+    };
+    host.append(button);
+  }
+  host.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => host.classList.remove('show'), action ? 6000 : 3500);
+}
+export function message(msg, error = false) {
+  $('#message').textContent = msg;
+  $('#message').className = 'grid-message' + (error ? ' error' : '');
+  $('#message').hidden = !msg;
+}
