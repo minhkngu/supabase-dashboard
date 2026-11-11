@@ -61,6 +61,40 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
+
+  /* Inline colours gathered into tokens */
+  --text-on-accent: #ffffff;
+  --bg-hover: #f0f4f9;
+  --bg-row-hover: #f8faff;
+  --bg-cell-editing: #fdfdfe;
+  --bg-footer: #fafbfc;
+  --text-quiet: #52627c;
+  --danger-bg-strong: #fee2e2;
+  --info-bg: #f0f9ff;
+  --info-bg-strong: #e0f2fe;
+  --info-border: #bae6fd;
+  --info-text: #0369a1;
+  --info-accent: #0284c7;
+  --warning-bg: #fffbeb;
+  --warning-border: #fef3c7;
+  --warning-text: #92400e;
+  --type-text-bg: #eff6ff;
+  --type-text-fg: #1d4ed8;
+  --type-num-bg: #dcfce7;
+  --type-num-fg: #15803d;
+  --type-date-bg: #fef3c7;
+  --type-date-fg: #b45309;
+  --type-bool-bg: #f3e8ff;
+  --type-bool-fg: #7e22ce;
+  --type-json-bg: #ffe4e6;
+  --type-json-fg: #be123c;
+  --type-key-bg: #fee2e2;
+  --type-key-fg: #b91c1c;
+}
+
+/* Anything with the hidden attribute stays hidden, whatever its display. */
+[hidden] {
+  display: none !important;
 }
 
 *,
@@ -242,7 +276,7 @@ button:disabled {
 
 .mobile-close,
 button.mobile-close {
-  display: none !important;
+  display: none;
 }
 
 /* SIDEBAR TOOLS */
@@ -352,7 +386,7 @@ button.mobile-close {
   padding: 0 10px;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: #fff;
+  color: var(--text-on-accent);
   font-size: 11px;
   font-weight: 600;
 }
@@ -721,7 +755,7 @@ nav::-webkit-scrollbar-thumb {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--bg-surface);
 }
 
 main {
@@ -813,7 +847,7 @@ h1 {
 
 .primary {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
   border: 1px solid transparent;
 }
 
@@ -840,7 +874,7 @@ h1 {
 }
 
 .danger:hover:not(:disabled) {
-  background: #fee2e2;
+  background: var(--danger-bg-strong);
 }
 
 .quiet {
@@ -1084,7 +1118,7 @@ h1 {
   padding: 0 5px;
   border-radius: var(--radius-full);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-accent);
   font-size: 11px;
   font-weight: 700;
   font-family: var(--font-mono);
@@ -1314,28 +1348,28 @@ h1 {
 }
 
 .type-pill.type-t {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--type-text-bg);
+  color: var(--type-text-fg);
 }
 .type-pill.type-num {
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--type-num-bg);
+  color: var(--type-num-fg);
 }
 .type-pill.type-date {
-  background: #fef3c7;
-  color: #b45309;
+  background: var(--type-date-bg);
+  color: var(--type-date-fg);
 }
 .type-pill.type-bool {
-  background: #f3e8ff;
-  color: #7e22ce;
+  background: var(--type-bool-bg);
+  color: var(--type-bool-fg);
 }
 .type-pill.type-json {
-  background: #ffe4e6;
-  color: #be123c;
+  background: var(--type-json-bg);
+  color: var(--type-json-fg);
 }
 .type-pill.type-key {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--type-key-bg);
+  color: var(--type-key-fg);
 }
 
 /* DROPDOWN MENU PANEL */
@@ -1347,7 +1381,7 @@ h1 {
   min-width: 100%;
   width: max-content;
   max-width: 260px;
-  background: #ffffff;
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow:
@@ -1383,7 +1417,7 @@ h1 {
 
 .custom-select-search:focus {
   border-color: var(--border-focus);
-  background: #ffffff;
+  background: var(--bg-surface);
 }
 
 .custom-select-list {
@@ -1524,6 +1558,62 @@ h1 {
   font-size: 13px;
 }
 
+/* Column settings use the same menus as the rest of the workspace. */
+select.column-native-select {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.column-custom-select {
+  min-width: 0;
+}
+.column-custom-select .custom-select-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.column-custom-select .custom-select-item:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+
+.lookup-pair > .column-custom-select,
+.lookup-condition > .column-custom-select {
+  flex: 1;
+  min-width: 0;
+}
+.lookup-rule-head .column-custom-select {
+  width: auto;
+  min-width: 100px;
+}
+
+/* The cell editor floats above the scrollable grid, like other dropdowns. */
+.cell-select .custom-select-btn {
+  height: 38px;
+  border: 0;
+  border-radius: 0;
+}
+.cell-select-menu.custom-select-menu {
+  position: fixed;
+  z-index: 1000;
+  max-width: min(260px, calc(100vw - 16px));
+  min-width: 0;
+}
+
+.custom-select-group {
+  padding: 10px 8px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.custom-select-group:not(:first-child) {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+}
+
 .view-rule-button {
   height: 32px;
   min-width: 28px;
@@ -1649,7 +1739,7 @@ h1 {
 }
 
 .table-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border-hover);
   border-radius: 4px;
 }
 
@@ -1770,7 +1860,7 @@ th.frozen-cell .column-pin {
 .frozen-cell {
   position: sticky;
   z-index: 3;
-  background: #ffffff;
+  background: var(--bg-surface);
 }
 
 .frozen-cell.frozen-number {
@@ -1807,7 +1897,7 @@ tr:hover .frozen-cell:is(td) {
 
 .frozen-cell.frozen-edge::after {
   width: 2px;
-  background: #94a3b8;
+  background: var(--text-faint);
 }
 
 /* Group labels stay visible at the left edge during horizontal scrolling. */
@@ -1880,7 +1970,7 @@ tbody tr {
 }
 
 tbody tr:hover {
-  background: #f8faff;
+  background: var(--bg-row-hover);
 }
 
 /* DATA CELL VALUES */
@@ -1919,7 +2009,7 @@ td.cell-editable {
 
 td.cell-editable:hover {
   box-shadow: inset 0 0 0 1.5px var(--accent-border);
-  background: #fdfdfe;
+  background: var(--bg-cell-editing);
 }
 
 td.cell-readonly {
@@ -1936,7 +2026,7 @@ td.editing {
   padding: 0;
   overflow: visible;
   box-shadow: inset 0 0 0 2px var(--accent) !important;
-  background: #ffffff;
+  background: var(--bg-surface);
 }
 
 td.editing.cell-error {
@@ -1963,7 +2053,7 @@ td.editing.cell-error {
 
 /* LOOKUPS & RELATIONS IN CELLS */
 .lookup-header {
-  color: #0369a1;
+  color: var(--info-text);
 }
 
 .lookup-cell {
@@ -1976,9 +2066,9 @@ td.editing.cell-error {
   max-width: 100%;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  color: #0284c7;
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  color: var(--info-accent);
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
@@ -1989,8 +2079,8 @@ td.editing.cell-error {
 }
 
 .lookup-link:hover {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--info-bg-strong);
+  color: var(--info-text);
 }
 
 /* GROUPING ROWS */
@@ -1998,7 +2088,7 @@ td.editing.cell-error {
   height: 38px;
   max-width: none;
   overflow: visible;
-  background: #f8fafc;
+  background: var(--bg-app);
   border-right: 0;
   border-bottom: 1px solid var(--border-default);
   text-align: left !important;
@@ -2006,7 +2096,7 @@ td.editing.cell-error {
 }
 
 .group-row:hover td {
-  background: #f1f5f9;
+  background: var(--bg-subtle);
 }
 
 .group-toggle {
@@ -2058,7 +2148,7 @@ td.editing.cell-error {
   height: 42px;
   padding: 0 16px;
   border-top: 1px solid var(--border-default);
-  background: #fafbfc;
+  background: var(--bg-footer);
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -2468,7 +2558,7 @@ h2 {
   padding: 10px 16px;
   border-radius: var(--radius-md);
   background: var(--text-primary);
-  color: #ffffff;
+  color: var(--text-on-accent);
   font-size: 13px;
   font-weight: 500;
   box-shadow: var(--shadow-popover);
@@ -2519,7 +2609,7 @@ h2 {
 
   .mobile-close,
   button.mobile-close {
-    display: inline-flex !important;
+    display: inline-flex;
     margin-left: auto;
   }
 
@@ -2615,10 +2705,6 @@ h2 {
   }
 }
 
-.table-scroll[hidden] {
-  display: none !important;
-}
-
 /* COLUMNS POPOVER & SWITCHES */
 .columns-popover {
   width: 290px;
@@ -2644,7 +2730,7 @@ h2 {
 }
 
 .columns-search-box:focus-within {
-  background: #ffffff;
+  background: var(--bg-surface);
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-ring);
 }
@@ -2766,7 +2852,7 @@ h2 {
   width: 12px;
   left: 2px;
   top: 2px;
-  background: #ffffff;
+  background: var(--bg-surface);
   border-radius: 50%;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
   transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
@@ -2915,56 +3001,11 @@ h2 {
   grid-column: 1 / -1;
   font-size: 12px;
   line-height: 1.5;
-  color: #92400e;
-  background: #fffbeb;
-  border: 1px solid #fef3c7;
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
   border-radius: var(--radius-md);
   padding: 10px 14px;
-}
-
-/* Column settings use the same menus as the rest of the workspace. */
-select.column-native-select {
-  position: absolute;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  opacity: 0;
-  pointer-events: none;
-}
-.column-custom-select {
-  min-width: 0;
-}
-.column-custom-select .custom-select-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.column-custom-select .custom-select-item:focus-visible {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -2px;
-}
-
-.lookup-pair > .column-custom-select,
-.lookup-condition > .column-custom-select {
-  flex: 1;
-  min-width: 0;
-}
-.lookup-rule-head .column-custom-select {
-  width: auto;
-  min-width: 100px;
-}
-
-/* The cell editor floats above the scrollable grid, like other dropdowns. */
-.cell-select .custom-select-btn {
-  height: 38px;
-  border: 0;
-  border-radius: 0;
-}
-.cell-select-menu.custom-select-menu {
-  position: fixed;
-  z-index: 1000;
-  max-width: min(260px, calc(100vw - 16px));
-  min-width: 0;
 }
 
 .lookup-sync-section {
@@ -3108,16 +3149,6 @@ select.column-native-select {
 #columnSyncConfig > button {
   justify-self: start;
 }
-.custom-select-group {
-  padding: 10px 8px 4px;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-.custom-select-group:not(:first-child) {
-  border-top: 1px solid var(--border-subtle);
-  margin-top: 4px;
-}
 
 /* The column dialog scrolls only its content; header and actions stay visible. */
 #columnDialog[open] {
@@ -3170,7 +3201,7 @@ select.column-native-select {
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  color: #52627c;
+  color: var(--text-quiet);
   font-size: 13px;
 }
 .config-status[hidden] {
@@ -3275,15 +3306,6 @@ input.row-select:disabled {
   }
 }
 
-/* Promotions overview uses the existing workspace, controls and table API. */
-#promotionsViewSwitch[hidden],
-#promotionsDashboard[hidden],
-.toolbar[hidden],
-.grid-shell[hidden],
-#undoCell[hidden],
-#redoCell[hidden] {
-  display: none !important;
-}
 .promotions-view-switch {
   display: flex;
   gap: 4px;
@@ -3608,12 +3630,6 @@ input.row-select:disabled {
     grid-template-columns: minmax(0, 1fr) 100px;
     gap: 8px 16px;
   }
-  .promo-program-condition {
-    grid-column: 1;
-  }
-  .promo-program-state {
-    grid-column: 2;
-  }
   .promo-filters > div {
     width: 140px;
   }
@@ -3749,11 +3765,6 @@ input.row-select:disabled {
   }
 }
 
-/* Reset the earlier two-column tablet layout for compact rows. */
-.promo-program-condition,
-.promo-program-state {
-  grid-column: auto;
-}
 .promo-program > span {
   min-width: 0;
 }
@@ -3761,10 +3772,6 @@ input.row-select:disabled {
   white-space: nowrap;
 }
 
-/* Promotion dashboard is a read-only view. */
-#add[hidden] {
-  display: none !important;
-}
 .promo-program-row {
   display: block;
 }
@@ -3810,7 +3817,7 @@ input.row-select:disabled {
 }
 .overview-row:hover,
 .overview-row:focus-visible {
-  background: var(--bg-hover, #f0f4f9);
+  background: var(--bg-hover);
 }
 .overview-row > span:not(.overview-detail-link) {
   flex: 1 1 0;
@@ -4149,7 +4156,7 @@ dialog.quick-switch {
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: #ffffff;
+  color: var(--text-on-accent);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -4226,8 +4233,8 @@ dialog.confirm-dialog {
 }
 
 .type-pill.type-enum {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: var(--info-bg-strong);
+  color: var(--info-text);
 }
 
 .type-pill.type-link {
@@ -4273,7 +4280,7 @@ dialog.confirm-dialog {
   /* The drawer has its own close button; collapsing makes no sense here. */
   #toggleSidebar,
   #sidebarToggleBtn {
-    display: none !important;
+    display: none;
   }
 }
 
