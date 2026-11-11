@@ -1,8 +1,9 @@
 import { createPromotionsOverview } from '../../promotions-overview.mjs';
 import { createTableOverview } from '../../table-overview.mjs';
 import { api } from '../api.js';
-import { clearBulk, closeViewMenus, createCustomSelect, load } from '../main.js';
+import { clearBulk, createCustomSelect, load } from '../main.js';
 import { $, deletionBusy, deletionNotice, selectedRecords, state } from '../state.js';
+import { closeViewMenus } from '../view-menus.js';
 
 let promotionsMode = false;
 export function savedPromotionsMode(table) {

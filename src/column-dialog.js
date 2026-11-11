@@ -11,9 +11,10 @@ import {
   lookupType,
   persistLookups,
 } from './lookup.js';
-import { choose, displayedColumns, load, persistView, render, validFilterRules, validRules } from './main.js';
+import { choose, load, render } from './main.js';
 import { nav, restoreSidebar } from './sidebar.js';
 import { $, el, name, state } from './state.js';
+import { displayedColumns, persistView, validFilterRules, validRules } from './view-menus.js';
 
 async function refreshMetadata() {
   const d = await api('/api/meta');

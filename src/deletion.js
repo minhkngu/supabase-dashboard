@@ -1,7 +1,7 @@
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, toast } from './api.js';
 import { updateHistoryButtons } from './history.js';
-import { bulkBusy, clearBulk, load, persistView, render, syncEditorReadiness } from './main.js';
+import { bulkBusy, clearBulk, load, render, syncEditorReadiness } from './main.js';
 import { isPromotionsOverview, promotionsOverview } from './overview/mode.js';
 import {
   $,
@@ -20,6 +20,7 @@ import {
   setDeletionTable,
   state,
 } from './state.js';
+import { persistView } from './view-menus.js';
 
 function toggleRecordSelection(row, checked) {
   if (deletionBusy) return;
