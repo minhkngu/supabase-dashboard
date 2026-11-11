@@ -189,102 +189,12 @@ export function initColumnDialog() {
   $('#columnForm').onsubmit = async e => {
     e.preventDefault();
     $('#columnError').textContent = '';
-    const label = $('#columnName').value.trim(),
-      spec = state.columnEdit,
+    const spec = state.columnEdit,
       table = name(state.table);
     $('#saveColumn').disabled = true;
-    $('#columnDialog').close();
-    toast('Đang lưu thiết lập cột…');
     try {
-      const formula = await saveColumnFormula();
-      if (formula !== false) return;
-      const synced = await saveColumnSync();
-      if (synced !== false) return;
-      let changed = false;
-      if (!spec)
-        changed = await schemaOperation({
-          table,
-          action: 'add',
-          newName: label,
-          newType: $('#columnType').value,
-          options: {
-            nullable: $('#columnNullable').checked,
-            unique: $('#columnUnique').checked,
-            identity: $('#columnIdentity').checked,
-            array: $('#columnArray').checked,
-            enumType: $('#columnEnum').value,
-            foreignTable: $('#columnForeignTable').value,
-            foreignColumn: $('#columnForeignColumn').value,
-            onDelete: $('#columnForeignDelete').value,
-            onUpdate: $('#columnForeignUpdate').value,
-            defaultKind: $('#columnDefaultKind').value,
-            defaultValue: $('#columnDefaultValue').value,
-            description: $('#columnDescription').value,
-          },
-        });
-      else {
-        const c = spec.column,
-          type = $('#columnType').value,
-          typeChanged = type && type !== '__current__';
-        const originalUnique =
-          (state.table.unique_constraints || []).some(u => u.columns?.length === 1 && u.columns[0] === c.name) ||
-          (state.table.primary_keys?.length === 1 && state.table.primary_keys[0] === c.name);
-        const settingsChanged =
-          !$('#editColumnDefaultKind').disabled &&
-          ($('#editColumnNullable').checked !== c.options.includes('nullable') ||
-            $('#editColumnUnique').checked !== !!originalUnique ||
-            $('#editColumnDefaultKind').value !== 'keep' ||
-            $('#editColumnDescription').value !== (c.description || ''));
-        if ((label !== c.name || typeChanged) && settingsChanged)
-          throw Error('Hãy đổi tên hoặc kiểu cột và các thuộc tính trong hai lần lưu riêng.');
-        if (label !== c.name && typeChanged) throw Error('Hãy đổi tên và đổi kiểu trong hai lần riêng.');
-        if (label !== c.name) {
-          const lookup = state.lookups.find(
-            x => x.sourceTable === table && x.columnBound === true && x.sync?.enabled && x.sync.columnName === c.name,
-          );
-          if (lookup) {
-            const result = await api('/api/lookup-sync/rename', {
-              method: 'POST',
-              body: JSON.stringify({ table, column: c.name, newName: label, id: lookup.id }),
-            });
-            state.lookups = state.lookups.map(x => (x.id === lookup.id ? result.config : x));
-            changed = true;
-          } else changed = await schemaOperation({ table, action: 'rename', column: c.name, newName: label });
-          if (changed && name(state.table) === table) migrateViewColumn(c.name, label);
-        } else if (typeChanged)
-          changed = await schemaOperation({ table, action: 'type', column: c.name, newType: type });
-        else if (!$('#editColumnDefaultKind').disabled) {
-          const options = {
-            nullable: $('#editColumnNullable').checked,
-            unique: $('#editColumnUnique').checked,
-            defaultKind: $('#editColumnDefaultKind').value,
-            defaultValue: $('#editColumnDefaultValue').value,
-            description: $('#editColumnDescription').value,
-          };
-          const currentUnique =
-            (state.table.unique_constraints || []).some(u => u.columns?.length === 1 && u.columns[0] === c.name) ||
-            (state.table.primary_keys?.length === 1 && state.table.primary_keys[0] === c.name);
-          if (
-            options.nullable !== c.options.includes('nullable') ||
-            options.unique !== !!currentUnique ||
-            options.defaultKind !== 'keep' ||
-            options.description !== (c.description || '')
-          )
-            changed = await schemaOperation({ table, action: 'settings', column: c.name, options });
-        }
-      }
-      if (changed) {
-        $('#columnDialog').close();
-        await refreshMetadata();
-        toast('Đã cập nhật cột');
-      }
-    } catch (error) {
-      if (state.table && name(state.table) === table && !$('#columnDialog').open) {
-        $('#columnError').textContent = error.message;
-        $('#columnDialog').showModal();
-        toast('Không thể lưu cột: ' + error.message);
-        requestAnimationFrame(() => $('#columnError').scrollIntoView({ block: 'nearest' }));
-      } else toast('Không thể lưu cột: ' + error.message);
+      if (spec) await saveColumnSteps(spec, table);
+      else await addColumn(table);
     } finally {
       $('#saveColumn').disabled = false;
     }
@@ -406,22 +316,6 @@ function migrateViewColumn(oldName, newName) {
   }
   persistView();
 }
-function columnSettingsSnapshot() {
-  return JSON.stringify(
-    [
-      'columnName',
-      'columnType',
-      'editColumnNullable',
-      'editColumnUnique',
-      'editColumnDescription',
-      'editColumnDefaultKind',
-      'editColumnDefaultValue',
-    ].map(id => {
-      const input = $('#' + id);
-      return input.type === 'checkbox' ? input.checked : input.value;
-    }),
-  );
-}
 let columnSyncDraft = [];
 function drawColumnSyncConditions() {
   const host = $('#columnSyncConditions'),
@@ -524,21 +418,21 @@ function setupColumnSync(spec) {
     enabled: !!active,
     id: previous?.id || `column-lookup-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     previous,
-    snapshot: columnSettingsSnapshot(),
     draft: columnSyncSettingsSnapshot(),
   };
   updateColumnSync();
 }
-function columnSyncConfig() {
+function columnSyncConfig(columnName) {
   const column = state.columnEdit?.column,
     initial = state.columnSyncInitial,
     enabled = $('#columnSyncEnabled').checked;
   if (!column || !initial) throw Error('Không tìm thấy cột nhận lookup.');
-  if (!enabled) return { ...initial.previous, sync: { enabled: false, columnName: column.name }, columnBound: true };
+  const target = columnName || column.name;
+  if (!enabled) return { ...initial.previous, sync: { enabled: false, columnName: target }, columnBound: true };
   const conditions = columnSyncDraft.map(r => ({ ...r }));
   const config = {
     id: initial.id,
-    label: column.name,
+    label: target,
     sourceTable: name(state.table),
     targetTable: $('#columnSyncTable').value,
     targetField: $('#columnSyncField').value,
@@ -549,7 +443,7 @@ function columnSyncConfig() {
     display: $('#columnSyncDisplay').value,
     format: initial.previous?.format || 'default',
     columnBound: true,
-    sync: { enabled: true, columnName: column.name },
+    sync: { enabled: true, columnName: target },
   };
   if (!configValid(config)) throw Error('Chọn bảng nguồn, trường cần lấy và các cột đối chiếu phù hợp.');
   checkLookupSync(config);
@@ -631,7 +525,6 @@ function setupColumnFormula(spec) {
   state.formulaInitial = {
     enabled: enabled.checked,
     expression: $('#columnFormulaExpression').value,
-    snapshot: columnSettingsSnapshot(),
     table: name(state.table),
     column: column.name,
   };
@@ -647,55 +540,233 @@ function updateColumnFormula() {
       : 'Tắt formula sẽ giữ các giá trị hiện có.';
   $('#columnFormulaField')._syncColumnSelect?.();
 }
-async function saveColumnFormula() {
+function showColumnError(table, text) {
+  if (state.table && name(state.table) === table) {
+    $('#columnError').textContent = text;
+    if (!$('#columnDialog').open) $('#columnDialog').showModal();
+    requestAnimationFrame(() => $('#columnError').scrollIntoView({ block: 'nearest' }));
+  }
+  toast('Không thể lưu cột: ' + text);
+}
+async function addColumn(table) {
+  $('#columnDialog').close();
+  toast('Đang lưu thiết lập cột…');
+  try {
+    const changed = await schemaOperation({
+      table,
+      action: 'add',
+      newName: $('#columnName').value.trim(),
+      newType: $('#columnType').value,
+      options: {
+        nullable: $('#columnNullable').checked,
+        unique: $('#columnUnique').checked,
+        identity: $('#columnIdentity').checked,
+        array: $('#columnArray').checked,
+        enumType: $('#columnEnum').value,
+        foreignTable: $('#columnForeignTable').value,
+        foreignColumn: $('#columnForeignColumn').value,
+        onDelete: $('#columnForeignDelete').value,
+        onUpdate: $('#columnForeignUpdate').value,
+        defaultKind: $('#columnDefaultKind').value,
+        defaultValue: $('#columnDefaultValue').value,
+        description: $('#columnDescription').value,
+      },
+    });
+    if (changed) {
+      await refreshMetadata();
+      toast('Đã cập nhật cột');
+    }
+  } catch (error) {
+    showColumnError(table, error.message);
+  }
+}
+function uniqueColumn(c) {
+  return (
+    (state.table.unique_constraints || []).some(u => u.columns?.length === 1 && u.columns[0] === c.name) ||
+    (state.table.primary_keys?.length === 1 && state.table.primary_keys[0] === c.name)
+  );
+}
+// Builds the ordered list of changes for an existing column: name, type,
+// properties, then formula and lookup sync (turning one off before the other
+// is turned on). Each step only reads the column name through `ctx`, which
+// earlier steps update.
+function columnSteps(spec, table, ctx) {
+  const c = spec.column,
+    label = $('#columnName').value.trim(),
+    type = $('#columnType').value,
+    steps = [];
+  if (label !== c.name)
+    steps.push({
+      title: 'Đổi tên',
+      schema: true,
+      async run() {
+        const lookup = state.lookups.find(
+          x => x.sourceTable === table && x.columnBound === true && x.sync?.enabled && x.sync.columnName === c.name,
+        );
+        if (lookup) {
+          const result = await api('/api/lookup-sync/rename', {
+            method: 'POST',
+            body: JSON.stringify({ table, column: c.name, newName: label, id: lookup.id }),
+          });
+          state.lookups = state.lookups.map(x => (x.id === lookup.id ? result.config : x));
+        } else await schemaOperation({ table, action: 'rename', column: c.name, newName: label });
+        if (name(state.table) === table) migrateViewColumn(c.name, label);
+        ctx.column = label;
+      },
+    });
+  if (type && type !== '__current__')
+    steps.push({
+      title: 'Đổi kiểu',
+      schema: true,
+      run: () => schemaOperation({ table, action: 'type', column: ctx.column, newType: type }),
+    });
+  if (!$('#editColumnDefaultKind').disabled) {
+    const options = {
+      nullable: $('#editColumnNullable').checked,
+      unique: $('#editColumnUnique').checked,
+      defaultKind: $('#editColumnDefaultKind').value,
+      defaultValue: $('#editColumnDefaultValue').value,
+      description: $('#editColumnDescription').value,
+    };
+    if (
+      options.nullable !== c.options.includes('nullable') ||
+      options.unique !== !!uniqueColumn(c) ||
+      options.defaultKind !== 'keep' ||
+      options.description !== (c.description || '')
+    )
+      steps.push({
+        title: 'Thuộc tính',
+        schema: true,
+        run: () => schemaOperation({ table, action: 'settings', column: ctx.column, options }),
+      });
+  }
+  const formula = formulaStep(ctx),
+    sync = syncStep(ctx);
+  if (formula?.enables) steps.push(...[sync, formula].filter(Boolean));
+  else steps.push(...[formula, sync].filter(Boolean));
+  return steps;
+}
+function formulaStep(ctx) {
   const initial = state.formulaInitial;
-  if (!initial || $('#columnFormulaEnabled').disabled) return false;
+  if (!initial || $('#columnFormulaEnabled').disabled) return null;
   const enabled = $('#columnFormulaEnabled').checked,
     expression = $('#columnFormulaExpression').value.trim();
-  if (enabled === initial.enabled && (!enabled || expression === initial.expression)) return false;
-  if (initial.snapshot !== columnSettingsSnapshot())
-    throw Error('Hãy lưu thuộc tính cột và formula trong hai lần riêng.');
-  if (
-    state.columnSyncInitial &&
-    ($('#columnSyncEnabled').checked !== state.columnSyncInitial.enabled ||
-      ($('#columnSyncEnabled').checked && columnSyncSettingsSnapshot() !== state.columnSyncInitial.draft))
-  )
-    throw Error('Hãy lưu lookup và formula trong hai lần riêng.');
+  if (enabled === initial.enabled && (!enabled || expression === initial.expression)) return null;
   if (enabled && $('#columnSyncEnabled').checked) throw Error('Hãy tắt lookup trước khi bật formula.');
-  const config = { table: initial.table, column: initial.column, expression, enabled },
-    result = await api('/api/formula-config', { method: 'POST', body: JSON.stringify(config) });
-  state.formulas = (state.formulas || []).filter(f => f.table !== config.table || f.column !== config.column);
-  if (result.config?.enabled) state.formulas.push(result.config);
-  if (state.table && name(state.table) === config.table) {
+  return {
+    title: enabled ? 'Formula' : 'Tắt formula',
+    enables: enabled,
+    async run() {
+      const config = { table: initial.table, column: ctx.column, expression, enabled },
+        result = await api('/api/formula-config', { method: 'POST', body: JSON.stringify(config) });
+      state.formulas = (state.formulas || []).filter(
+        f => f.table !== config.table || ![initial.column, config.column].includes(f.column),
+      );
+      if (result.config?.enabled) state.formulas.push(result.config);
+      Object.assign(initial, { enabled, expression, column: config.column });
+    },
+  };
+}
+function syncStep(ctx) {
+  const initial = state.columnSyncInitial;
+  if (!initial || $('#columnSyncEnabled').disabled) return null;
+  const enabled = $('#columnSyncEnabled').checked;
+  if (enabled === initial.enabled && (!enabled || columnSyncSettingsSnapshot() === initial.draft)) return null;
+  return {
+    title: enabled ? 'Đồng bộ lookup' : 'Tắt đồng bộ lookup',
+    async run() {
+      const config = columnSyncConfig(ctx.column),
+        preview = await api('/api/lookup-sync/preview', { method: 'POST', body: JSON.stringify(config) });
+      const result = await api('/api/lookup-config', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'save', config, signature: preview.signature }),
+        }),
+        saved = result.config || config;
+      state.lookups = !enabled
+        ? state.lookups.filter(x => x.id !== config.id)
+        : state.lookups.some(x => x.id === config.id)
+          ? state.lookups.map(x => (x.id === config.id ? saved : x))
+          : [...state.lookups, saved];
+      persistLookups();
+      Object.assign(initial, { enabled, previous: saved, draft: columnSyncSettingsSnapshot() });
+    },
+  };
+}
+// After schema steps the dialog must describe the column as it now is, so a
+// retry only runs the steps that have not succeeded yet.
+function syncDialogAfterSteps(spec, ctx, done) {
+  const fresh = state.table?.columns.find(x => x.name === ctx.column);
+  if (fresh) {
+    state.columnEdit = { ...spec, id: `col:${fresh.name}`, column: fresh };
+    $('#columnName').value = fresh.name;
+  }
+  if (done.includes('Đổi kiểu')) {
+    const current = $('#columnType').querySelector('option[data-current-type]');
+    if (current && fresh) current.textContent = `${fresh.format || fresh.data_type} — kiểu hiện tại`;
+    $('#columnType').value = '__current__';
+    $('#columnType')._syncColumnSelect?.();
+  }
+  if (done.includes('Thuộc tính')) {
+    $('#editColumnDefaultKind').value = 'keep';
+    $('#editColumnDefaultWrap').hidden = true;
+    $('#editColumnDefaultKind')._syncColumnSelect?.();
+  }
+}
+async function saveColumnSteps(spec, table) {
+  const ctx = { column: spec.column.name };
+  let steps;
+  try {
+    steps = columnSteps(spec, table, ctx);
+  } catch (error) {
+    $('#columnError').textContent = error.message;
+    return;
+  }
+  $('#columnDialog').close();
+  if (!steps.length) {
+    toast('Không có thay đổi');
+    return;
+  }
+  const done = [];
+  let failure = null,
+    stale = false;
+  for (const [index, step] of steps.entries()) {
+    // Formula and lookup steps check the live column, so reload metadata
+    // after the schema steps that precede them.
+    if (stale && !step.schema) {
+      await refreshMetadata();
+      syncDialogAfterSteps(spec, ctx, done);
+      stale = false;
+    }
+    toast(`Đang lưu ${index + 1}/${steps.length}: ${step.title}…`);
+    try {
+      await step.run();
+      done.push(step.title);
+      stale ||= !!step.schema;
+    } catch (error) {
+      failure = { step, error };
+      break;
+    }
+  }
+  if (stale) await refreshMetadata();
+  syncDialogAfterSteps(spec, ctx, done);
+  if (state.table && name(state.table) === table) {
     render();
     await load({ silent: true });
   }
-  toast(enabled ? 'Đã lưu formula' : 'Đã tắt formula');
-  return true;
-}
-async function saveColumnSync() {
-  const initial = state.columnSyncInitial;
-  if (!initial || $('#columnSyncEnabled').disabled) return false;
-  const enabled = $('#columnSyncEnabled').checked;
-  if (enabled === initial.enabled && (!enabled || columnSyncSettingsSnapshot() === initial.draft)) return false;
-  if (initial.snapshot !== columnSettingsSnapshot())
-    throw Error('Hãy lưu thay đổi thuộc tính cột và đồng bộ lookup trong hai lần riêng.');
-  const config = columnSyncConfig(),
-    preview = await api('/api/lookup-sync/preview', { method: 'POST', body: JSON.stringify(config) });
-  const result = await api('/api/lookup-config', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'save', config, signature: preview.signature }),
-    }),
-    saved = result.config || config;
-  state.lookups = !enabled
-    ? state.lookups.filter(x => x.id !== config.id)
-    : state.lookups.some(x => x.id === config.id)
-      ? state.lookups.map(x => (x.id === config.id ? saved : x))
-      : [...state.lookups, saved];
-  persistLookups();
-  $('#columnDialog').close();
-  await load({ silent: true });
-  toast(enabled ? 'Đã lưu lookup cho cột' : 'Đã để trống cột');
-  return true;
+  if (!failure) {
+    toast(steps.length === 1 ? `Đã lưu: ${done[0]}` : `Đã lưu ${steps.length} thay đổi: ${done.join(', ')}`);
+    return;
+  }
+  const rest = steps.slice(done.length + 1).map(step => step.title);
+  showColumnError(
+    table,
+    [
+      done.length ? `Đã xong: ${done.join(', ')}.` : '',
+      `Lỗi ở bước “${failure.step.title}”: ${failure.error.message}`,
+      rest.length ? `Chưa chạy: ${rest.join(', ')}.` : '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+  );
 }
 let duplicateColumnSource = null;
