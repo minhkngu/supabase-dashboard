@@ -48,6 +48,7 @@ export function syncPromotionsView() {
   $('#tableDashboard').hidden = !overview || isPromo;
   $('.grid-shell').hidden = overview;
   $('.toolbar').hidden = overview;
+  $('#ruleChips').hidden = overview || !$('#ruleChips').children.length;
   $('#undoCell').hidden = overview;
   $('#redoCell').hidden = overview;
   $('#add').hidden = overview;
