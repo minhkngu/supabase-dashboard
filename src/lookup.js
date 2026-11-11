@@ -1,3 +1,4 @@
+import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
 import { load, render } from './grid/render.js';
 import { $, PAGE_SIZE, el, name, state } from './state.js';
@@ -181,7 +182,15 @@ function showLookupList() {
         .forEach(select => select._syncColumnSelect?.());
     };
     remove.onclick = async () => {
-      if (!confirm(`Xóa cấu hình lookup “${x.label}”?`)) return;
+      if (
+        !(await confirmDialog({
+          title: 'Xóa cấu hình lookup?',
+          message: `Cấu hình “${x.label}” sẽ bị xóa.`,
+          confirmLabel: 'Xóa',
+          danger: true,
+        }))
+      )
+        return;
       if (lookupCloudAvailable) {
         try {
           await api('/api/lookup-config', { method: 'POST', body: JSON.stringify({ action: 'delete', id: x.id }) });

@@ -1,3 +1,6 @@
+import { toast } from './api.js';
+import { openPopupMenu } from './grid/column-menu.js';
+import { confirmDialog, promptDialog } from './confirm.js';
 import { choose } from './grid/render.js';
 import { $, el, name, state } from './state.js';
 
@@ -52,11 +55,42 @@ function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
   clearTimeout(state.navAfterDrop);
   state.navAfterDrop = setTimeout(nav, 0);
 }
+async function renameFolder(folder) {
+  const next = await promptDialog({
+    title: 'Đổi tên thư mục',
+    label: 'Tên thư mục',
+    value: folder.name,
+    validate: value =>
+      !value
+        ? 'Nhập tên thư mục.'
+        : state.folders.some(f => f.id !== folder.id && f.name.toLocaleLowerCase() === value.toLocaleLowerCase())
+          ? 'Đã có thư mục cùng tên.'
+          : '',
+  });
+  if (!next || next === folder.name) return;
+  folder.name = next;
+  persistSidebar();
+  nav();
+}
+async function deleteFolder(folder) {
+  const confirmed = await confirmDialog({
+    title: `Xóa thư mục “${folder.name}”?`,
+    message: 'Các bảng bên trong sẽ được chuyển ra ngoài thư mục; dữ liệu không bị ảnh hưởng.',
+    confirmLabel: 'Xóa thư mục',
+    danger: true,
+  });
+  if (!confirmed) return;
+  state.folders = state.folders.filter(f => f.id !== folder.id);
+  for (const key of Object.keys(state.tableFolders))
+    if (state.tableFolders[key] === folder.id) delete state.tableFolders[key];
+  persistSidebar();
+  nav();
+}
 function makeFolder(name) {
   const clean = name.trim();
   if (!clean) return;
   if (state.folders.some(f => f.name.toLocaleLowerCase() === clean.toLocaleLowerCase())) {
-    alert('Đã có thư mục cùng tên.');
+    toast('Đã có thư mục cùng tên.');
     return;
   }
   state.folders.push({
@@ -179,27 +213,10 @@ export function nav() {
     rename.setAttribute('aria-label', rename.title);
     rename.onclick = e => {
       e.stopPropagation();
-      const action = prompt(`Nhập tên mới cho “${folder.name}”. Để xóa thư mục, nhập /xoa`, folder.name);
-      if (action === null) return;
-      if (action.trim() === '/xoa') {
-        if (!confirm(`Xóa thư mục “${folder.name}”? Các bảng bên trong sẽ được chuyển ra ngoài thư mục.`)) return;
-        state.folders = state.folders.filter(f => f.id !== folder.id);
-        for (const key of Object.keys(state.tableFolders))
-          if (state.tableFolders[key] === folder.id) delete state.tableFolders[key];
-        persistSidebar();
-        nav();
-        return;
-      }
-      const next = action.trim();
-      if (next && next !== folder.name) {
-        if (state.folders.some(f => f.id !== folder.id && f.name.toLocaleLowerCase() === next.toLocaleLowerCase())) {
-          alert('Đã có thư mục cùng tên.');
-          return;
-        }
-        folder.name = next;
-        persistSidebar();
-        nav();
-      }
+      openPopupMenu(rename, `Tùy chọn thư mục ${folder.name}`, [
+        { text: 'Đổi tên', run: () => void renameFolder(folder) },
+        { text: 'Xóa thư mục', danger: true, run: () => void deleteFolder(folder) },
+      ]);
     };
     actions.append(rename);
     head.append(toggle, actions);

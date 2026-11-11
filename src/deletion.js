@@ -1,3 +1,4 @@
+import { confirmDialog } from './confirm.js';
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, toast } from './api.js';
@@ -138,8 +139,17 @@ export async function deleteRecords(rows) {
     toast('Bản ghi thiếu khóa chính để xóa.');
     return;
   }
-  if (!confirm(`Xóa ${records.length} dòng trong bảng ${name(table)} khỏi Supabase? Thao tác này không thể hoàn tác.`))
+  if (
+    !(await confirmDialog({
+      title: `Xóa ${records.length} dòng?`,
+      message: `Các dòng sẽ bị xóa khỏi bảng ${name(table)} trên Supabase. Thao tác này không thể hoàn tác.`,
+      confirmLabel: `Xóa ${records.length} dòng`,
+      danger: true,
+    }))
+  )
     return;
+  // The page may have changed while the confirmation was open.
+  if (deletionBusy || state.table !== table || state.cellEdit) return;
   setDeletionBusy(true);
   setDeletionTable(table);
   setDeletionNotice('');

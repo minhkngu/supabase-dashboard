@@ -927,6 +927,25 @@
         </form>
       </div>
     </dialog>
+    <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <form id="confirmForm">
+        <div class="dialog-head"><h2 id="confirmTitle"></h2></div>
+        <div class="confirm-body">
+          <p id="confirmMessage"></p>
+          <label id="confirmInputWrap" hidden
+            ><span id="confirmInputLabel"></span><input id="confirmInput" maxlength="80" autocomplete="off"
+          /></label>
+          <div id="confirmError" class="lookup-error" role="alert"></div>
+        </div>
+        <div class="dialog-actions">
+          <span></span>
+          <div>
+            <button type="button" id="confirmCancel" class="secondary">Hủy</button
+            ><button type="submit" id="confirmOk" class="primary">Xác nhận</button>
+          </div>
+        </div>
+      </form>
+    </dialog>
     <dialog id="quickSwitch" class="quick-switch" aria-label="Chuyển bảng nhanh">
       <input
         id="quickSwitchInput"

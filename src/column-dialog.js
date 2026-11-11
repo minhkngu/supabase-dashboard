@@ -1,3 +1,4 @@
+import { confirmDialog } from './confirm.js';
 import { api, message, toast } from './api.js';
 import { choose, load, render } from './grid/render.js';
 import {
@@ -296,7 +297,11 @@ async function schemaOperation(operation) {
   }
   if (['delete', 'type'].includes(operation.action))
     msg += `\nGiá trị hiện có: ${preview.affected}. ${operation.action === 'delete' ? 'Dữ liệu trong cột sẽ bị xóa.' : 'Hãy kiểm tra các ứng dụng đang sử dụng cột này.'}`;
-  if (operation.action === 'delete' && !confirm(msg)) return false;
+  if (
+    operation.action === 'delete' &&
+    !(await confirmDialog({ title: 'Xóa cột?', message: msg, confirmLabel: 'Xóa cột', danger: true }))
+  )
+    return false;
   await api('/api/admin/schema/apply', {
     method: 'POST',
     body: JSON.stringify({ operation, signature: preview.signature }),

@@ -4160,3 +4160,54 @@ dialog.quick-switch {
   background: rgba(255, 255, 255, 0.12);
   outline: none;
 }
+
+/* CONFIRM / PROMPT DIALOG */
+dialog.confirm-dialog {
+  width: min(440px, calc(100% - 32px));
+}
+
+.confirm-body {
+  padding: 16px 20px 4px;
+}
+
+#confirmMessage {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+#confirmInputWrap {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+#confirmInput {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 13px;
+}
+
+#confirmInput:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.column-menu-item.is-danger {
+  color: var(--danger-text);
+}
+
+.column-menu-item.is-danger:hover,
+.column-menu-item.is-danger:focus-visible {
+  background: var(--danger-bg);
+  color: var(--danger-text);
+}

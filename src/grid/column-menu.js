@@ -90,16 +90,21 @@ function menuItems(spec) {
 }
 
 export function openColumnMenu(spec, anchor) {
+  const { label, items } = menuItems(spec);
+  openPopupMenu(anchor, `Tùy chọn cột ${label}`, items);
+}
+
+// A small keyboard-navigable menu anchored below a button or header.
+export function openPopupMenu(anchor, ariaLabel, items) {
   const reopen = openMenu?.anchor === anchor;
   closeColumnMenu();
   if (reopen) return;
   closeViewMenus();
-  const { label, items } = menuItems(spec);
   const menu = el('div', 'column-menu');
   menu.setAttribute('role', 'menu');
-  menu.setAttribute('aria-label', `Tùy chọn cột ${label}`);
+  menu.setAttribute('aria-label', ariaLabel);
   for (const item of items) {
-    const button = el('button', 'column-menu-item', item.text);
+    const button = el('button', 'column-menu-item' + (item.danger ? ' is-danger' : ''), item.text);
     button.type = 'button';
     button.setAttribute('role', 'menuitem');
     button.tabIndex = -1;
@@ -126,6 +131,7 @@ export function openColumnMenu(spec, anchor) {
     width = menu.offsetWidth;
   menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - width - 8))}px`;
   menu.style.top = `${rect.bottom + 4}px`;
+  anchor.setAttribute('aria-haspopup', 'menu');
   anchor.setAttribute('aria-expanded', 'true');
   openMenu = { menu, anchor };
   /** @type {HTMLElement} */ (menu.firstElementChild)?.focus();

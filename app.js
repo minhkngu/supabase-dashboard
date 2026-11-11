@@ -14,6 +14,7 @@ import { initMain } from './src/main.js';
 import { initKeyboard } from './src/grid/keyboard.js';
 import { initColumnMenu } from './src/grid/column-menu.js';
 import { initQuickSwitch } from './src/quick-switch.js';
+import { initConfirm } from './src/confirm.js';
 
 // Event wiring runs in the original top-to-bottom order of the former app.js.
 initMode();
@@ -31,6 +32,7 @@ initSelection();
 initKeyboard();
 initColumnMenu();
 initQuickSwitch();
+initConfirm();
 initRecordEditor();
 initSidebar2();
 await initMain();
