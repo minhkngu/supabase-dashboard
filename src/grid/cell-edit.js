@@ -1,16 +1,12 @@
 import { toast } from '../api.js';
 import { commitCell } from '../history.js';
+import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
 import {
-  activeLookups,
-  configValid,
   createCustomSelect,
   displaySettingKey,
   load,
-  loadLookups,
-  lookupTable,
   nativeRelations,
   openEditor,
-  openLinkPicker,
   relationDisplayField,
   relationDisplaySettings,
   render,
