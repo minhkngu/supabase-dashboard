@@ -81,7 +81,7 @@ test('chọn nhiều dòng để xóa, thành công từng phần giữ dòng l�
   await expect(page.locator('#grid tbody tr')).toHaveCount(3);
   await page.getByRole('checkbox', { name: 'Chọn tất cả dòng hiển thị trên trang', exact: true }).check();
   await expect(page.locator('#editor')).toBeHidden();
-  await expect(page.locator('#rowSelectionSummary')).toHaveText('Đã chọn 3 dòng');
+  await expect(page.locator('#rowSelectionSummary')).toHaveText('3 dòng đã chọn');
   await page.locator('#deleteSelectedRows').click();
   await confirmDelete(page);
   await expect(page.locator('#grid tbody tr')).toHaveCount(1);
@@ -89,7 +89,7 @@ test('chọn nhiều dòng để xóa, thành công từng phần giữ dòng l�
   await expect(page.locator('#rowDeleteResults')).toContainText('Đã xóa 2/3 dòng');
   await expect(page.locator('#rowDeleteResults')).toContainText('đang được tham chiếu');
   await expect(page.locator('#deleteSelectedRows')).toBeEnabled();
-  await expect(page.locator('#rowSelectionSummary')).toHaveText('Đã chọn 1 dòng');
+  await expect(page.locator('#rowSelectionSummary')).toHaveText('1 dòng đã chọn');
   expect(api.deletes).toEqual([1, 2, 3]);
   await page.screenshot({ path: 'test-results/delete-selection-desktop.png', fullPage: true });
   await page.locator('#clearRowSelection').click();

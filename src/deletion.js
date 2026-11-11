@@ -73,11 +73,19 @@ export function updateRowSelection() {
   const bar = $('#rowSelectionBar'),
     active = deletionBusy || selectedRecords.size > 0 || !!deletionNotice;
   bar.hidden = !active || isPromotionsOverview();
-  $('#rowSelectionSummary').textContent = deletionBusy ? deletionProgress : `Đã chọn ${selectedRecords.size} dòng`;
+  // When every row of this page is selected but the table has more pages,
+  // say so: selection never reaches rows on other pages.
+  const onPage = state.rows.filter(row => recordIdentity(state.table, row)),
+    wholePage = onPage.length > 0 && onPage.every(row => selectedRecords.has(recordIdentity(state.table, row))),
+    morePages = state.total > state.rows.length;
+  $('#rowSelectionSummary').textContent = deletionBusy
+    ? deletionProgress
+    : `${selectedRecords.size} dòng đã chọn${wholePage && morePages ? ' trên trang này' : ''}`;
   $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
   syncChrome();
   $('#clearRowSelection').disabled = deletionBusy;
-  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : `Xóa ${selectedRecords.size || ''} dòng đã chọn`;
+  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : 'Xóa';
+  $('#deleteSelectedRows').setAttribute('aria-label', `Xóa ${selectedRecords.size} dòng đã chọn`);
   $('#rowDeleteResults').hidden = !deletionNotice;
   $('#rowDeleteResults').textContent = deletionNotice;
   const inputs = $$('#grid input[data-row-select]');
