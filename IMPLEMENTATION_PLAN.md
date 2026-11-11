@@ -235,7 +235,7 @@ Cập nhật 11/11/2026, nhánh `claude/funny-cannon-1auhaq`.
 | Giai đoạn | Trạng thái |
 |---|---|
 | 1 — Lưới an toàn | Xong |
-| 2 — Dọn dẹp và định dạng | Xong (2.1: đã bỏ bản edge / Sites theo đề xuất) |
+| 2 — Dọn dẹp và định dạng | Xong (2.1: ban đầu bỏ bản edge, sau đó khôi phục — xem đợt 2) |
 | 3 — Tốc độ hệ thống | Xong 3.1–3.6; 3.7 chưa làm vì cần số đo trên dữ liệu thật |
 | 4 — Tách cấu trúc | Xong |
 | 5 — Thao tác | Xong |
@@ -243,7 +243,7 @@ Cập nhật 11/11/2026, nhánh `claude/funny-cannon-1auhaq`.
 
 Quyết định đã áp dụng:
 
-- 2.1: xóa `supabase/functions/siris-manager/` và các script Sites. Mã vẫn còn trong lịch sử git; việc xóa mã nguồn không gỡ function đã deploy trên Supabase (nếu có).
+- 2.1: **giữ** bản edge / Sites vì bản online đang được dùng (đợt 1 đã xóa, đợt 2 khôi phục).
 - Bảng `promotions` mở mặc định ở lưới như mọi bảng khác.
 
 Khác với kế hoạch ban đầu:
@@ -253,3 +253,58 @@ Khác với kế hoạch ban đầu:
 - 6.8: "nhóm theo cột tính trên toàn bộ dữ liệu" được làm cho tiêu đề nhóm của lưới qua endpoint chỉ đọc `GET /api/table/:name/group-counts`.
 - 6.9: còn 15 `!important`, phần lớn để thắng các selector theo id của lưới; dark mode vẫn ngoài phạm vi.
 - Dev server trả 404 cho đường dẫn dotfile (`/.env.local`) — sửa thêm khi khôi phục bộ e2e.
+
+---
+
+## Đợt 2 — nút bấm, Dashboard thêm/sửa được, chốt kiến trúc
+
+### Nguyên nhân đã xác nhận
+
+| Hiện tượng | Nguyên nhân | Đã sửa |
+|---|---|---|
+| Tick chọn dòng thì lưới nhảy xuống | `#rowSelectionBar` là khối riêng phía trên lưới | Thanh chọn nổi ở đáy lưới |
+| Ô chọn tất cả lệch so với ô chọn dòng | Tiêu đề căn giữa, thân căn trái kèm số thứ tự | Cùng căn trái, cùng lề |
+| Nhãn lặp, nút xóa xa cột checkbox | `updateRowSelection` | "9 dòng đã chọn" · Bỏ chọn · Xóa; "trên trang này" khi bảng còn trang khác |
+| Bấm Tổng quan ↔ Bảng dữ liệu thì cụm nút nhảy, "Thêm bản ghi" hiện dưới con trỏ | Cụm chuyển chế độ chung hàng với Hoàn tác/Làm lại/Thêm | Cụm chuyển chế độ đứng cạnh tên bảng |
+| Ở Tổng quan không có "Thêm bản ghi" | Ẩn có chủ đích | Thêm và sửa được ở Tổng quan; xóa vẫn chỉ ở lưới |
+| Trạng thái nút dễ sai lệch | `#add` gán rời rạc ở 7 chỗ | `syncChrome()` trong `src/chrome.js` |
+| Điện thoại: nút Thêm bị cắt, nút menu quá nhỏ | Hàng nút không co ở 390px | Nút Thêm chỉ còn biểu tượng; nút menu 36×36 |
+
+### Lựa chọn đã chốt
+
+- Tổng quan: thêm và sửa được; xóa chỉ ở lưới.
+- Thanh chọn dòng nổi ở đáy lưới.
+- Frontend giữ JS thuần, tách module; đã gỡ React/Glide/Tailwind.
+- Giữ bản edge / Sites.
+
+### Kiến trúc
+
+Giữ nguyên: server chỉ nghe loopback, kiểm tra Host/Origin/CSRF, key ở phía server; dữ liệu qua Data API nên chịu RLS; đổi schema theo xem trước → chữ ký → khóa → kiểm lại trong transaction; formula và lookup đồng bộ bằng trigger.
+
+Đã xử lý:
+
+1. **Một nguồn sự thật cho trạng thái nút**: `syncChrome()`.
+2. **Một kiến trúc frontend**: JS thuần trong `src/`.
+3. **Một bản backend**: phần xử lý request nằm ở `server/app.mjs`; `server.mjs` (cục bộ) và `server/edge.mjs` (edge) cùng dùng. `scripts/prepare-chatgpt-site.mjs` chỉ chép các file trong `scripts/edge-files.mjs`, dừng nếu thiếu file được import, không còn thay chuỗi. `tests/edge-backend.test.js` kiểm tra danh sách file và gọi handler như `index.ts`.
+4. **State và cache server**: `tables` nằm trong context; cache chỉ xóa khi cấu hình/schema đổi.
+5. **Nghiệp vụ theo bảng** gom vào `table-config.mjs`.
+6. **Kiểm thử**: thêm file theo tính năng (`chrome`, `keyboard`, `column-menu`, …).
+
+Còn lại cho đợt sau:
+
+- Gom các khóa `localStorage` về một module `storage`; bỏ đường lưu lookup trên trình duyệt; xóa mã đọc `siris_admin.columns` khi chắc bảng không còn dùng.
+- Bản edge: chống phát lại chữ ký (lưu nonce) và xem lại việc mở API đổi schema trên bản online.
+- Tách tiếp `tests/e2e/auth.spec.ts` theo tính năng.
+
+### Vận hành bản online
+
+Giao diện và backend mới chỉ lên bản online sau khi chạy trên máy có `chatgpt-site/`:
+
+```sh
+npm run build
+node scripts/prepare-chatgpt-site.mjs
+```
+
+rồi deploy **cả hai**: edge function (`supabase functions deploy siris-manager`) và Sites worker. Giao diện mới gửi `limit=1000` cho Tổng quan; nếu chỉ deploy giao diện mà giữ edge function cũ, Tổng quan sẽ báo "Máy chủ trả về ít dòng hơn dự kiến".
+
+Thư mục `supabase/functions/siris-manager/` trong git vẫn là bản sinh ra lần trước; nó chỉ đổi khi chạy lại script.

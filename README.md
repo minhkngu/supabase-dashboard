@@ -39,6 +39,10 @@ Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
 
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
 
+## Bản online
+
+Bản online chạy qua edge function `supabase/functions/siris-manager/` và Sites worker trong repo riêng `chatgpt-site/`. Sau khi đổi mã, trên máy có `chatgpt-site/` chạy `npm run build` rồi `node scripts/prepare-chatgpt-site.mjs`, sau đó deploy cả edge function lẫn Sites worker.
+
 ## Phím tắt
 
 - Mũi tên: di chuyển giữa các ô; gõ ký tự để sửa ô; F2 hoặc Enter để mở ô.
