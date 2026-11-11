@@ -7,7 +7,7 @@ const denyDotfiles: Plugin = {
   configureServer(server) {
     server.middlewares.use((req, res, next) => {
       const pathname = decodeURIComponent((req.url || '').split('?')[0]);
-      if (pathname.split('/').some((part) => part.startsWith('.') && part.length > 1 && part !== '.vite')) {
+      if (pathname.split('/').some(part => part.startsWith('.') && part.length > 1 && part !== '.vite')) {
         res.statusCode = 404;
         res.end('Not found');
         return;
@@ -21,7 +21,9 @@ export default defineConfig({
   plugins: [denyDotfiles],
   envPrefix: 'SIRIS_CLIENT_',
   server: {
-    host: '127.0.0.1', port: 3000, strictPort: true,
+    host: '127.0.0.1',
+    port: 3000,
+    strictPort: true,
     proxy: { '/api': { target: 'http://127.0.0.1:3001', changeOrigin: true } },
   },
   test: { include: ['tests/**/*.test.ts', 'tests/**/*.test.js'] },
