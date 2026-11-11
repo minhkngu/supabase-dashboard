@@ -1,4 +1,6 @@
 // Request and response helpers plus the loopback, origin and CSRF checks.
+import { Buffer } from 'node:buffer';
+import process from 'node:process';
 import pg from 'pg';
 import { safeError } from '../admin.mjs';
 

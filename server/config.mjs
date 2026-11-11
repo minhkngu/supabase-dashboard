@@ -2,6 +2,7 @@
 // PostgreSQL connection used for schema, lookup and formula management.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import process from 'node:process';
 
 function envFile(file) {
   if (!existsSync(file)) return {};
@@ -41,8 +42,14 @@ function adminConnection(env, url) {
   }
 }
 
+// Local server: reads .env.local and the process environment.
 export function loadConfig(root) {
-  const env = { ...envFile(path.join(root, '.env.local')), ...process.env };
+  return configFromEnv({ ...envFile(path.join(root, '.env.local')), ...process.env }, { root });
+}
+
+// Shared by the local server and the Supabase edge function, which passes
+// its own environment, a fixed port and a fixed session token.
+export function configFromEnv(env, { root = '', port = Number(env.PORT || 4173), csrf = null } = {}) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL,
     key = env.SUPABASE_KEY || env.VITE_SUPABASE_ANON_KEY;
   return {
@@ -50,7 +57,8 @@ export function loadConfig(root) {
     env,
     url,
     key,
-    port: Number(process.env.PORT || 4173),
+    port,
+    csrf,
     perfTiming: env.SIRIS_PERF_TIMING === '1',
     admin: adminConnection(env, url),
   };

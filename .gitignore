@@ -9,5 +9,8 @@ test-results/
 supabase/.temp/
 supabase/.branches/
 
+# Repo riêng của worker OpenAI Sites — tránh nested repo
+chatgpt-site/
+
 # macOS
 .DS_Store

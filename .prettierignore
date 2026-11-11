@@ -8,3 +8,5 @@ test-results/
 package-lock.json
 schema.json
 *.md
+# Generated copies for the edge function (scripts/prepare-chatgpt-site.mjs)
+supabase/functions/siris-manager/

@@ -1,7 +1,5 @@
 // Shared server state: the table metadata in use, the admin connection,
 // caches and the Supabase Data API client.
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { createAdmin } from '../admin.mjs';
@@ -11,7 +9,8 @@ import { createTtlCache } from '../server-cache.mjs';
 
 export const LOOKUP_STORE_MISSING = 'Chưa thiết lập nơi lưu lookup trên Supabase.';
 
-export async function createContext(config) {
+// tables: the saved schema.json metadata, used until live metadata is read.
+export async function createContext(config, tables) {
   const admin = createAdmin(config.admin.url),
     lookupPool = config.admin.url
       ? new pg.Pool({ connectionString: config.admin.url, max: 2, connectionTimeoutMillis: 5000 })
@@ -22,9 +21,8 @@ export async function createContext(config) {
     config,
     admin,
     lookupStore,
-    csrf: randomBytes(24).toString('hex'),
-    // Falls back to the saved schema.json until live metadata is read.
-    tables: JSON.parse(await readFile(path.join(config.root, 'schema.json'), 'utf8')),
+    csrf: config.csrf || randomBytes(24).toString('hex'),
+    tables: structuredClone(tables),
     cachedConfig: (key, read) => configCache.get(key, read),
     async cachedLookups() {
       try {
