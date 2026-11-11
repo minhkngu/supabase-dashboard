@@ -6,6 +6,8 @@ export let deletionBusy = false,
   deletionNotice = '';
 export const selectedRecords = new Map();
 export const pendingRows = new WeakSet();
+// Rows per grid page; the server accepts the same default.
+export const PAGE_SIZE = 50;
 export const $ = s => document.querySelector(s);
 export const state = {
   tables: [],

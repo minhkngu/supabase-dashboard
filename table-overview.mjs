@@ -1,3 +1,10 @@
+import {
+  BRANCH_TABLE_FOR,
+  FIELD_LABELS as labels,
+  HIDDEN_FLAG_TABLES,
+  OVERVIEW_CONFIGS as configs,
+  QUANTITY_TABLES,
+} from './table-config.mjs';
 const esc = value =>
   String(value ?? '').replace(
     /[&<>"']/g,
@@ -21,68 +28,6 @@ const normalize = value =>
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/đ/gi, 'd')
     .toLowerCase();
-const labels = {
-  name: 'Tên',
-  item_name: 'Vật phẩm',
-  address: 'Địa chỉ',
-  is_hidden: 'Hiển thị',
-  branchid: 'Chi nhánh',
-  sqm: 'Diện tích',
-  weekdayprice: 'Giá ngày thường',
-  weekendprice: 'Giá cuối tuần',
-  monthly_under_3: 'Giá tháng dưới 3 tháng',
-  monthly_over_3: 'Giá tháng từ 3 tháng',
-  monthly_under: 'Giá tháng ngắn hạn',
-  monthly_over: 'Giá tháng dài hạn',
-  minContractMonths: 'Hợp đồng tối thiểu',
-  date: 'Ngày',
-  type: 'Loại',
-  amount: 'Mức điều chỉnh',
-  note: 'Ghi chú',
-  kind: 'Loại',
-  quantity: 'Số lượng',
-  unit_price: 'Đơn giá',
-  minnights: 'Số đêm tối thiểu',
-  discountamount: 'Mức giảm',
-  code: 'Mã',
-  category: 'Nhóm',
-  amount_type: 'Kiểu tính',
-  calculation_base: 'Cơ sở tính',
-  is_active: 'Trạng thái',
-  key: 'Khóa',
-  value: 'Giá trị',
-  description: 'Mô tả',
-};
-const configs = {
-  branches: { title: 'Tổng quan chi nhánh', fields: ['name', 'address', 'is_hidden'] },
-  longterm_branches: { title: 'Tổng quan chi nhánh dài hạn', fields: ['name', 'address', 'is_hidden'] },
-  room_types: {
-    title: 'Tổng quan loại phòng',
-    fields: [
-      'name',
-      'branchid',
-      'sqm',
-      'weekdayprice',
-      'weekendprice',
-      'monthly_under_3',
-      'monthly_over_3',
-      'is_hidden',
-    ],
-  },
-  longterm_room_types: {
-    title: 'Tổng quan loại phòng dài hạn',
-    fields: ['name', 'branchid', 'sqm', 'monthly_under', 'monthly_over', 'minContractMonths', 'is_hidden'],
-  },
-  date_adjustments: { title: 'Tổng quan điều chỉnh theo ngày', fields: ['date', 'type', 'amount', 'note'] },
-  items: { title: 'Tổng quan vật phẩm', fields: ['item_name', 'kind', 'quantity', 'unit_price', '__total'] },
-  stay_discounts: { title: 'Tổng quan giảm giá lưu trú', fields: ['name', 'minnights', 'discountamount'] },
-  settings: { title: 'Tổng quan cấu hình', fields: ['key', 'value', 'description'] },
-  longterm_settings: { title: 'Tổng quan cấu hình dài hạn', fields: ['key', 'value', 'description'] },
-  service_rules: {
-    title: 'Tổng quan quy tắc dịch vụ',
-    fields: ['name', 'category', 'amount', 'amount_type', 'is_active'],
-  },
-};
 // Dashboards read whole tables, so they use the largest page the API allows.
 const PAGE_SIZE = 1000;
 export async function readAllTableRows(api, table, signal) {
@@ -193,9 +138,9 @@ export function createTableOverview({ host, api, getTables }) {
       ['Tổng bản ghi', rows.length],
       ['Trong kết quả', visible.length],
     ];
-    if ((short === 'branches' || short === 'longterm_branches') && available.has('is_hidden'))
+    if (HIDDEN_FLAG_TABLES.includes(short) && available.has('is_hidden'))
       metrics.push(['Đang hiển thị', rows.filter(r => r.is_hidden === false).length]);
-    if (short === 'items' && available.has('quantity'))
+    if (QUANTITY_TABLES.includes(short) && available.has('quantity'))
       metrics.push([
         'Tổng số lượng',
         num(rows.reduce((s, r) => s + (Number.isFinite(Number(r.quantity)) ? Number(r.quantity) : 0), 0)),
@@ -269,10 +214,8 @@ export function createTableOverview({ host, api, getTables }) {
       const data = await readAllTableRows(api, table, signal);
       let refs = new Map(),
         warning = '';
-      if (['room_types', 'longterm_room_types'].includes(short) && columns.some(c => c.name === 'branchid')) {
-        const ref = getTables().find(
-          t => t.name === `public.${short === 'room_types' ? 'branches' : 'longterm_branches'}`,
-        );
+      if (BRANCH_TABLE_FOR[short] && columns.some(c => c.name === 'branchid')) {
+        const ref = getTables().find(t => t.name === `public.${BRANCH_TABLE_FOR[short]}`);
         if (ref) {
           try {
             const values = await readAllTableRows(api, ref, signal);

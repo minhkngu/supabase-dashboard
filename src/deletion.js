@@ -1,3 +1,4 @@
+import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, toast } from './api.js';
 import { load, render } from './grid/render.js';
@@ -7,6 +8,7 @@ import { syncEditorReadiness } from './main.js';
 import { isPromotionsOverview, promotionsOverview } from './overview/mode.js';
 import {
   $,
+  PAGE_SIZE,
   clearPageCache,
   deletionBusy,
   deletionNotice,
@@ -46,7 +48,7 @@ export function rowCheckbox(row, index) {
   const input = el('input', 'row-select');
   input.type = 'checkbox';
   input.dataset.rowSelect = String(index);
-  input.setAttribute('aria-label', `Chọn dòng ${state.page * 50 + index + 1}`);
+  input.setAttribute('aria-label', `Chọn dòng ${state.page * PAGE_SIZE + index + 1}`);
   input.onclick = event => event.stopPropagation();
   return input;
 }
@@ -143,7 +145,7 @@ export async function deleteRecords(rows) {
   setDeletionTable(table);
   setDeletionNotice('');
   setDeletionProgress(`Đang chuẩn bị xóa ${records.length} dòng trong ${name(table)}…`);
-  if (isPromotionsOverview() && state.table.name === 'public.promotions') state.total = promotionsOverview.total();
+  if (isPromotionsOverview() && state.table.name === PROMOTIONS_TABLE) state.total = promotionsOverview.total();
   loadController?.abort();
   state.loadVersion++;
   promotionsOverview.cancel();
@@ -185,7 +187,7 @@ export async function deleteRecords(rows) {
           $('#editor').close();
           state.edit = null;
         }
-        if (table.name === 'public.promotions') promotionsOverview.removeRecord(entry.row);
+        if (table.name === PROMOTIONS_TABLE) promotionsOverview.removeRecord(entry.row);
         render();
         updateRowSelection();
       },
@@ -226,7 +228,7 @@ export async function deleteRecords(rows) {
     updateRowSelection();
   }
   if (state.table?.name === table.name) {
-    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / 50) - 1));
+    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / PAGE_SIZE) - 1));
     persistView();
     await refreshAfterWrite(table);
   }

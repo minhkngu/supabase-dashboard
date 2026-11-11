@@ -2,7 +2,7 @@ import { api, toast } from '../api.js';
 import { historyFor, updateHistoryButtons } from '../history.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
-import { $, el, name, pendingRows, state, writable } from '../state.js';
+import { $, PAGE_SIZE, el, name, pendingRows, state, writable } from '../state.js';
 import { displayedColumns } from '../view-menus.js';
 import { load, render } from './render.js';
 
@@ -363,7 +363,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
     columns = displayedColumns(),
     rows = state.rows.slice();
   if (!table?.primary_keys?.length) throw Error('Bảng không có khóa chính chỉ được xem.');
-  if (!Array.isArray(values) || !values.length || values.length > 50) throw Error('Vùng dán không hợp lệ.');
+  if (!Array.isArray(values) || !values.length || values.length > PAGE_SIZE) throw Error('Vùng dán không hợp lệ.');
   const changes = [];
   for (let y = 0; y < values.length; y++) {
     const rowIndex = rowIndexes?.[y] ?? startRow + y,

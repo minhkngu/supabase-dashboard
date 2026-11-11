@@ -1,3 +1,4 @@
+import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { createPromotionsOverview } from '../../promotions-overview.mjs';
 import { createTableOverview } from '../../table-overview.mjs';
 import { api } from '../api.js';
@@ -7,21 +8,20 @@ import { clearBulk } from '../grid/selection.js';
 import { $, deletionBusy, deletionNotice, selectedRecords, state } from '../state.js';
 import { closeViewMenus } from '../view-menus.js';
 
-let promotionsMode = false;
-export function savedPromotionsMode(table) {
+let overviewMode = false;
+export function savedOverviewMode(table) {
   try {
     const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
     return (
       (saved[table.name] ??
-        (table.name === 'public.promotions' ? localStorage.getItem('siris-promotions-display-v1') : null)) ===
-      'dashboard'
+        (table.name === PROMOTIONS_TABLE ? localStorage.getItem('siris-promotions-display-v1') : null)) === 'dashboard'
     );
   } catch {
     return false;
   }
 }
-function savePromotionsMode(mode) {
-  promotionsMode = mode;
+function saveOverviewMode(mode) {
+  overviewMode = mode;
   try {
     const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
     saved[state.table.name] = mode ? 'dashboard' : 'table';
@@ -37,12 +37,12 @@ export const promotionsOverview = createPromotionsOverview({
 });
 export const tableOverview = createTableOverview({ host: $('#tableDashboard'), api, getTables: () => state.tables });
 export function isPromotionsOverview() {
-  return !!state.table && promotionsMode;
+  return !!state.table && overviewMode;
 }
 export function syncPromotionsView() {
   const available = !!state.table,
-    overview = available && promotionsMode,
-    isPromo = state.table?.name === 'public.promotions';
+    overview = available && overviewMode,
+    isPromo = state.table?.name === PROMOTIONS_TABLE;
   $('#promotionsViewSwitch').hidden = !available;
   $('#promotionsDashboard').hidden = !overview || !isPromo;
   $('#tableDashboard').hidden = !overview || isPromo;
@@ -60,19 +60,19 @@ export function initMode() {
     if (!state.table) return;
     clearBulk();
     closeViewMenus();
-    savePromotionsMode(true);
+    saveOverviewMode(true);
     syncPromotionsView();
     void load();
   };
   $('#promotionsTableButton').onclick = () => {
     promotionsOverview.cancel();
     tableOverview.cancel();
-    savePromotionsMode(false);
+    saveOverviewMode(false);
     syncPromotionsView();
     void load();
   };
 }
 
-export function setPromotionsMode(value) {
-  return (promotionsMode = value);
+export function setOverviewMode(value) {
+  return (overviewMode = value);
 }

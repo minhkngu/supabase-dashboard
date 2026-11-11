@@ -1,6 +1,6 @@
 import { api, toast } from './api.js';
 import { load, render } from './grid/render.js';
-import { $, el, name, state } from './state.js';
+import { $, PAGE_SIZE, el, name, state } from './state.js';
 
 const lookupStorageKey = 'siris-lookups-v1';
 export function restoreLookups() {
@@ -597,7 +597,7 @@ async function loadPicker() {
     if (!list.children.length) list.append(el('div', 'lookup-empty', 'Không tìm thấy bản ghi.'));
     $('#pickerPage').textContent = `Trang ${picker.page + 1}`;
     $('#pickerPrev').disabled = picker.page === 0;
-    $('#pickerNext').disabled = (picker.page + 1) * 50 >= result.total;
+    $('#pickerNext').disabled = (picker.page + 1) * PAGE_SIZE >= result.total;
   } catch (error) {
     if (picker === pickerState && picker.version === version) {
       $('#pickerList').replaceChildren();

@@ -1,3 +1,4 @@
+import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { api, message, toast } from '../api.js';
 import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
@@ -7,8 +8,8 @@ import { scheduleLookupCleanup } from '../main.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
-  savedPromotionsMode,
-  setPromotionsMode,
+  savedOverviewMode,
+  setOverviewMode,
   syncPromotionsView,
   tableOverview,
 } from '../overview/mode.js';
@@ -25,6 +26,7 @@ import {
 import { closeNav, nav } from '../sidebar.js';
 import {
   $,
+  PAGE_SIZE,
   countedKey,
   deletionBusy,
   deletionTable,
@@ -66,7 +68,7 @@ export function choose(t) {
   setDeletionNotice('');
   promotionsOverview.cancel();
   tableOverview.cancel();
-  setPromotionsMode(savedPromotionsMode(t));
+  setOverviewMode(savedOverviewMode(t));
   state.rows = [];
   state.loadVersion++;
   state.lookupVersion++;
@@ -129,7 +131,7 @@ export async function load({ silent = false } = {}) {
   if (isPromotionsOverview()) {
     loadController?.abort();
     state.loadVersion++;
-    return state.table.name === 'public.promotions' ? promotionsOverview.load() : tableOverview.load(state.table);
+    return state.table.name === PROMOTIONS_TABLE ? promotionsOverview.load() : tableOverview.load(state.table);
   }
   loadController?.abort();
   const controller = new AbortController();
@@ -174,8 +176,8 @@ export async function load({ silent = false } = {}) {
       return;
     if (d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;
-    if (state.page > 0 && state.page * 50 >= total) {
-      state.page = total ? Math.floor((total - 1) / 50) : 0;
+    if (state.page > 0 && state.page * PAGE_SIZE >= total) {
+      state.page = total ? Math.floor((total - 1) / PAGE_SIZE) : 0;
       return load({ silent });
     }
     if (silent && table.primary_keys?.length) {
@@ -413,8 +415,8 @@ export function render() {
     r.dataset.renderKey =
       'row:' + JSON.stringify(state.table.primary_keys?.length ? state.table.primary_keys.map(k => row[k]) : [i]);
     r.tabIndex = 0;
-    r.setAttribute('aria-label', `Mở bản ghi ${state.page * 50 + i + 1}`);
-    const rowNumber = formatNumber(state.page * 50 + i + 1),
+    r.setAttribute('aria-label', `Mở bản ghi ${state.page * PAGE_SIZE + i + 1}`);
+    const rowNumber = formatNumber(state.page * PAGE_SIZE + i + 1),
       detailCell = el('td', 'record-detail');
     detailCell.title = 'Mở chi tiết bản ghi';
     const indexLabel = el('span', 'record-index', rowNumber);
@@ -517,7 +519,7 @@ export function render() {
   $('#count').textContent = `${formatNumber(state.total)} bản ghi`;
   $('#page').textContent = `Trang ${formatNumber(state.page + 1)}`;
   $('#prev').disabled = state.page === 0;
-  $('#next').disabled = (state.page + 1) * 50 >= state.total;
+  $('#next').disabled = (state.page + 1) * PAGE_SIZE >= state.total;
   requestAnimationFrame(() => {
     if (liveGrid.isConnected && state.table) updateFrozen();
   });

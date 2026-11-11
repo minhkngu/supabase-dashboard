@@ -1,3 +1,4 @@
+import { fieldHints } from '../table-config.mjs';
 import { api, toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
@@ -21,32 +22,8 @@ export function recordFieldHint(column) {
     return 'Khóa định danh của bản ghi; để trống để dùng giá trị mặc định.';
   if (!writable(column)) return 'Giá trị do Supabase tự tạo hoặc tính toán.';
   const name = column.name.toLowerCase();
-  const hints = {
-    name: state.table.name.includes('room_types') ? 'Tên loại phòng.' : 'Tên hiển thị.',
-    name_en: 'Tên hiển thị bằng tiếng Anh.',
-    description: 'Nội dung mô tả.',
-    description_en: 'Nội dung mô tả bằng tiếng Anh.',
-    branchid: 'Mã chi nhánh mà bản ghi này thuộc về.',
-    tag: 'Nhãn dùng để phân loại.',
-    address: 'Địa chỉ chi nhánh.',
-    address_en: 'Địa chỉ bằng tiếng Anh.',
-    amenities: 'Danh sách tiện nghi, ngăn cách bằng dấu phẩy.',
-    amenities_en: 'Danh sách tiện nghi bằng tiếng Anh.',
-    excluded_amenities: 'Danh sách tiện nghi không bao gồm, ngăn cách bằng dấu phẩy.',
-    excluded_amenities_en: 'Danh sách tiện nghi không bao gồm bằng tiếng Anh.',
-    weekdayprice: 'Giá vào ngày thường (VND).',
-    weekendprice: 'Giá vào cuối tuần (VND).',
-    monthly_under_3: 'Giá thuê theo tháng dưới 3 tháng (VND).',
-    monthly_over_3: 'Giá thuê theo tháng từ 3 tháng trở lên (VND).',
-    sqm: 'Diện tích phòng tính bằng mét vuông.',
-    is_hidden: 'Bật true để ẩn mục khỏi giao diện.',
-    fees: 'Các khoản phí và cách tính.',
-    policies: 'Chính sách dạng JSON.',
-    excluded_amenities_en: 'Danh sách tiện nghi không bao gồm bằng tiếng Anh.',
-    amount: 'Số tiền điều chỉnh.',
-    note: 'Ghi chú bổ sung.',
-    date: 'Ngày áp dụng.',
-  };
+  const hints = fieldHints(state.table.name);
+
   if (hints[name]) return hints[name];
   if (column.enum_values?.length) return 'Chọn một giá trị trong danh sách.';
   if (column.data_type === 'boolean') return 'Chọn true hoặc false.';
