@@ -198,18 +198,6 @@ button:disabled {
   background: var(--bg-subtle);
 }
 
-.brand-mark {
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--accent);
-  color: #ffffff;
-  border-radius: var(--radius-md);
-}
-
 .brand-copy {
   display: flex;
   align-items: center;
@@ -222,15 +210,6 @@ button:disabled {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
-}
-
-.brand-badge {
-  font-size: 11px;
-  font-weight: 600;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  padding: 2px 7px;
-  border-radius: var(--radius-full);
 }
 
 .sidebar-collapse-btn {
@@ -1196,7 +1175,7 @@ h1 {
   border-color: var(--border-default);
 }
 
-.rule-select, .rule-input {
+.rule-input {
   height: 32px;
   min-width: 0;
   border: 1px solid var(--border-default);
@@ -1209,24 +1188,11 @@ h1 {
   transition: all 0.15s ease;
 }
 
-.rule-select {
-  flex: 1 1 120px;
-  cursor: pointer;
-}
-
-.rule-operator {
-  flex: 0 1 100px;
-}
-
 .rule-input {
   flex: 1 1 110px;
 }
 
-.rule-val-select {
-  flex: 1 1 110px;
-}
-
-.rule-select:focus, .rule-input:focus {
+.rule-input:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 2px var(--accent-ring);
 }
@@ -1403,8 +1369,7 @@ h1 {
   user-select: none;
 }
 
-.custom-select-item:hover,
-.custom-select-item.is-focused {
+.custom-select-item:hover {
   background: var(--bg-subtle);
   color: var(--text-primary);
 }
@@ -1599,51 +1564,8 @@ h1 {
   min-width: 0;
 }
 
-.dropdown select[hidden], .dropdown-menu[hidden] {
+.dropdown select[hidden] {
   display: none;
-}
-
-.dropdown-menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 60;
-  width: max(100%, 180px);
-  max-width: min(280px, 80vw);
-  max-height: 260px;
-  overflow: auto;
-  padding: 4px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-popover);
-}
-
-.dropdown-option {
-  display: block;
-  width: 100%;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-secondary);
-  text-align: left;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  transition: all 0.12s ease;
-}
-
-.dropdown-option:hover, .dropdown-option:focus-visible {
-  background: var(--bg-subtle);
-  color: var(--text-primary);
-  outline: 0;
-}
-
-.dropdown-option.selected {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-weight: 600;
 }
 
 /* ==========================================================================
@@ -1968,10 +1890,6 @@ td.editing.cell-error {
   box-shadow: inset 0 0 0 2px var(--danger-text) !important;
 }
 
-td.cell-saving {
-  opacity: 0.6;
-}
-
 .cell-input[hidden] {
   display: none;
 }
@@ -2022,19 +1940,6 @@ td.cell-saving {
   color: #0369a1;
 }
 
-.relation-edit {
-  border-radius: var(--radius-sm);
-  padding: 2px 6px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-
-.relation-edit:hover:not(:disabled) {
-  background: var(--accent-soft);
-}
-
 /* GROUPING ROWS */
 .group-row td {
   height: 38px;
@@ -2079,10 +1984,6 @@ td.cell-saving {
 .group-toggle:hover .group-arrow {
   border-color: var(--border-hover);
   color: var(--text-primary);
-}
-
-.group-arrow.is-closed {
-  color: var(--text-faint);
 }
 
 .group-count {
@@ -2642,9 +2543,9 @@ h2 {
     animation: none !important;
   }
 }
-#virtualGrid:not([hidden]){height:min(600px,calc(100dvh - 220px));min-height:250px;overflow:hidden}
-.table-scroll[hidden],#gridToggle[hidden]{display:none!important}
-.virtual-grid-content{display:flex;flex-direction:column;height:100%}.virtual-grid-actions{display:flex;justify-content:flex-end;padding:4px 8px;border-bottom:1px solid #e8ebee}.virtual-grid-canvas{flex:1;min-height:0}
+
+.table-scroll[hidden] {display:none!important}
+
 /* COLUMNS POPOVER & SWITCHES */
 .columns-popover {
   width: 290px;
@@ -2850,50 +2751,6 @@ h2 {
   font-weight: 500;
 }
 
-.virtual-grid-actions {
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.virtual-grid-actions [role="status"] {
-  margin-right: auto;
-  color: var(--danger-text);
-  font-size: 12px;
-}
-
-.bulk-edit {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.bulk-edit label {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-
-.bulk-edit input,
-.bulk-edit select {
-  height: 32px;
-  max-width: 180px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  padding: 0 8px;
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: 12px;
-}
-
-.bulk-edit input:focus-visible,
-.bulk-edit select:focus-visible {
-  border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px var(--accent-ring);
-  outline: 0;
-}
-
 /* LOOKUP FORM SPECIFICS */
 .lookup-form .lookup-wide {
   grid-column: 1 / -1;
@@ -3095,19 +2952,10 @@ select.column-native-select {
 }
 #columnDialog .column-edit-details[hidden] { display: none; }
 #columnDialog .column-edit-details { display: grid; gap: 10px; }
-#columnDialog .column-property {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-#columnDialog .column-property span:last-child { color: var(--text-primary); text-align: right; overflow-wrap: anywhere; }
+
 #columnDialog .column-edit-details p { margin: 0; color: var(--text-muted); font-size: 12px; }
 #previewLookupColumn[hidden] { display: none; }
-.lookup-sync-section[hidden], #columnSyncLookupWrap[hidden] { display: none; }
+.lookup-sync-section[hidden] { display: none; }
 #columnSyncSection { grid-column: 1 / -1; }
 #columnSyncSection .lookup-sync-toggle {
   display: flex;
@@ -3174,7 +3022,7 @@ input.row-select:disabled { cursor:default; }
 #grid .row-selection-header, #grid .record-detail:has(.row-select) { width:76px; min-width:76px; }
 #grid .record-detail .row-select { margin-right:10px; }
 #grid .record-selected > td { background:var(--accent-soft); }
-.promo-select-visible { display:flex; align-items:center; gap:10px; font-weight:600; font-size:14px; cursor:pointer; }
+
 .promo-program-row { display:grid; grid-template-columns:20px minmax(0,1fr); gap:8px; align-items:start; }
 .promo-program-row > .row-select { margin-top:22px; }
 .promo-program-row.record-selected { background:var(--accent-soft); border-radius:var(--radius-sm); }
@@ -3239,7 +3087,7 @@ input.row-select:disabled { cursor:default; }
 .promo-field-guide code { display:block; font-family:var(--font-mono); font-weight:400; font-size:11px; color:var(--text-muted); }
 .promo-field-guide dd { margin:5px 0 0; color:var(--text-muted); font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
 .promo-field-guide .promo-raw-value { color:var(--text-primary); }
-.promo-record-button { margin-top:16px; }
+
 @media(max-width:1250px) { .promo-workspace { grid-template-columns:minmax(0,1fr) 280px; gap:16px; } .promo-program { grid-template-columns:minmax(0,1fr) 100px; gap:8px 16px; } .promo-program-condition { grid-column:1; } .promo-program-state { grid-column:2; } .promo-filters > div { width:140px; } }
 @media(max-width:900px) { .promo-filters .promo-search { flex-basis:100%; } .promo-filters > div { flex:1; min-width:120px; } .promo-workspace { grid-template-columns:minmax(0,1fr) 260px; } .promo-detail { padding:16px; } }
 @media(max-width:680px) { .promotions-dashboard { padding:16px; } .promo-workspace { grid-template-columns:1fr; } .promo-detail { margin-top:0; } .promo-filters { gap:8px; } .promo-filters > div { min-width:0; } .promo-filters > .quiet { display:none; } .promo-select .custom-select-btn { font-size:11px; min-height:40px; } .promo-filter-label { font-size:11px; } .promo-metrics > div { padding-left:12px; } .promo-metrics span { font-size:11px; min-height:32px; } .promo-metrics strong { font-size:24px; } .promo-heading h2 { font-size:16px; } .promo-heading p { display:none; } .promo-heading .secondary { font-size:12px; flex:none; } .promotions-view-switch { flex:none; } .promotions-view-switch .secondary { font-size:11px; padding:6px 8px; } .heading:has(#promotionsViewSwitch:not([hidden])) { flex-wrap:wrap; } .heading:has(#promotionsViewSwitch:not([hidden])) .heading-actions { width:100%; justify-content:space-between; } .promo-feedback { font-size:11px; } }

@@ -251,7 +251,6 @@
     <div class="dialog-head"><h2 id="columnDialogTitle">Thêm cột</h2><button type="button" id="closeColumnDialog" class="icon" aria-label="Đóng"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m18 6-12 12M6 6l12 12"/></svg></button></div>
     <div class="column-form">
       <label>Tên cột<input id="columnName" required maxlength="80"><small>Tên dùng để truy cập cột trong database.</small></label>
-      <label hidden>Loại cột<select id="columnKind"><option value="data">Dữ liệu</option><option value="relation" disabled>Liên kết bản ghi (chưa hỗ trợ)</option><option value="lookup" disabled>Lookup (dùng nút Liên kết)</option></select></label>
       <label id="columnTypeWrap">Kiểu dữ liệu<select id="columnType"><option value="text">text — văn bản</option><option value="varchar">varchar — chuỗi</option><option value="smallint">int2 — số nguyên nhỏ</option><option value="integer">int4 — số nguyên</option><option value="bigint">int8 — số nguyên lớn</option><option value="numeric">numeric — số thập phân</option><option value="real">float4</option><option value="double">float8</option><option value="date">date — ngày</option><option value="time">time — giờ</option><option value="timestamp">timestamptz — thời gian có múi giờ</option><option value="timestamp_local">timestamp — thời gian</option><option value="boolean">bool — đúng / sai</option><option value="uuid">uuid</option><option value="json">json</option><option value="jsonb">jsonb</option><option value="bytea">bytea</option><option value="enum">enum — kiểu có sẵn</option></select><small>Quy định loại giá trị có thể lưu trong cột.</small></label>
       <div id="columnTypeInfo" class="detail" hidden></div>
       <div id="columnEditDetails" class="column-edit-details" hidden><div class="column-section-heading">Thuộc tính hiện tại</div><label>Mô tả<input id="editColumnDescription" maxlength="1000"></label><label class="column-checkbox"><input id="editColumnNullable" type="checkbox"><span>Cho phép trống</span></label><label class="column-checkbox"><input id="editColumnUnique" type="checkbox"><span>Giá trị duy nhất</span></label><label>Giá trị mặc định<select id="editColumnDefaultKind"><option value="keep">Giữ giá trị hiện tại</option><option value="none">Không có</option><option value="literal">Giá trị cụ thể</option><option value="expression">Biểu thức</option></select><small id="editColumnDefaultCurrent"></small></label><label id="editColumnDefaultWrap" hidden>Giá trị<input id="editColumnDefaultValue" maxlength="4000"></label><p>Thay đổi tên hoặc kiểu dữ liệu ở phía trên.</p></div>
@@ -269,11 +268,6 @@
         <label class="column-checkbox"><input type="checkbox" id="columnUnique"><span>Giá trị duy nhất<small>Không cho phép các bản ghi có cùng giá trị.</small></span></label>
         <label class="column-checkbox"><input type="checkbox" id="columnIdentity"><span>Identity — tự tăng<small>Database tự tạo số cho bản ghi mới; chỉ dùng với kiểu số nguyên.</small></span></label>
       </div>
-      <label id="columnTargetWrap" hidden>Bảng liên kết<select id="columnTarget"></select></label>
-      <label id="columnDisplayWrap" hidden>Trường hiển thị<select id="columnDisplay"></select></label>
-      <label id="columnMultipleWrap" class="column-checkbox" hidden><input type="checkbox" id="columnMultiple">Cho phép nhiều bản ghi trong một ô</label>
-      <label id="columnRelationWrap" hidden>Cột liên kết<select id="columnRelation"></select></label>
-      <label id="columnLookupFieldWrap" hidden>Trường lookup<select id="columnLookupField"></select></label>
       <div id="columnSyncSection" class="lookup-sync-section" hidden>
         <label class="lookup-sync-toggle"><span>Đồng bộ từ lookup</span><span class="column-switch-wrap"><input id="columnSyncEnabled" class="column-switch-input" type="checkbox" role="switch"><span class="column-switch-slider" aria-hidden="true"></span></span></label>
         <div id="columnSyncConfig" hidden>
@@ -298,10 +292,6 @@
     </div>
     <div class="dialog-actions"><div class="column-actions-left"><button type="button" id="deleteColumn" class="danger" hidden>Xóa cột</button><button type="button" id="duplicateColumn" class="secondary" hidden>Nhân bản cột</button></div><div><button type="button" id="cancelColumn" class="secondary">Hủy</button><button type="submit" id="saveColumn" class="primary">Lưu</button></div></div>
   </form>
-</dialog>
-<dialog id="relationPicker" aria-labelledby="relationPickerTitle">
-  <div class="dialog-head"><h2 id="relationPickerTitle">Chọn bản ghi</h2><button type="button" id="closeRelationPicker" class="icon" aria-label="Đóng">×</button></div>
-  <div class="picker-body"><label class="search picker-search"><span aria-hidden="true">⌕</span><input id="relationSearch" placeholder="Tìm bản ghi" aria-label="Tìm bản ghi liên kết"></label><div id="relationError" class="lookup-error" role="alert"></div><div id="relationOptions" class="picker-list"></div><div class="picker-footer"><button type="button" id="clearRelation" class="quiet">Bỏ chọn</button><button type="button" id="relationPrev" class="quiet" aria-label="Trang trước">‹</button><span id="relationPage">Trang 1</span><button type="button" id="relationNext" class="quiet" aria-label="Trang sau">›</button><button type="button" id="saveRelation" class="primary">Lưu</button></div></div>
 </dialog>
 <dialog id="lookupDialog" aria-labelledby="lookupTitle">
   <div class="dialog-head"><div><div id="lookupContext" class="dialog-context"></div><h2 id="lookupTitle">Cột lookup</h2></div><button type="button" class="icon" id="closeLookup" aria-label="Đóng">×</button></div>
