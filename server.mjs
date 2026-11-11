@@ -382,8 +382,11 @@ const server = http.createServer(async (req, res) => {
         q.set('select', t.columns.map(c => '"' + c.name.replaceAll('"', '\\"') + '"').join(','));
         q.set('limit', String(limit));
         q.set('offset', String(page * limit));
-        const { data, range } = await upstream(`${name}?${q}`, { headers: { Prefer: 'count=exact' } });
-        return response(res, 200, { rows: data, total: Number(range?.split('/')[1]) || 0, page, limit });
+        // count=0 skips the exact count when the client already knows the total.
+        const withCount = u.searchParams.get('count') !== '0';
+        const { data, range } = await upstream(`${name}?${q}`, withCount ? { headers: { Prefer: 'count=exact' } } : {});
+        const total = withCount ? Number(range?.split('/')[1]) || 0 : null;
+        return response(res, 200, { rows: data, total, page, limit });
       }
       if (!t.primary_keys?.length)
         return response(res, 403, { error: 'Bảng không có khóa chính; chỉ có thể xem dữ liệu.' });

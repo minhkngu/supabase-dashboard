@@ -18,7 +18,7 @@ const getPort = async () => {
 };
 beforeAll(async () => {
   upstream = http.createServer((req, res) => {
-    upstreamRequests.push({ url: req.url, authorization: req.headers.authorization });
+    upstreamRequests.push({ url: req.url, authorization: req.headers.authorization, prefer: req.headers.prefer });
     res.setHeader('Content-Type', 'application/json');
     if (req.method === 'PATCH' && new URL(req.url, 'http://localhost').searchParams.get('name') === 'eq.stale')
       return res.end('[]');
@@ -80,6 +80,16 @@ describe('API trên máy cục bộ', () => {
     expect(upstreamRequests.find(x => x.url.startsWith('/rest/v1/branches')).authorization).toBe(
       'Bearer test-publishable',
     );
+  });
+  it('chỉ đếm tổng khi được yêu cầu', async () => {
+    const counted = await (await fetch(`${origin}/api/table/branches?page=0`)).json();
+    expect(counted.total).toBe(1);
+    expect(upstreamRequests.at(-1).prefer).toBe('count=exact');
+    const skipped = await (await fetch(`${origin}/api/table/branches?page=1&count=0`)).json();
+    expect(skipped.total).toBeNull();
+    expect(skipped.rows).toHaveLength(1);
+    expect(upstreamRequests.at(-1).prefer).toBeUndefined();
+    expect(upstreamRequests.at(-1).url).not.toContain('count');
   });
   it('phục vụ giao diện build và chặn tệp cấu hình', async () => {
     const response = await fetch(origin);

@@ -50,10 +50,17 @@ function el(tag, cls, text) {
   return x;
 }
 const pageCache = new Map();
+// Key (table, search, filters) whose total row count is already known; page
+// changes within it skip the count query. Any write clears it with the cache.
+let countedKey = null;
+function clearPageCache() {
+  pageCache.clear();
+  countedKey = null;
+}
 let loadController = null;
 async function api(url, opts = {}) {
   if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/'))
-    pageCache.clear();
+    clearPageCache();
   let r;
   try {
     r = await fetch(url, {
@@ -266,7 +273,7 @@ async function deleteRecords(rows) {
   state.loadVersion++;
   promotionsOverview.cancel();
   clearBulk();
-  pageCache.clear();
+  clearPageCache();
   $('#add').disabled = true;
   updateHistoryButtons();
   syncEditorReadiness();
@@ -283,7 +290,7 @@ async function deleteRecords(rows) {
         updateRowSelection();
       },
       onDeleted: entry => {
-        pageCache.clear();
+        clearPageCache();
         const history = state.history.get(name(table));
         if (history)
           for (const direction of ['undo', 'redo'])
@@ -336,7 +343,7 @@ async function deleteRecords(rows) {
   } finally {
     deletionBusy = false;
     deletionTable = null;
-    pageCache.clear();
+    clearPageCache();
     $('#add').disabled = !state.configReady || !state.table?.primary_keys?.length;
     updateHistoryButtons();
     syncEditorReadiness();
@@ -3275,17 +3282,21 @@ async function load({ silent = false } = {}) {
     message('Đang tải dữ liệu…');
     $('#grid').replaceChildren();
   }
+  const filters = JSON.stringify(state.view?.filters || []),
+    countKey = JSON.stringify([table.name, $('#search').value, filters]),
+    needsCount = countedKey !== countKey;
   const q = new URLSearchParams({
     page: state.page,
     search: $('#search').value,
     orders: JSON.stringify(serverOrder()),
-    filters: JSON.stringify(state.view?.filters || []),
+    filters,
   });
+  if (!needsCount) q.set('count', '0');
   const cacheKey = `/api/table/${name(table)}?${q}`;
   const cached = pageCache.get(cacheKey);
   if (!silent && cached && Date.now() - cached.time < 15000) {
     state.rows = structuredClone(cached.data.rows);
-    state.total = cached.data.total;
+    if (cached.data.total != null) state.total = cached.data.total;
     render();
     loadLookups();
     loadNativeDisplays();
@@ -3301,8 +3312,10 @@ async function load({ silent = false } = {}) {
       (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row))))
     )
       return;
-    if (state.page > 0 && state.page * 50 >= d.total) {
-      state.page = d.total ? Math.floor((d.total - 1) / 50) : 0;
+    if (d.total != null) countedKey = countKey;
+    const total = d.total ?? state.total;
+    if (state.page > 0 && state.page * 50 >= total) {
+      state.page = total ? Math.floor((total - 1) / 50) : 0;
       return load({ silent });
     }
     if (silent && table.primary_keys?.length) {
@@ -3313,7 +3326,7 @@ async function load({ silent = false } = {}) {
         return old ? Object.assign(old, row) : row;
       });
     } else state.rows = d.rows;
-    state.total = d.total;
+    state.total = total;
     state.initialRowsReady = true;
     render();
     scheduleLookupCleanup();
