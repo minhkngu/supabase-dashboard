@@ -541,7 +541,16 @@
             <div id="message" class="grid-message">Đang kết nối…</div>
             <div class="table-scroll"><table id="grid"></table></div>
             <div class="grid-footer">
-              <div class="footer-left"><span id="count" class="badge-total">—</span></div>
+              <div class="footer-left">
+                <span id="count" class="badge-total">—</span>
+                <label class="page-size"
+                  >Mỗi trang<select id="pageSize" aria-label="Số dòng mỗi trang">
+                    <option value="50">50 dòng</option>
+                    <option value="100">100 dòng</option>
+                    <option value="200">200 dòng</option>
+                  </select></label
+                >
+              </div>
               <div class="footer-pagination">
                 <button id="prev" class="pagination-btn" aria-label="Trang trước" title="Trang trước">
                   <svg

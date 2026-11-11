@@ -8,6 +8,11 @@ export const selectedRecords = new Map();
 export const pendingRows = new WeakSet();
 // Rows per grid page; the server accepts the same default.
 export const PAGE_SIZE = 50;
+// Page sizes offered in the grid footer; the choice is saved per table.
+export const PAGE_SIZES = [50, 100, 200];
+export function pageSize() {
+  return state.view?.pageSize || PAGE_SIZE;
+}
 /** @type {(selector: string) => any} */
 export const $ = s => document.querySelector(s);
 /** @type {(selector: string, root?: ParentNode) => any[]} */

@@ -3979,3 +3979,22 @@ dialog.quick-switch {
 .quick-switch-hint {
   margin: 6px 4px 0;
 }
+
+/* PAGE SIZE PICKER */
+.footer-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.page-size .custom-select-wrap {
+  width: 104px;
+}

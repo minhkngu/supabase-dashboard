@@ -8,7 +8,7 @@ import { syncEditorReadiness } from './main.js';
 import { isPromotionsOverview, promotionsOverview } from './overview/mode.js';
 import {
   $,
-  PAGE_SIZE,
+  pageSize,
   clearPageCache,
   deletionBusy,
   deletionNotice,
@@ -49,7 +49,7 @@ export function rowCheckbox(row, index) {
   const input = el('input', 'row-select');
   input.type = 'checkbox';
   input.dataset.rowSelect = String(index);
-  input.setAttribute('aria-label', `Chọn dòng ${state.page * PAGE_SIZE + index + 1}`);
+  input.setAttribute('aria-label', `Chọn dòng ${state.page * pageSize() + index + 1}`);
   input.onclick = event => event.stopPropagation();
   return input;
 }
@@ -227,7 +227,7 @@ export async function deleteRecords(rows) {
     updateRowSelection();
   }
   if (state.table?.name === table.name) {
-    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / PAGE_SIZE) - 1));
+    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / pageSize()) - 1));
     persistView();
     await refreshAfterWrite(table);
   }

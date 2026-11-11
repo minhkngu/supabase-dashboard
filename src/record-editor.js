@@ -4,7 +4,7 @@ import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
 import { load } from './grid/render.js';
-import { $, $$, deletionBusy, el, name, state, writable } from './state.js';
+import { $, $$, PAGE_SIZES, deletionBusy, el, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
 export function typeIcon(c) {
@@ -210,6 +210,16 @@ export function initRecordEditor() {
   $('#refresh').onclick = () => load();
   $('#prev').onclick = () => {
     state.page--;
+    persistView();
+    void load({ silent: true });
+  };
+  $('#pageSize').onchange = () => {
+    const size = Number($('#pageSize').value);
+    if (!state.view || !PAGE_SIZES.includes(size) || size === pageSize()) return;
+    // Keep the first visible row on screen when the page size changes.
+    const firstRow = state.page * pageSize();
+    state.view.pageSize = size;
+    state.page = Math.floor(firstRow / size);
     persistView();
     void load({ silent: true });
   };

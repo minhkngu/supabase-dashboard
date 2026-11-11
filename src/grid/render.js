@@ -29,6 +29,8 @@ import { closeNav, nav } from '../sidebar.js';
 import {
   $,
   PAGE_SIZE,
+  PAGE_SIZES,
+  pageSize,
   countedKey,
   deletionBusy,
   deletionTable,
@@ -100,6 +102,7 @@ export function choose(t) {
     search: typeof saved.search === 'string' ? saved.search : '',
     collapsed: Array.isArray(saved.collapsed) ? saved.collapsed.filter(x => typeof x === 'string') : [],
     page: Number.isSafeInteger(saved.page) && saved.page >= 0 ? Math.min(saved.page, 100000) : 0,
+    pageSize: PAGE_SIZES.includes(saved.pageSize) ? saved.pageSize : PAGE_SIZE,
   };
   state.page = state.view.page;
   $('#search').value = state.view.search;
@@ -157,6 +160,7 @@ export async function load({ silent = false } = {}) {
     filters,
   });
   if (!needsCount) q.set('count', '0');
+  if (pageSize() !== PAGE_SIZE) q.set('limit', String(pageSize()));
   const cacheKey = `/api/table/${name(table)}?${q}`;
   const cached = pageCache.get(cacheKey);
   if (!silent && cached && Date.now() - cached.time < 15000) {
@@ -179,8 +183,8 @@ export async function load({ silent = false } = {}) {
       return;
     if (d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;
-    if (state.page > 0 && state.page * PAGE_SIZE >= total) {
-      state.page = total ? Math.floor((total - 1) / PAGE_SIZE) : 0;
+    if (state.page > 0 && state.page * pageSize() >= total) {
+      state.page = total ? Math.floor((total - 1) / pageSize()) : 0;
       return load({ silent });
     }
     if (silent && table.primary_keys?.length) {
@@ -427,8 +431,8 @@ export function render() {
     r.dataset.renderKey =
       'row:' + JSON.stringify(state.table.primary_keys?.length ? state.table.primary_keys.map(k => row[k]) : [i]);
     r.tabIndex = 0;
-    r.setAttribute('aria-label', `Mở bản ghi ${state.page * PAGE_SIZE + i + 1}`);
-    const rowNumber = formatNumber(state.page * PAGE_SIZE + i + 1),
+    r.setAttribute('aria-label', `Mở bản ghi ${state.page * pageSize() + i + 1}`);
+    const rowNumber = formatNumber(state.page * pageSize() + i + 1),
       detailCell = el('td', 'record-detail');
     detailCell.title = 'Mở chi tiết bản ghi';
     const indexLabel = el('span', 'record-index', rowNumber);
@@ -532,7 +536,11 @@ export function render() {
   $('#count').textContent = `${formatNumber(state.total)} bản ghi`;
   $('#page').textContent = `Trang ${formatNumber(state.page + 1)}`;
   $('#prev').disabled = state.page === 0;
-  $('#next').disabled = (state.page + 1) * PAGE_SIZE >= state.total;
+  $('#next').disabled = (state.page + 1) * pageSize() >= state.total;
+  if ($('#pageSize').value !== String(pageSize())) {
+    $('#pageSize').value = String(pageSize());
+    $('#pageSize')._syncColumnSelect?.();
+  }
   requestAnimationFrame(() => {
     if (liveGrid.isConnected && state.table) updateFrozen();
   });

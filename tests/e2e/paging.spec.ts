@@ -37,3 +37,33 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
   await expect(page.locator('#count')).toHaveText('60 bản ghi');
   expect(requests.at(-1)?.get('count')).toBeNull();
 });
+
+test('chọn cỡ trang ở chân lưới và nhớ theo bảng', async ({ page }) => {
+  const limits: (string | null)[] = [];
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 't' } });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    const limit = Number(url.searchParams.get('limit') || 50),
+      p = Number(url.searchParams.get('page') || 0);
+    limits.push(url.searchParams.get('limit'));
+    return route.fulfill({ json: { rows: rows.slice(p * limit, p * limit + limit), total: rows.length } });
+  });
+  await page.goto('/');
+  await expect(page.locator('#grid tbody tr')).toHaveCount(50);
+  await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
+  await expect(page.locator('#page')).toHaveText('Trang 2');
+  await page.getByRole('button', { name: 'Số dòng mỗi trang' }).click();
+  await page.locator('.custom-select-menu:not([hidden])').getByRole('option', { name: '100 dòng' }).click();
+  // Row 51 was first on screen, so the 100-row page that contains it opens.
+  await expect(page.locator('#page')).toHaveText('Trang 1');
+  await expect(page.locator('#grid tbody tr')).toHaveCount(100);
+  expect(limits.at(-1)).toBe('100');
+  await page.reload();
+  await expect(page.locator('#grid tbody tr')).toHaveCount(100);
+  await expect(page.getByRole('button', { name: 'Số dòng mỗi trang' })).toContainText('100 dòng');
+  await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
+  await expect(page.locator('#grid tbody tr')).toHaveCount(20);
+});
