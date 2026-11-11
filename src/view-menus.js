@@ -505,14 +505,15 @@ export function renderViewMenu(kind) {
   $('#add' + (isGroup ? 'Group' : 'Sort')).disabled = available.every(c => rules.some(r => r.column === c.name));
 }
 
-function applyRules(kind) {
+// open: false applies the rules without showing the toolbar menu.
+export function applyRules(kind, { open = true } = {}) {
   state.page = 0;
   state.collapsed.clear();
   persistView();
   renderViewMenu(kind);
   const m = $('#' + kind + 'Menu'),
     b = $('#' + kind + 'Button');
-  if (m && b) {
+  if (open && m && b) {
     m.hidden = false;
     b.setAttribute('aria-expanded', 'true');
   }

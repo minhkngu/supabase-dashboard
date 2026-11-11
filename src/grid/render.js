@@ -1,5 +1,6 @@
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { restoreCellFocus } from './keyboard.js';
+import { openColumnMenu } from './column-menu.js';
 import { api, message, toast } from '../api.js';
 import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
@@ -219,7 +220,16 @@ function columnHeader(spec) {
     );
   th.dataset.columnId = spec.id;
   th.draggable = true;
-  th.title = 'Kéo để đổi vị trí cột';
+  th.title = 'Bấm để mở tùy chọn cột, kéo để đổi vị trí';
+  th.tabIndex = 0;
+  th.setAttribute('aria-haspopup', 'menu');
+  th.setAttribute('aria-expanded', 'false');
+  th.onclick = () => openColumnMenu(spec, th);
+  th.onkeydown = e => {
+    if (e.target !== th || !['Enter', ' ', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    openColumnMenu(spec, th);
+  };
   const label = el('span', 'column-label');
   label.append(el('span', 'type-icon', x ? '↗' : typeIcon(c)), document.createTextNode(x ? x.label : c.name));
   const pin = el('button', 'column-pin', state.view.frozen.includes(spec.id) ? '◆' : '◇');
