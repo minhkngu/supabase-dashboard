@@ -1,7 +1,8 @@
 import { toast } from '../api.js';
+import { createCustomSelect } from '../custom-select.js';
 import { commitCell } from '../history.js';
 import { activeLookups, configValid, loadLookups, lookupTable, openLinkPicker } from '../lookup.js';
-import { createCustomSelect, load, openEditor, render, valueFor } from '../main.js';
+import { load, openEditor, render, valueFor } from '../main.js';
 import {
   displaySettingKey,
   nativeRelations,

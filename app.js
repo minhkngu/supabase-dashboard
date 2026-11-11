@@ -7,7 +7,8 @@ import { initLookup } from './src/lookup.js';
 import { initRelationDisplay } from './src/relation-display.js';
 import { initColumnDialog } from './src/column-dialog.js';
 import { initViewMenus, initViewMenus2 } from './src/view-menus.js';
-import { initMain, initMain2, initMain3 } from './src/main.js';
+import { initCustomSelect } from './src/custom-select.js';
+import { initMain, initMain2 } from './src/main.js';
 
 // Event wiring runs in the original top-to-bottom order of the former app.js.
 initMode();
@@ -19,8 +20,8 @@ initLookup();
 initRelationDisplay();
 initColumnDialog();
 initViewMenus();
-initMain();
+initCustomSelect();
 initViewMenus2();
-initMain2();
+initMain();
 initSidebar2();
-await initMain3();
+await initMain2();
