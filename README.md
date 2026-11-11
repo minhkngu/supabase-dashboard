@@ -21,6 +21,7 @@ Thiết lập cột (thêm, đổi tên, đổi kiểu, xóa, nhân bản), đ�
 
 ```sh
 npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run build
@@ -37,6 +38,13 @@ PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e
 Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
 
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
+
+## Phím tắt
+
+- Mũi tên: di chuyển giữa các ô; gõ ký tự để sửa ô; F2 hoặc Enter để mở ô.
+- Khi sửa: Enter lưu và xuống dòng dưới, Tab lưu và sang phải (Shift+Tab sang trái), Escape hủy.
+- `/`: vào ô tìm kiếm. Ctrl/⌘+K: chuyển bảng nhanh. Ctrl/⌘+Z, Ctrl/⌘+Shift+Z: hoàn tác, làm lại. Ctrl/⌘+B: thu gọn thanh bên.
+- Bấm tiêu đề cột để sắp xếp, lọc, nhóm, ẩn, ghim hoặc thiết lập cột.
 
 ## Sửa nhiều ô
 

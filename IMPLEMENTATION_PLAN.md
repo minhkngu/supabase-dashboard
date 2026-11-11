@@ -230,11 +230,26 @@ Làm sau giai đoạn 2 để diff đọc được, trước giai đoạn 5–6 
 
 ## Trạng thái
 
+Cập nhật 11/11/2026, nhánh `claude/funny-cannon-1auhaq`.
+
 | Giai đoạn | Trạng thái |
 |---|---|
-| 1 — Lưới an toàn | Chưa bắt đầu |
-| 2 — Dọn dẹp và định dạng | Chưa bắt đầu (chờ quyết định 2.1) |
-| 3 — Tốc độ hệ thống | Chưa bắt đầu |
-| 4 — Tách cấu trúc | Chưa bắt đầu |
-| 5 — Thao tác | Chưa bắt đầu |
-| 6 — Giao diện | Chưa bắt đầu |
+| 1 — Lưới an toàn | Xong |
+| 2 — Dọn dẹp và định dạng | Xong (2.1: đã bỏ bản edge / Sites theo đề xuất) |
+| 3 — Tốc độ hệ thống | Xong 3.1–3.6; 3.7 chưa làm vì cần số đo trên dữ liệu thật |
+| 4 — Tách cấu trúc | Xong |
+| 5 — Thao tác | Xong |
+| 6 — Giao diện | Xong |
+
+Quyết định đã áp dụng:
+
+- 2.1: xóa `supabase/functions/siris-manager/` và các script Sites. Mã vẫn còn trong lịch sử git; việc xóa mã nguồn không gỡ function đã deploy trên Supabase (nếu có).
+- Bảng `promotions` mở mặc định ở lưới như mọi bảng khác.
+
+Khác với kế hoạch ban đầu:
+
+- 1.3 (sửa `any`) được làm cùng commit 1.1; 5.1 và 5.2 chung một commit.
+- 4.4: `checkJs` chạy ở chế độ không strict trong `tsconfig.js.json` (strict cần chú thích kiểu cho gần như mọi hàm); file TypeScript vẫn strict. `npm run typecheck` chạy cả hai.
+- 6.8: "nhóm theo cột tính trên toàn bộ dữ liệu" được làm cho tiêu đề nhóm của lưới qua endpoint chỉ đọc `GET /api/table/:name/group-counts`.
+- 6.9: còn 15 `!important`, phần lớn để thắng các selector theo id của lưới; dark mode vẫn ngoài phạm vi.
+- Dev server trả 404 cho đường dẫn dotfile (`/.env.local`) — sửa thêm khi khôi phục bộ e2e.
