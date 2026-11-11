@@ -93,3 +93,23 @@ test('dashboard vừa màn hình nhỏ', async ({ page }) => {
   await expect(page.locator('#tableDashboard')).toContainText('Mia');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('điện thoại: nút thêm bản ghi không bị cắt, chỉ giữ nút đóng sidebar, hàng tổng quan xếp dọc', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mock(page);
+  await page.goto('/');
+  const add = await page.locator('#add').boundingBox();
+  expect(add && add.x >= 0 && add.x + add.width <= 390).toBe(true);
+  await page.locator('#openNav').click();
+  await expect(page.locator('#closeNav')).toBeVisible();
+  await expect(page.locator('#toggleSidebar')).toBeHidden();
+  await expect(page.locator('#sidebarToggleBtn')).toBeHidden();
+  await page.locator('#closeNav').click();
+  await openDashboard(page);
+  const row = page.locator('.overview-row').first();
+  await expect(row).toContainText('Mia');
+  await expect(row).toHaveCSS('flex-direction', 'column');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
