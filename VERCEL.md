@@ -28,4 +28,6 @@ npx vercel project inspect --non-interactive
 npx vercel deploy --prod
 ```
 
-Trình duyệt hỏi tên đăng nhập và mật khẩu khi mở trang. Toàn bộ giao diện, tài nguyên và API đều được bảo vệ; request ghi vẫn cần cùng nguồn và token phiên. Không có thao tác thay đổi dữ liệu Supabase tự động khi deploy.
+Trang `/auth/login` nhận tên đăng nhập và mật khẩu, báo rõ khi không đúng. Sau khi đăng nhập thành công, phiên được lưu trong cookie HttpOnly, Secure, SameSite=Strict trong 8 giờ; thay tên đăng nhập hoặc mật khẩu sẽ vô hiệu các phiên cũ. Không dùng hộp hỏi mật khẩu của trình duyệt. Toàn bộ giao diện, tài nguyên và API đều được bảo vệ; request ghi vẫn cần cùng nguồn và token phiên. Không có thao tác thay đổi dữ liệu Supabase tự động khi deploy.
+
+Để thử luồng đăng nhập trên máy, chạy `npm run build` rồi `node scripts/preview-login.mjs`, mở `http://127.0.0.1:3002`. Bản thử chỉ lắng nghe loopback, đọc tài khoản từ `.env.vercel.local` và không bật cookie Secure trên HTTP local. Chế độ này bị vô hiệu trên môi trường Vercel.
