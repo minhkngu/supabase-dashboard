@@ -4010,3 +4010,57 @@ dialog.quick-switch {
   font-family: var(--font-mono);
   font-size: 11px;
 }
+
+/* RECORD FORM */
+.field-readonly label {
+  color: var(--text-muted);
+}
+
+.field-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.field-switch-state {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.field-switch-clear {
+  margin-left: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.field-switch-clear:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.column-switch-input:indeterminate + .column-switch-slider::before {
+  transform: translateX(6px);
+}
+
+.column-switch-input:focus-visible + .column-switch-slider {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+@media (min-width: 900px) {
+  #editor {
+    width: min(860px, calc(100% - 32px));
+  }
+}
+
+@media (max-width: 680px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}
