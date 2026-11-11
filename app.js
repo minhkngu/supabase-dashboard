@@ -3986,6 +3986,17 @@ async function pasteFromCell(rowValue, columnName, text) {
     bulkBusy = false;
   }
 }
+// Runs fn over items with at most `limit` calls in flight.
+async function runLimited(items, limit, fn) {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      await fn(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
 async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = false } = {}) {
   const table = state.table,
     columns = displayedColumns(),
@@ -4047,7 +4058,8 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
     Object.assign(change.record, change.values);
   }
   if (changes.length && state.table === table && !state.cellEdit) render();
-  for (const change of changes) {
+  const errors = new Array(changes.length);
+  await runLimited(changes, 5, async (change, index) => {
     try {
       const result = await api(`/api/table/${name(table)}`, {
         method: 'PATCH',
@@ -4058,12 +4070,13 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
       saved++;
     } catch (error) {
       Object.assign(change.record, change.expected);
-      failed.push(`Dòng ${change.row}: ${error.message}`);
+      errors[index] = `Dòng ${change.row}: ${error.message}`;
     } finally {
       pendingRows.delete(change.record);
       if (state.table === table && !state.cellEdit) render();
     }
-  }
+  });
+  failed.push(...errors.filter(Boolean));
   if (saved) {
     const history = historyFor(table);
     history.undo = [];
