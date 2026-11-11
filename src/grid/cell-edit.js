@@ -1,7 +1,7 @@
 import { toast } from '../api.js';
+import { commitCell } from '../history.js';
 import {
   activeLookups,
-  commitCell,
   configValid,
   createCustomSelect,
   displaySettingKey,

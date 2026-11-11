@@ -1,6 +1,7 @@
 import { api, message, toast } from './api.js';
 import { deleteRecords, refreshAfterWrite, rowCheckbox, rowSelectionHeader, updateRowSelection } from './deletion.js';
 import { editableCell, formatNumber, formatNumberInput } from './grid/cell-edit.js';
+import { historyFor, updateHistoryButtons } from './history.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -28,82 +29,220 @@ import {
   writable,
 } from './state.js';
 
-function historyFor(table) {
-  const id = name(table);
-  if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
-  return state.history.get(id);
-}
-export function updateHistoryButtons() {
-  const history = state.table && historyFor(state.table);
-  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
-  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
-}
-export async function commitCell(table, row, column, value) {
-  const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
-    old = row[column.name] ?? null;
-  const result = await api(`/api/table/${name(table)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ key, values: { [column.name]: value }, expected: { [column.name]: old } }),
-  });
-  const saved = result.rows?.[0];
-  if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
-  const history = historyFor(table);
-  history.undo.push({
-    column: column.name,
-    before: old,
-    after: saved[column.name],
-    beforeKey: key,
-    afterKey: Object.fromEntries(table.primary_keys.map(k => [k, saved[k]])),
-  });
-  if (history.undo.length > 50) history.undo.shift();
-  history.redo = [];
-  updateHistoryButtons();
-  return saved;
-}
-async function changeHistory(direction) {
-  if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
-  const table = state.table,
-    history = historyFor(table),
-    from = history[direction],
-    item = from.at(-1);
-  if (!item) return;
-  state.historyBusy = true;
-  updateHistoryButtons();
+const lookupStorageKey = 'siris-lookups-v1';
+function restoreLookups() {
   try {
-    const undo = direction === 'undo',
-      key = undo ? item.afterKey : item.beforeKey,
-      value = undo ? item.before : item.after,
-      expected = undo ? item.after : item.before;
-    await api(`/api/table/${name(table)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ key, values: { [item.column]: value }, expected: { [item.column]: expected } }),
-    });
-    from.pop();
-    history[undo ? 'redo' : 'undo'].push(item);
-    if (state.table === table) await load({ silent: true });
-    toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
-  } catch (error) {
-    toast(error.message);
-  } finally {
-    state.historyBusy = false;
-    updateHistoryButtons();
+    const data = JSON.parse(localStorage.getItem(lookupStorageKey) || '[]');
+    state.lookups = Array.isArray(data)
+      ? data.filter(
+          x =>
+            x &&
+            typeof x.id === 'string' &&
+            typeof x.sourceTable === 'string' &&
+            typeof x.sourceColumn === 'string' &&
+            typeof x.targetTable === 'string' &&
+            typeof x.targetKey === 'string' &&
+            typeof x.targetField === 'string' &&
+            typeof x.label === 'string',
+        )
+      : [];
+  } catch {
+    state.lookups = [];
   }
 }
-export function initMain() {
-  $('#undoCell').onclick = () => changeHistory('undo');
-  $('#redoCell').onclick = () => changeHistory('redo');
-  document.addEventListener('keydown', e => {
-    if (
-      !(e.metaKey || e.ctrlKey) ||
-      e.altKey ||
-      e.key.toLowerCase() !== 'z' ||
-      e.target.closest('input,textarea,select,[contenteditable=true]') ||
-      document.querySelector('dialog[open]')
-    )
-      return;
-    e.preventDefault();
-    changeHistory(e.shiftKey ? 'redo' : 'undo');
+function persistLookups() {
+  if (lookupCloudAvailable) return true;
+  try {
+    localStorage.setItem(lookupStorageKey, JSON.stringify(state.lookups));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function lookupType(c) {
+  if (!c || /json|array|bytea/i.test(c.data_type) || c.data_type.startsWith('_')) return null;
+  if (/^(integer|bigint|smallint|numeric|real|double precision|decimal)$/.test(c.data_type)) return 'number';
+  if (['text', 'character varying', 'character', 'varchar'].includes(c.data_type)) return 'text';
+  return c.data_type;
+}
+export function activeLookups() {
+  return state.lookups.filter(x => x.sourceTable === name(state.table));
+}
+export function lookupTable(n) {
+  return state.tables.find(t => name(t) === n);
+}
+function lookupConditions(x) {
+  return Array.isArray(x.conditions) && x.conditions.length
+    ? x.conditions
+    : [{ sourceColumn: x.sourceColumn, targetKey: x.targetKey }];
+}
+export function configValid(x) {
+  const a = lookupTable(x.sourceTable),
+    b = lookupTable(x.targetTable);
+  return !!(
+    a &&
+    b &&
+    b.columns.some(c => c.name === x.targetField) &&
+    lookupConditions(x).every(rule => {
+      const source = a.columns.find(c => c.name === rule.sourceColumn),
+        key = b.columns.find(c => c.name === rule.targetKey);
+      return source && key && lookupType(source) && lookupType(source) === lookupType(key);
+    })
+  );
+}
+function fillOptions(select, values, placeholder) {
+  select.replaceChildren(new Option(placeholder, ''));
+  for (const value of values) select.add(new Option(value, value));
+}
+function fillTableOptions(select, placeholder, include = () => true) {
+  const tables = state.tables.filter(include),
+    knownFolders = new Set(state.folders.map(f => f.id));
+  select.replaceChildren(new Option(placeholder, ''));
+  for (const folder of state.folders) {
+    const members = tables.filter(t => state.tableFolders[name(t)] === folder.id);
+    if (!members.length) continue;
+    const group = document.createElement('optgroup');
+    group.label = folder.name;
+    for (const table of members) group.append(new Option(name(table), name(table)));
+    select.append(group);
+  }
+  for (const table of tables.filter(t => !knownFolders.has(state.tableFolders[name(t)])))
+    select.append(new Option(name(table), name(table)));
+}
+let lookupDraft = [],
+  lookupCloudAvailable = false;
+function drawLookupConditions() {
+  const host = $('#lookupConditions'),
+    target = lookupTable($('#lookupTable').value);
+  host.replaceChildren();
+  lookupDraft.forEach((rule, index) => {
+    const row = el('div', 'lookup-condition'),
+      source = el('select'),
+      op = el('select'),
+      dest = el('select'),
+      remove = el('button', 'quiet', '×');
+    source.setAttribute('aria-label', `Cột hiện tại ${index + 1}`);
+    dest.setAttribute('aria-label', `Cột nguồn ${index + 1}`);
+    op.setAttribute('aria-label', `Điều kiện ${index + 1}`);
+    fillOptions(
+      source,
+      state.table.columns.filter(c => lookupType(c)).map(c => c.name),
+      'Cột hiện tại',
+    );
+    op.add(new Option('bằng', 'eq'));
+    const col = state.table.columns.find(c => c.name === rule.sourceColumn);
+    fillOptions(
+      dest,
+      (target?.columns || [])
+        .filter(c => lookupType(c) && (!col || lookupType(c) === lookupType(col)))
+        .map(c => c.name),
+      'Cột nguồn',
+    );
+    source.value = rule.sourceColumn || '';
+    dest.value = rule.targetKey || '';
+    source.onchange = () => {
+      rule.sourceColumn = source.value;
+      rule.targetKey = '';
+      drawLookupConditions();
+    };
+    dest.onchange = () => (rule.targetKey = dest.value);
+    remove.type = 'button';
+    remove.setAttribute('aria-label', `Xóa điều kiện ${index + 1}`);
+    remove.disabled = lookupDraft.length === 1;
+    remove.onclick = () => {
+      lookupDraft.splice(index, 1);
+      drawLookupConditions();
+    };
+    row.append(source, op, dest, remove);
+    host.append(row);
   });
+}
+function refreshLookupTargets() {
+  const target = lookupTable($('#lookupTable').value),
+    field = $('#lookupField').value;
+  fillOptions($('#lookupField'), target ? target.columns.map(c => c.name) : [], 'Chọn trường cần lấy');
+  if ([...$('#lookupField').options].some(o => o.value === field)) $('#lookupField').value = field;
+  drawLookupConditions();
+}
+function resetLookupForm() {
+  $('#lookupColumnPreview').hidden = true;
+  state.lookupEditing = null;
+  $('#lookupForm').reset();
+  lookupDraft = [{ sourceColumn: '', targetKey: '' }];
+  $('#lookupError').textContent = '';
+  $('#saveLookup').textContent = 'Thêm lookup';
+  $('#cancelLookupEdit').hidden = true;
+  refreshLookupTargets();
+  refreshLookupSync();
+}
+function showLookupList() {
+  const list = $('#lookupList');
+  list.replaceChildren();
+  for (const x of activeLookups().filter(x => !x.columnBound)) {
+    const item = el('div', 'lookup-item'),
+      info = el('div', 'lookup-info'),
+      title = el('strong', '', x.label),
+      detail = el('span', '', `${x.targetTable} · ${x.targetField}`),
+      actions = el('div', 'lookup-item-actions'),
+      edit = el('button', 'quiet', 'Sửa'),
+      remove = el('button', 'quiet', 'Xóa');
+    edit.type = remove.type = 'button';
+    edit.onclick = () => {
+      state.lookupEditing = x.id;
+      $('#lookupLabel').value = x.label;
+      $('#lookupTable').value = x.targetTable;
+      lookupDraft = lookupConditions(x).map(r => ({ ...r }));
+      refreshLookupTargets();
+      $('#lookupField').value = x.targetField;
+      $('#lookupMode').value = x.mode === 'any' ? 'any' : 'all';
+      $('#lookupDisplay').value = x.display === 'count' ? 'count' : 'value';
+      $('#lookupFormat').value = x.format === 'grouped' ? 'grouped' : 'default';
+      $('#lookupSyncEnabled').checked = !!x.sync?.enabled;
+      refreshLookupSync(x.sync?.columnName);
+      $('#lookupColumnPreview').hidden = true;
+      $('#saveLookup').textContent = 'Lưu';
+      $('#cancelLookupEdit').hidden = false;
+      $('#lookupError').textContent = '';
+      $('#lookupForm')
+        .querySelectorAll('select')
+        .forEach(select => select._syncColumnSelect?.());
+    };
+    remove.onclick = async () => {
+      if (!confirm(`Xóa cấu hình lookup “${x.label}”?`)) return;
+      if (lookupCloudAvailable) {
+        try {
+          await api('/api/lookup-config', { method: 'POST', body: JSON.stringify({ action: 'delete', id: x.id }) });
+        } catch (error) {
+          $('#lookupError').textContent = error.message;
+          return;
+        }
+      }
+      const old = state.lookups;
+      state.lookups = state.lookups.filter(y => y.id !== x.id);
+      if (!persistLookups()) {
+        state.lookups = old;
+        $('#lookupError').textContent = 'Không thể lưu cấu hình trên trình duyệt.';
+        return;
+      }
+      resetLookupForm();
+      showLookupList();
+      loadLookups();
+    };
+    info.append(title, detail);
+    actions.append(edit, remove);
+    item.append(info, actions);
+    list.append(item);
+  }
+}
+function showLookupDialog() {
+  if (!state.table) return;
+  $('#lookupContext').textContent = name(state.table);
+  fillTableOptions($('#lookupTable'), 'Chọn bảng nguồn');
+  resetLookupForm();
+  showLookupList();
+  $('#lookupDialog').showModal();
+}
+export function initMain() {
   $('#closeLookup').onclick = () => $('#lookupDialog').close();
   $('#closeLinkedRecord').onclick = () => $('#linkedRecord').close();
   $('#cancelLookupEdit').onclick = resetLookupForm;
@@ -824,219 +963,6 @@ export function initMain() {
   };
 }
 
-const lookupStorageKey = 'siris-lookups-v1';
-function restoreLookups() {
-  try {
-    const data = JSON.parse(localStorage.getItem(lookupStorageKey) || '[]');
-    state.lookups = Array.isArray(data)
-      ? data.filter(
-          x =>
-            x &&
-            typeof x.id === 'string' &&
-            typeof x.sourceTable === 'string' &&
-            typeof x.sourceColumn === 'string' &&
-            typeof x.targetTable === 'string' &&
-            typeof x.targetKey === 'string' &&
-            typeof x.targetField === 'string' &&
-            typeof x.label === 'string',
-        )
-      : [];
-  } catch {
-    state.lookups = [];
-  }
-}
-function persistLookups() {
-  if (lookupCloudAvailable) return true;
-  try {
-    localStorage.setItem(lookupStorageKey, JSON.stringify(state.lookups));
-    return true;
-  } catch {
-    return false;
-  }
-}
-function lookupType(c) {
-  if (!c || /json|array|bytea/i.test(c.data_type) || c.data_type.startsWith('_')) return null;
-  if (/^(integer|bigint|smallint|numeric|real|double precision|decimal)$/.test(c.data_type)) return 'number';
-  if (['text', 'character varying', 'character', 'varchar'].includes(c.data_type)) return 'text';
-  return c.data_type;
-}
-export function activeLookups() {
-  return state.lookups.filter(x => x.sourceTable === name(state.table));
-}
-export function lookupTable(n) {
-  return state.tables.find(t => name(t) === n);
-}
-function lookupConditions(x) {
-  return Array.isArray(x.conditions) && x.conditions.length
-    ? x.conditions
-    : [{ sourceColumn: x.sourceColumn, targetKey: x.targetKey }];
-}
-export function configValid(x) {
-  const a = lookupTable(x.sourceTable),
-    b = lookupTable(x.targetTable);
-  return !!(
-    a &&
-    b &&
-    b.columns.some(c => c.name === x.targetField) &&
-    lookupConditions(x).every(rule => {
-      const source = a.columns.find(c => c.name === rule.sourceColumn),
-        key = b.columns.find(c => c.name === rule.targetKey);
-      return source && key && lookupType(source) && lookupType(source) === lookupType(key);
-    })
-  );
-}
-function fillOptions(select, values, placeholder) {
-  select.replaceChildren(new Option(placeholder, ''));
-  for (const value of values) select.add(new Option(value, value));
-}
-function fillTableOptions(select, placeholder, include = () => true) {
-  const tables = state.tables.filter(include),
-    knownFolders = new Set(state.folders.map(f => f.id));
-  select.replaceChildren(new Option(placeholder, ''));
-  for (const folder of state.folders) {
-    const members = tables.filter(t => state.tableFolders[name(t)] === folder.id);
-    if (!members.length) continue;
-    const group = document.createElement('optgroup');
-    group.label = folder.name;
-    for (const table of members) group.append(new Option(name(table), name(table)));
-    select.append(group);
-  }
-  for (const table of tables.filter(t => !knownFolders.has(state.tableFolders[name(t)])))
-    select.append(new Option(name(table), name(table)));
-}
-let lookupDraft = [],
-  lookupCloudAvailable = false;
-function drawLookupConditions() {
-  const host = $('#lookupConditions'),
-    target = lookupTable($('#lookupTable').value);
-  host.replaceChildren();
-  lookupDraft.forEach((rule, index) => {
-    const row = el('div', 'lookup-condition'),
-      source = el('select'),
-      op = el('select'),
-      dest = el('select'),
-      remove = el('button', 'quiet', '×');
-    source.setAttribute('aria-label', `Cột hiện tại ${index + 1}`);
-    dest.setAttribute('aria-label', `Cột nguồn ${index + 1}`);
-    op.setAttribute('aria-label', `Điều kiện ${index + 1}`);
-    fillOptions(
-      source,
-      state.table.columns.filter(c => lookupType(c)).map(c => c.name),
-      'Cột hiện tại',
-    );
-    op.add(new Option('bằng', 'eq'));
-    const col = state.table.columns.find(c => c.name === rule.sourceColumn);
-    fillOptions(
-      dest,
-      (target?.columns || [])
-        .filter(c => lookupType(c) && (!col || lookupType(c) === lookupType(col)))
-        .map(c => c.name),
-      'Cột nguồn',
-    );
-    source.value = rule.sourceColumn || '';
-    dest.value = rule.targetKey || '';
-    source.onchange = () => {
-      rule.sourceColumn = source.value;
-      rule.targetKey = '';
-      drawLookupConditions();
-    };
-    dest.onchange = () => (rule.targetKey = dest.value);
-    remove.type = 'button';
-    remove.setAttribute('aria-label', `Xóa điều kiện ${index + 1}`);
-    remove.disabled = lookupDraft.length === 1;
-    remove.onclick = () => {
-      lookupDraft.splice(index, 1);
-      drawLookupConditions();
-    };
-    row.append(source, op, dest, remove);
-    host.append(row);
-  });
-}
-function refreshLookupTargets() {
-  const target = lookupTable($('#lookupTable').value),
-    field = $('#lookupField').value;
-  fillOptions($('#lookupField'), target ? target.columns.map(c => c.name) : [], 'Chọn trường cần lấy');
-  if ([...$('#lookupField').options].some(o => o.value === field)) $('#lookupField').value = field;
-  drawLookupConditions();
-}
-function resetLookupForm() {
-  $('#lookupColumnPreview').hidden = true;
-  state.lookupEditing = null;
-  $('#lookupForm').reset();
-  lookupDraft = [{ sourceColumn: '', targetKey: '' }];
-  $('#lookupError').textContent = '';
-  $('#saveLookup').textContent = 'Thêm lookup';
-  $('#cancelLookupEdit').hidden = true;
-  refreshLookupTargets();
-  refreshLookupSync();
-}
-function showLookupList() {
-  const list = $('#lookupList');
-  list.replaceChildren();
-  for (const x of activeLookups().filter(x => !x.columnBound)) {
-    const item = el('div', 'lookup-item'),
-      info = el('div', 'lookup-info'),
-      title = el('strong', '', x.label),
-      detail = el('span', '', `${x.targetTable} · ${x.targetField}`),
-      actions = el('div', 'lookup-item-actions'),
-      edit = el('button', 'quiet', 'Sửa'),
-      remove = el('button', 'quiet', 'Xóa');
-    edit.type = remove.type = 'button';
-    edit.onclick = () => {
-      state.lookupEditing = x.id;
-      $('#lookupLabel').value = x.label;
-      $('#lookupTable').value = x.targetTable;
-      lookupDraft = lookupConditions(x).map(r => ({ ...r }));
-      refreshLookupTargets();
-      $('#lookupField').value = x.targetField;
-      $('#lookupMode').value = x.mode === 'any' ? 'any' : 'all';
-      $('#lookupDisplay').value = x.display === 'count' ? 'count' : 'value';
-      $('#lookupFormat').value = x.format === 'grouped' ? 'grouped' : 'default';
-      $('#lookupSyncEnabled').checked = !!x.sync?.enabled;
-      refreshLookupSync(x.sync?.columnName);
-      $('#lookupColumnPreview').hidden = true;
-      $('#saveLookup').textContent = 'Lưu';
-      $('#cancelLookupEdit').hidden = false;
-      $('#lookupError').textContent = '';
-      $('#lookupForm')
-        .querySelectorAll('select')
-        .forEach(select => select._syncColumnSelect?.());
-    };
-    remove.onclick = async () => {
-      if (!confirm(`Xóa cấu hình lookup “${x.label}”?`)) return;
-      if (lookupCloudAvailable) {
-        try {
-          await api('/api/lookup-config', { method: 'POST', body: JSON.stringify({ action: 'delete', id: x.id }) });
-        } catch (error) {
-          $('#lookupError').textContent = error.message;
-          return;
-        }
-      }
-      const old = state.lookups;
-      state.lookups = state.lookups.filter(y => y.id !== x.id);
-      if (!persistLookups()) {
-        state.lookups = old;
-        $('#lookupError').textContent = 'Không thể lưu cấu hình trên trình duyệt.';
-        return;
-      }
-      resetLookupForm();
-      showLookupList();
-      loadLookups();
-    };
-    info.append(title, detail);
-    actions.append(edit, remove);
-    item.append(info, actions);
-    list.append(item);
-  }
-}
-function showLookupDialog() {
-  if (!state.table) return;
-  $('#lookupContext').textContent = name(state.table);
-  fillTableOptions($('#lookupTable'), 'Chọn bảng nguồn');
-  resetLookupForm();
-  showLookupList();
-  $('#lookupDialog').showModal();
-}
 function refreshLookupSync(selected) {
   const enabled = $('#lookupSyncEnabled').checked,
     old = state.lookups.find(x => x.id === state.lookupEditing),
