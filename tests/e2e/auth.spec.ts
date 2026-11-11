@@ -524,6 +524,25 @@ test('cột name được ghim khi cuộn ngang và có thể bỏ ghim', async 
   await page.reload(); await expect(name).not.toHaveClass(/frozen-cell/);
 });
 
+test('ô chọn dòng đứng yên khi cuộn ngang lưới', async ({ page }) => {
+  const columns = ['id', 'name', 'one', 'two', 'three', 'four', 'five', 'six'].map(column => ({ name: column, data_type: column === 'id' ? 'integer' : 'text', options: ['updatable'] }));
+  await page.route('**/api/**', async route => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (pathname === '/api/meta') return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 'csrf' } });
+    return route.fulfill({ json: { rows: [{ id: 1, name: 'Mia', one: '1', two: '2', three: '3', four: '4', five: '5', six: '6' }], total: 1 } });
+  });
+  await page.setViewportSize({ width: 900, height: 800 }); await page.goto('/');
+  const checkbox = page.locator('#grid tbody tr').first().locator('input[data-row-select]');
+  await expect(checkbox).toBeVisible();
+  const before = await checkbox.boundingBox();
+  await page.locator('.table-scroll').evaluate(node => { node.scrollLeft = 500; });
+  await expect.poll(async () => page.locator('.table-scroll').evaluate(node => node.scrollLeft)).toBeGreaterThan(0);
+  const after = await checkbox.boundingBox(); if (!before || !after) throw Error('Không thấy ô chọn dòng');
+  expect(Math.abs(before.x - after.x)).toBeLessThan(2);
+});
+
 test('menu sửa ô đúng sai đồng bộ và lưu hoặc hủy bằng bàn phím', async ({page}) => {
  let value: boolean | null = false;
  await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
