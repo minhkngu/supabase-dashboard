@@ -1,6 +1,6 @@
 # Siris — Quản lý dữ liệu cục bộ
 
-Ứng dụng đang được chuyển từng phase theo `CODEX_LOCAL_SUPABASE_MANAGER.md`; trạng thái và phạm vi còn thiếu được ghi trong `IMPLEMENTATION_PLAN.md`. Chỉ dùng trên máy cá nhân.
+Ứng dụng quản lý dữ liệu Supabase chạy cục bộ: xem và sửa bảng, thiết lập cột, đồng bộ lookup, formula và dashboard chỉ xem. Chỉ dùng trên máy cá nhân. Các bước cải thiện tiếp theo được ghi trong `IMPLEMENTATION_PLAN.md`.
 
 ## Chạy ứng dụng
 
@@ -15,7 +15,7 @@ cp .env.example .env.local
 
 Chạy `npm run dev` rồi mở http://localhost:3000. Khi dùng `npm start`, chạy `npm run build` trước để máy chủ phục vụ giao diện đã build. Ứng dụng kết nối trực tiếp bằng URL và key đã cấu hình ở máy chủ; quyền truy cập dữ liệu phụ thuộc vào key và các chính sách Supabase tương ứng.
 
-Các API quản trị cấu trúc và quan hệ đang tạm khóa trong khi hoàn thiện kiểm tra quyền. Nếu thiếu kết nối PostgreSQL, metadata dùng bản `schema.json` đã lưu, có thể không phản ánh các thay đổi gần đây.
+Thiết lập cột (thêm, đổi tên, đổi kiểu, xóa, nhân bản), đồng bộ lookup và formula cần `SUPABASE_DB_URL` trỏ đúng dự án Supabase đang dùng. Nếu thiếu kết nối PostgreSQL, các chức năng này bị khóa và metadata dùng bản `schema.json` đã lưu, có thể không phản ánh các thay đổi gần đây.
 
 ## Kiểm tra
 
@@ -38,7 +38,7 @@ Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
 
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
 
-## Các tính năng đang chuyển đổi
+## Sửa nhiều ô
 
 Chọn các ô cùng cột trực tiếp trên bảng bằng Shift và nhấp ô đầu, ô cuối; nhập giá trị rồi bấm **Áp dụng**. Có thể dán dữ liệu vào ô đang được chọn bằng bàn phím. Mỗi dòng được lưu riêng, và lỗi được báo theo dòng. Hoàn tác/làm lại chỉ hỗ trợ sửa từng ô trong phiên. Cấu hình hiển thị được lưu riêng cho từng bảng trên trình duyệt.
 

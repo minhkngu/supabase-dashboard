@@ -1,17 +1,19 @@
-# Kiến trúc Local Supabase Database Manager
+# Kiến trúc Siris
 
 ## Nguyên tắc
 
-Ứng dụng chạy cục bộ và Supabase là nguồn dữ liệu. Giao diện sử dụng các API cùng origin; máy chủ bind vào 127.0.0.1 và giữ credentials server-side trong `.env.local`. Không đưa database credentials, secret key hoặc management token vào trình duyệt.
+Ứng dụng chạy cục bộ và Supabase là nguồn dữ liệu. Giao diện chỉ gọi API cùng origin; máy chủ Node bind vào 127.0.0.1, kiểm tra Host/Origin và token CSRF cho mọi thao tác ghi, và giữ credentials trong `.env.local`. Không đưa database credentials, secret key hoặc management token vào trình duyệt.
 
-## Hướng tích hợp
+## Thành phần
 
-- Giao diện bảng hiện tại hỗ trợ sửa ô và sửa hàng loạt trực tiếp; các cấu hình hiển thị được lưu cục bộ theo bảng.
-- Máy chủ Node chạy trên loopback, giới hạn origin và giữ key phía máy chủ. Các thao tác dữ liệu đi qua Data API với key được cấu hình và chịu quyền, RLS tương ứng với key đó. API quản trị cấu trúc đang khóa.
-- Discovery đọc metadata thực của các schema được phép. Thông tin schema phải làm mới sau thay đổi; bảng không có khóa định danh an toàn ở chế độ chỉ đọc.
-- Views và cấu hình field ảo lưu ở metadata tables có chính sách quyền riêng. Lookup, rollup và formula phải tuân theo quyền của key đã cấu hình; không chấp nhận SQL hay JavaScript tùy ý.
-- Thay đổi schema cần preview, xác nhận theo thao tác, kiểm tra phụ thuộc, transaction và audit. Không áp dụng migrations lên production trong quá trình thử.
+- **Giao diện** (`index.html`, `app.js`, `style.css`): lưới dữ liệu với sửa ô, sửa và dán hàng loạt, hoàn tác/làm lại trong phiên, chọn và xóa bản ghi, lọc, nhóm, sắp xếp, ẩn, ghim và sắp lại cột. Cấu hình hiển thị (view, thư mục sidebar, chế độ Dashboard/Bảng dữ liệu) lưu trong `localStorage` theo bảng.
+- **Dashboard chỉ xem** (`table-overview.mjs`, `promotions-overview.mjs`): đọc toàn bộ bảng qua API bảng, không ghi dữ liệu. Mỗi bảng mở mặc định ở lưới dữ liệu; Dashboard chỉ hiện khi người dùng chọn.
+- **Máy chủ** (`server.mjs`): đọc/ghi dữ liệu qua Data API của Supabase bằng key đã cấu hình, nên chịu quyền và RLS của key đó. Bộ lọc được kiểm tra ở `filters.mjs`.
+- **Quản trị cấu trúc** (`admin.mjs`, cần `SUPABASE_DB_URL`): discovery metadata thật của schema `public`; thay đổi cột qua `/api/admin/schema/preview` rồi `/api/admin/schema/apply`. Bước apply kiểm tra chữ ký của bản xem trước, chạy trong transaction và từ chối nếu cấu trúc hoặc dữ liệu đã đổi.
+- **Lookup đồng bộ** (`lookup-sync.mjs`, `lookup-store.mjs`) và **formula** (`formula-sync.mjs`, `formula-parser.mjs`): cấu hình lưu trong schema `siris_admin`; giá trị được ghi vào cột Supabase có sẵn bằng trigger. Formula chỉ nhận cú pháp đã phân tích, không chấp nhận SQL hay JavaScript tùy ý.
+
+Khi không có `SUPABASE_DB_URL`, metadata lấy từ `schema.json` và các chức năng quản trị, lookup đồng bộ, formula bị khóa. Bảng không có khóa chính ở chế độ chỉ đọc.
 
 ## Kiểm tra
 
-Vitest kiểm tra logic và API; Playwright kiểm tra các luồng trên trình duyệt. Dùng mock cho kiểm thử ghi và chỉ đọc Supabase Cloud hiện tại khi kiểm tra tích hợp. Kết quả mock không được xem là nghiệm thu RLS, Storage, Realtime hay thao tác ghi thực tế.
+Vitest kiểm tra logic và API; Playwright kiểm tra các luồng trên trình duyệt với API giả lập. Kết quả mock không được xem là nghiệm thu RLS, Storage, Realtime hay thao tác ghi thực tế. Không áp dụng migrations lên production trong quá trình thử.
