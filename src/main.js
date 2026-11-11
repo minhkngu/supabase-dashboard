@@ -1,6 +1,7 @@
 import { createPromotionsOverview } from '../promotions-overview.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { createTableOverview } from '../table-overview.mjs';
+import { api, message, toast } from './api.js';
 import {
   $,
   clearPageCache,
@@ -25,37 +26,6 @@ import {
   writable,
 } from './state.js';
 
-async function api(url, opts = {}) {
-  if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/'))
-    clearPageCache();
-  let r;
-  try {
-    r = await fetch(url, {
-      ...opts,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(opts.method ? { 'x-siris-token': state.token } : {}),
-        ...opts.headers,
-      },
-    });
-  } catch (error) {
-    if (error.name !== 'AbortError') error.network = true;
-    throw error;
-  }
-  const d = await r.json();
-  if (!r.ok) {
-    const error = Error(d.error || 'Có lỗi xảy ra');
-    error.status = r.status;
-    throw error;
-  }
-  return d;
-}
-function toast(msg) {
-  $('#toast').textContent = msg;
-  $('#toast').classList.add('show');
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => $('#toast').classList.remove('show'), 3500);
-}
 let promotionsMode = false;
 function savedPromotionsMode(table) {
   try {
@@ -1136,11 +1106,6 @@ async function deleteRecords(rows) {
     persistView();
     await refreshAfterWrite(table);
   }
-}
-function message(msg, error = false) {
-  $('#message').textContent = msg;
-  $('#message').className = 'grid-message' + (error ? ' error' : '');
-  $('#message').hidden = !msg;
 }
 function persistSidebar() {
   try {
