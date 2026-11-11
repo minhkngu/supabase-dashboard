@@ -1263,8 +1263,9 @@ test('lưu ô giữ bảng hiển thị trong lúc dữ liệu được làm m�
   let value = 'Mia',
     gets = 0;
   await page.route('**/api/**', async route => {
+    // A formula column makes the save trigger a background refresh.
     if (new URL(route.request().url()).pathname === '/api/formula-config')
-      return route.fulfill({ json: { items: [] } });
+      return route.fulfill({ json: { items: [{ table: 'demo', column: 'total', expression: '1', enabled: true }] } });
     if (new URL(route.request().url()).pathname === '/api/lookup-config')
       return route.fulfill({ json: { available: false, items: [] } });
     const request = route.request(),
@@ -1278,6 +1279,7 @@ test('lưu ô giữ bảng hiển thị trong lúc dữ liệu được làm m�
               columns: [
                 { name: 'id', data_type: 'integer', options: ['updatable'] },
                 { name: 'name', data_type: 'text', options: ['updatable'] },
+                { name: 'total', data_type: 'integer', options: ['nullable', 'updatable'] },
               ],
               primary_keys: ['id'],
             },
@@ -1287,11 +1289,11 @@ test('lưu ô giữ bảng hiển thị trong lúc dữ liệu được làm m�
       });
     if (request.method() === 'PATCH') {
       value = request.postDataJSON().values.name;
-      return route.fulfill({ json: { rows: [{ id: 1, name: value }] } });
+      return route.fulfill({ json: { rows: [{ id: 1, name: value, total: 1 }] } });
     }
     gets++;
     if (gets > 1) await new Promise(resolve => setTimeout(resolve, 800));
-    return route.fulfill({ json: { rows: [{ id: 1, name: value }], total: 1 } });
+    return route.fulfill({ json: { rows: [{ id: 1, name: value, total: 1 }], total: 1 } });
   });
   await page.goto('/');
   const cell = page.locator('td[data-bulk-column="name"]');

@@ -795,6 +795,15 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
   changeHistory(e.shiftKey ? 'redo' : 'undo');
 });
+// Formulas and synced lookups are recomputed by database triggers, so other
+// cells of the saved row may change; only then is a reload worth it.
+function writeAffectsOtherCells(table) {
+  const tableName = name(table);
+  return (
+    (state.formulas || []).some(f => f.enabled && f.table === tableName) ||
+    (state.lookups || []).some(x => x.sourceTable === tableName && x.sync?.enabled)
+  );
+}
 function startCellEdit(td, row, c, table) {
   if (state.cellEdit || !td.isConnected) return;
   const original = row[c.name];
@@ -868,7 +877,8 @@ function startCellEdit(td, row, c, table) {
       pendingRows.delete(row);
       if (state.table === table && !state.cellEdit) {
         render();
-        void load({ silent: true });
+        if (writeAffectsOtherCells(table)) void load({ silent: true });
+        else loadLookups();
       }
       toast('Đã lưu thay đổi');
     } catch (error) {
