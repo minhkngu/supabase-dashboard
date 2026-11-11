@@ -1,6 +1,4 @@
 import { defineConfig, type Plugin } from 'vitest/config';
-import react from '@vitejs/plugin-react';
-import tailwindcss from '@tailwindcss/vite';
 
 // Vite's SPA fallback answers unknown paths with index.html (200). Refuse
 // dotfile paths outright so `.env*` and similar never look served.
@@ -20,7 +18,7 @@ const denyDotfiles: Plugin = {
 };
 
 export default defineConfig({
-  plugins: [denyDotfiles, react(), tailwindcss()],
+  plugins: [denyDotfiles],
   envPrefix: 'SIRIS_CLIENT_',
   server: {
     host: '127.0.0.1', port: 3000, strictPort: true,
