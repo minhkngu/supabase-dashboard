@@ -3,20 +3,7 @@ import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
 import { updateHistoryButtons } from '../history.js';
 import { activeLookups, loadLookups, lookupCell, showLookupDialog } from '../lookup.js';
-import {
-  bulkBusy,
-  clearBulk,
-  dragSelection,
-  openEditor,
-  pasteFromCell,
-  scheduleLookupCleanup,
-  selectBulk,
-  selectedCells,
-  setCopySelection,
-  setDragSelection,
-  syncGrid,
-  typeIcon,
-} from '../main.js';
+import { openEditor, scheduleLookupCleanup, typeIcon } from '../main.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -61,6 +48,17 @@ import {
   validRules,
 } from '../view-menus.js';
 import { editableCell, formatNumber } from './cell-edit.js';
+import {
+  bulkBusy,
+  clearBulk,
+  dragSelection,
+  pasteFromCell,
+  selectBulk,
+  selectedCells,
+  setCopySelection,
+  setDragSelection,
+  syncGrid,
+} from './selection.js';
 
 export function choose(t) {
   selectedRecords.clear();

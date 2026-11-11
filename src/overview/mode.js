@@ -3,7 +3,7 @@ import { createTableOverview } from '../../table-overview.mjs';
 import { api } from '../api.js';
 import { createCustomSelect } from '../custom-select.js';
 import { load } from '../grid/render.js';
-import { clearBulk } from '../main.js';
+import { clearBulk } from '../grid/selection.js';
 import { $, deletionBusy, deletionNotice, selectedRecords, state } from '../state.js';
 import { closeViewMenus } from '../view-menus.js';
 
