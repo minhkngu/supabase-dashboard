@@ -1,5 +1,6 @@
 import { api, message, toast } from './api.js';
 import { deleteRecords, refreshAfterWrite, rowCheckbox, rowSelectionHeader, updateRowSelection } from './deletion.js';
+import { editableCell, formatNumber, formatNumberInput } from './grid/cell-edit.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -27,19 +28,68 @@ import {
   writable,
 } from './state.js';
 
+function historyFor(table) {
+  const id = name(table);
+  if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
+  return state.history.get(id);
+}
+export function updateHistoryButtons() {
+  const history = state.table && historyFor(state.table);
+  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
+  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
+}
+export async function commitCell(table, row, column, value) {
+  const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
+    old = row[column.name] ?? null;
+  const result = await api(`/api/table/${name(table)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ key, values: { [column.name]: value }, expected: { [column.name]: old } }),
+  });
+  const saved = result.rows?.[0];
+  if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
+  const history = historyFor(table);
+  history.undo.push({
+    column: column.name,
+    before: old,
+    after: saved[column.name],
+    beforeKey: key,
+    afterKey: Object.fromEntries(table.primary_keys.map(k => [k, saved[k]])),
+  });
+  if (history.undo.length > 50) history.undo.shift();
+  history.redo = [];
+  updateHistoryButtons();
+  return saved;
+}
+async function changeHistory(direction) {
+  if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
+  const table = state.table,
+    history = historyFor(table),
+    from = history[direction],
+    item = from.at(-1);
+  if (!item) return;
+  state.historyBusy = true;
+  updateHistoryButtons();
+  try {
+    const undo = direction === 'undo',
+      key = undo ? item.afterKey : item.beforeKey,
+      value = undo ? item.before : item.after,
+      expected = undo ? item.after : item.before;
+    await api(`/api/table/${name(table)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ key, values: { [item.column]: value }, expected: { [item.column]: expected } }),
+    });
+    from.pop();
+    history[undo ? 'redo' : 'undo'].push(item);
+    if (state.table === table) await load({ silent: true });
+    toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    state.historyBusy = false;
+    updateHistoryButtons();
+  }
+}
 export function initMain() {
-  document.addEventListener(
-    'pointerdown',
-    e => {
-      const edit = state.cellEdit;
-      if (edit && !edit.td.contains(e.target)) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!edit.saving) edit.input.blur();
-      }
-    },
-    true,
-  );
   $('#undoCell').onclick = () => changeHistory('undo');
   $('#redoCell').onclick = () => changeHistory('redo');
   document.addEventListener('keydown', e => {
@@ -774,341 +824,6 @@ export function initMain() {
   };
 }
 
-function formatNumber(v) {
-  if (v == null || v === '') return '';
-  const s = String(v).trim();
-  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s)) return s;
-  if (/[eE]/.test(s)) {
-    const n = Number(s);
-    return Number.isFinite(n) ? n.toLocaleString('en-US') : s;
-  }
-  const sign = s.startsWith('-') ? '-' : s.startsWith('+') ? '+' : '';
-  const raw = sign ? s.slice(1) : s;
-  const parts = raw.split('.');
-  const intPart = parts[0] || '0';
-  const decPart = parts[1];
-  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return sign + formattedInt + (decPart !== undefined ? '.' + decPart : '');
-}
-function formatNumberInput(input) {
-  const raw = input.value;
-  if (!raw || !/^([+-]?)(?:\d*(?:\.\d*)?)$/.test(raw)) return;
-  const caret = input.selectionStart ?? raw.length,
-    logicalCaret = raw.slice(0, caret).replace(/,/g, '').length;
-  const formatted = formatNumber(raw);
-  if (formatted === raw) return;
-  input.value = formatted;
-  let seen = 0,
-    next = 0;
-  while (next < formatted.length && seen < logicalCaret) {
-    if (formatted[next] !== ',') seen++;
-    next++;
-  }
-  input.setSelectionRange(next, next);
-}
-
-function editableCell(td, row, c) {
-  const table = state.table;
-  const canEdit =
-    writable(c) &&
-    table.primary_keys?.length &&
-    !table.primary_keys.includes(c.name) &&
-    table.primary_keys.every(k => row[k] != null);
-  const isNum = /^(integer|bigint|smallint|numeric|real|double precision|decimal)$/.test(c.data_type);
-  const longContent =
-    /json/.test(c.data_type) ||
-    c.data_type.startsWith('_') ||
-    (typeof row[c.name] === 'string' && (row[c.name].length > 120 || row[c.name].includes('\n')));
-  td.tabIndex = 0;
-  td.setAttribute(
-    'aria-label',
-    `${c.name}: ${row[c.name] == null ? 'null' : typeof row[c.name] === 'object' ? JSON.stringify(row[c.name]) : isNum ? formatNumber(row[c.name]) : row[c.name]}${canEdit ? ', nhấn Enter để sửa' : ', chỉ đọc'}`,
-  );
-  td.classList.add(canEdit ? 'cell-editable' : 'cell-readonly');
-  const activate = () => {
-    if (!canEdit) return;
-    if (pendingRows.has(row)) {
-      toast('Bản ghi đang được lưu.');
-      return;
-    }
-    const links = activeLookups().filter(x => x.sourceColumn === c.name && configValid(x));
-    for (const native of nativeRelations(table).filter(x => x.config.sourceColumn === c.name)) {
-      const target = lookupTable(native.config.targetTable);
-      if (
-        target &&
-        !links.some(x => x.targetTable === native.config.targetTable && x.targetKey === native.config.targetKey)
-      )
-        links.push({
-          id: native.id,
-          label: native.label,
-          sourceColumn: c.name,
-          targetTable: native.config.targetTable,
-          targetKey: native.config.targetKey,
-          targetField: relationDisplaySettings[displaySettingKey(native)]
-            ? relationDisplayField(native)
-            : target.columns.find(x => x.name === 'name')?.name ||
-              target.columns.find(x => x.data_type === 'text')?.name ||
-              native.config.targetKey,
-        });
-    }
-    if (links.length) {
-      openLinkPicker(row, c, table, links);
-      return;
-    }
-    if (longContent) {
-      openEditor(row);
-      return;
-    }
-    startCellEdit(td, row, c, table);
-  };
-  td.onclick = e => {
-    e.stopPropagation();
-    activate();
-  };
-  td.onkeydown = e => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      activate();
-    }
-  };
-}
-function historyFor(table) {
-  const id = name(table);
-  if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
-  return state.history.get(id);
-}
-export function updateHistoryButtons() {
-  const history = state.table && historyFor(state.table);
-  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
-  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
-}
-async function commitCell(table, row, column, value) {
-  const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
-    old = row[column.name] ?? null;
-  const result = await api(`/api/table/${name(table)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ key, values: { [column.name]: value }, expected: { [column.name]: old } }),
-  });
-  const saved = result.rows?.[0];
-  if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
-  const history = historyFor(table);
-  history.undo.push({
-    column: column.name,
-    before: old,
-    after: saved[column.name],
-    beforeKey: key,
-    afterKey: Object.fromEntries(table.primary_keys.map(k => [k, saved[k]])),
-  });
-  if (history.undo.length > 50) history.undo.shift();
-  history.redo = [];
-  updateHistoryButtons();
-  return saved;
-}
-async function changeHistory(direction) {
-  if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
-  const table = state.table,
-    history = historyFor(table),
-    from = history[direction],
-    item = from.at(-1);
-  if (!item) return;
-  state.historyBusy = true;
-  updateHistoryButtons();
-  try {
-    const undo = direction === 'undo',
-      key = undo ? item.afterKey : item.beforeKey,
-      value = undo ? item.before : item.after,
-      expected = undo ? item.after : item.before;
-    await api(`/api/table/${name(table)}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ key, values: { [item.column]: value }, expected: { [item.column]: expected } }),
-    });
-    from.pop();
-    history[undo ? 'redo' : 'undo'].push(item);
-    if (state.table === table) await load({ silent: true });
-    toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
-  } catch (error) {
-    toast(error.message);
-  } finally {
-    state.historyBusy = false;
-    updateHistoryButtons();
-  }
-}
-// Formulas and synced lookups are recomputed by database triggers, so other
-// cells of the saved row may change; only then is a reload worth it.
-function writeAffectsOtherCells(table) {
-  const tableName = name(table);
-  return (
-    (state.formulas || []).some(f => f.enabled && f.table === tableName) ||
-    (state.lookups || []).some(x => x.sourceTable === tableName && x.sync?.enabled)
-  );
-}
-function startCellEdit(td, row, c, table) {
-  if (state.cellEdit || !td.isConnected) return;
-  const original = row[c.name];
-  const input = el(c.data_type === 'boolean' || c.enum_values?.length ? 'select' : 'input', 'cell-input');
-  if (c.enum_values?.length) {
-    if (c.options.includes('nullable')) input.append(new Option('[null]', ''));
-    for (const option of c.enum_values) input.append(new Option(option, option));
-    input.value = original == null ? '' : String(original);
-  } else if (c.data_type === 'boolean') {
-    if (c.options.includes('nullable')) input.append(new Option('[null]', ''));
-    input.append(new Option('true', 'true'), new Option('false', 'false'));
-    input.value = original == null ? '' : String(original);
-  } else {
-    const numeric = /^(integer|bigint|smallint|numeric|real|double precision|decimal)$/.test(c.data_type);
-    input.type = c.data_type === 'date' ? 'date' : 'text';
-    if (numeric) {
-      input.inputMode = 'decimal';
-      input.value = original == null ? '' : formatNumber(original);
-      input.oninput = () => formatNumberInput(input);
-    } else input.value = original == null ? '' : String(original);
-  }
-  input.setAttribute('aria-label', `Sửa ${c.name}`);
-  td.replaceChildren(input);
-  td.classList.add('editing');
-  const edit = { td, input, table, saving: false, cancelled: false };
-  state.cellEdit = edit;
-  if (input.tagName !== 'SELECT') {
-    input.focus();
-    if (input.select && input.type === 'text') input.select();
-  }
-  function cleanup() {
-    edit.menu?.remove();
-    if (edit.outside) document.removeEventListener('pointerdown', edit.outside, true);
-  }
-  function cancel() {
-    if (edit.saving) return;
-    edit.cancelled = true;
-    cleanup();
-    state.cellEdit = null;
-    render();
-  }
-  async function save() {
-    if (edit.cancelled || edit.saving || state.cellEdit !== edit) return;
-    let value;
-    try {
-      if (input.validity?.badInput) throw Error(`Giá trị ${c.name} không hợp lệ.`);
-      value = valueFor(c, input.value);
-      if (value === null && !c.options.includes('nullable')) throw Error(`Cột ${c.name} không được để trống.`);
-    } catch (error) {
-      td.classList.add('cell-error');
-      toast(error.message);
-      input.focus();
-      return;
-    }
-    if (value === original || (value !== null && original !== null && String(value) === String(original))) {
-      cleanup();
-      state.cellEdit = null;
-      render();
-      return;
-    }
-    cleanup();
-    edit.saving = true;
-    const request = commitCell(table, row, c, value);
-    pendingRows.add(row);
-    row[c.name] = value;
-    state.cellEdit = null;
-    if (state.table === table) render();
-    try {
-      const saved = await request;
-      Object.assign(row, saved);
-      pendingRows.delete(row);
-      if (state.table === table && !state.cellEdit) {
-        render();
-        if (writeAffectsOtherCells(table)) void load({ silent: true });
-        else loadLookups();
-      }
-      toast('Đã lưu thay đổi');
-    } catch (error) {
-      row[c.name] = original;
-      pendingRows.delete(row);
-      toast(error.message);
-      if (state.table === table && !state.cellEdit) {
-        render();
-        const index = state.rows.indexOf(row),
-          cell = [...document.querySelectorAll('#grid td[data-bulk-column]')].find(
-            item => item.dataset.bulkRow === String(index) && item.dataset.bulkColumn === c.name,
-          );
-        if (cell) {
-          startCellEdit(cell, row, c, table);
-          if (state.cellEdit) {
-            state.cellEdit.input.value = input.value;
-            state.cellEdit.select?.setValue(input.value);
-            state.cellEdit.td.classList.add('cell-error');
-            (state.cellEdit.select?.btn || state.cellEdit.input).focus();
-          }
-        }
-      }
-    }
-  }
-  input.onkeydown = e => {
-    e.stopPropagation();
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      cancel();
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault();
-      save();
-    }
-  };
-  if (input.tagName === 'SELECT') {
-    const custom = createCustomSelect({
-      options: Array.from(input.options, o => ({ value: o.value, label: o.textContent })),
-      value: input.value,
-      ariaLabel: `Sửa ${c.name}`,
-      className: 'form-field-select cell-select',
-      onChange(value) {
-        input.value = value;
-        void save();
-      },
-    });
-    edit.select = custom;
-    edit.menu = custom.menu;
-    input.hidden = true;
-    td.append(custom);
-    document.body.append(custom.menu);
-    custom.menu.classList.add('cell-select-menu');
-    const position = () => {
-      const rect = custom.btn.getBoundingClientRect(),
-        height = custom.menu.getBoundingClientRect().height;
-      custom.menu.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - Math.max(rect.width, 160) - 8))}px`;
-      custom.menu.style.top = `${rect.bottom + height + 8 > innerHeight ? Math.max(8, rect.top - height - 4) : rect.bottom + 4}px`;
-      custom.menu.style.width = `${Math.max(rect.width, 160)}px`;
-    };
-    custom.btn.addEventListener('click', () => {
-      if (!custom.menu.hidden) position();
-    });
-    custom.btn.addEventListener('keydown', e => {
-      e.stopPropagation();
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        cancel();
-      } else if (e.key === 'ArrowDown' && !custom.menu.hidden) {
-        e.preventDefault();
-        custom.menu.querySelector('.custom-select-item:not(.is-disabled)')?.focus();
-      }
-    });
-    custom.menu.addEventListener(
-      'keydown',
-      e => {
-        e.stopPropagation();
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          cancel();
-        }
-      },
-      true,
-    );
-    edit.outside = e => {
-      if (!custom.contains(e.target) && !custom.menu.contains(e.target)) cancel();
-    };
-    document.addEventListener('pointerdown', edit.outside, true);
-    custom.btn.focus();
-    custom.btn.click();
-  } else input.onblur = () => save();
-}
-
 const lookupStorageKey = 'siris-lookups-v1';
 function restoreLookups() {
   try {
@@ -1145,10 +860,10 @@ function lookupType(c) {
   if (['text', 'character varying', 'character', 'varchar'].includes(c.data_type)) return 'text';
   return c.data_type;
 }
-function activeLookups() {
+export function activeLookups() {
   return state.lookups.filter(x => x.sourceTable === name(state.table));
 }
-function lookupTable(n) {
+export function lookupTable(n) {
   return state.tables.find(t => name(t) === n);
 }
 function lookupConditions(x) {
@@ -1156,7 +871,7 @@ function lookupConditions(x) {
     ? x.conditions
     : [{ sourceColumn: x.sourceColumn, targetKey: x.targetKey }];
 }
-function configValid(x) {
+export function configValid(x) {
   const a = lookupTable(x.sourceTable),
     b = lookupTable(x.targetTable);
   return !!(
@@ -1380,7 +1095,7 @@ function checkLookupSync(x) {
     throw Error(`Không khớp kiểu dữ liệu: lookup trả về ${expected}, cột ${column.name} là ${actual}.`);
 }
 
-async function loadLookups() {
+export async function loadLookups() {
   const version = ++state.lookupVersion,
     table = state.table,
     rows = state.rows.slice(),
@@ -1517,7 +1232,7 @@ function lookupCell(config, row) {
 
 let pickerState = null,
   pickerTimer;
-function openLinkPicker(row, column, table, links) {
+export function openLinkPicker(row, column, table, links) {
   pickerState = { row, column, table, links, page: 0, version: 0, saving: false };
   fillOptions(
     $('#pickerLink'),
@@ -1605,7 +1320,7 @@ async function saveLink(value) {
   }
 }
 
-function nativeRelations(table = state.table) {
+export function nativeRelations(table = state.table) {
   return (table?.foreign_key_constraints || [])
     .filter(f => f.source_table === table.name && f.source_columns?.length === 1 && f.target_columns?.length === 1)
     .map(f => ({
@@ -1621,11 +1336,11 @@ function nativeRelations(table = state.table) {
     }));
 }
 const relationDisplayKey = 'siris-relation-display-v1';
-let relationDisplaySettings = {};
-function displaySettingKey(relation) {
+export let relationDisplaySettings = {};
+export function displaySettingKey(relation) {
   return JSON.stringify([relation.source_table, relation.id, relation.config.targetTable, relation.config.targetKey]);
 }
-function relationDisplayField(relation) {
+export function relationDisplayField(relation) {
   const target = lookupTable(relation.config.targetTable),
     saved = relationDisplaySettings[displaySettingKey(relation)];
   return target?.columns.some(c => c.name === saved) ? saved : relation.config.labelField || relation.config.targetKey;
@@ -3627,7 +3342,7 @@ function recordFieldHint(column) {
   if (foreignKey) return `Mã bản ghi liên kết đến ${foreignKey.target_table.replace(/^public\./, '')}.`;
   return 'Nhập nội dung cho trường này.';
 }
-function openEditor(row) {
+export function openEditor(row) {
   state.edit = row;
   $('#dialogTitle').textContent = row ? 'Chỉnh sửa bản ghi' : 'Thêm bản ghi';
   $('#dialogEyebrow').textContent = name(state.table);
@@ -3735,7 +3450,7 @@ function openEditor(row) {
   }
   $('#editor').showModal();
 }
-function valueFor(c, raw) {
+export function valueFor(c, raw) {
   if (raw === '') return null;
   if (c.data_type === 'boolean') return raw === 'true';
   if (/json/.test(c.data_type) || c.data_type.startsWith('_')) {
