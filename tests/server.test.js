@@ -103,6 +103,14 @@ describe('API trên máy cục bộ', () => {
     expect(asset).not.toBeNull();
     expect((await fetch(origin + asset[1])).status).toBe(200);
     expect((await fetch(origin + '/.env.local')).status).toBe(404);
+    expect(html).not.toContain('fonts.googleapis.com');
+    expect(response.headers.get('content-security-policy')).toContain("font-src 'self';");
+    const css = html.match(/href="(\/assets\/[^" ]+\.css)"/);
+    const font = (await (await fetch(origin + css[1])).text()).match(/\/assets\/[^)"' ]+\.woff2/);
+    expect(font).not.toBeNull();
+    const fontResponse = await fetch(origin + font[0]);
+    expect(fontResponse.status).toBe(200);
+    expect(fontResponse.headers.get('content-type')).toBe('font/woff2');
   });
   it('cập nhật nhiều cột với điều kiện kiểm tra từng giá trị cũ', async () => {
     const meta = await (await fetch(`${origin}/api/meta`)).json();

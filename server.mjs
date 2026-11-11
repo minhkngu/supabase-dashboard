@@ -441,7 +441,7 @@ const server = http.createServer(async (req, res) => {
     const f =
       u.pathname === '/'
         ? 'index.html'
-        : /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css)$/.test(u.pathname)
+        : /^\/assets\/[A-Za-z0-9_-]+\.(?:js|css|woff2)$/.test(u.pathname)
           ? u.pathname.slice(1)
           : null;
     if (!f) return response(res, 404, { error: 'Không tìm thấy' });
@@ -453,11 +453,13 @@ const server = http.createServer(async (req, res) => {
         ? 'text/javascript; charset=utf-8'
         : f.endsWith('.css')
           ? 'text/css; charset=utf-8'
-          : 'text/html; charset=utf-8',
+          : f.endsWith('.woff2')
+            ? 'font/woff2'
+            : 'text/html; charset=utf-8',
       'Cache-Control': f.startsWith('assets/') ? 'public, max-age=31536000, immutable' : 'no-store',
       'X-Content-Type-Options': 'nosniff',
       'Content-Security-Policy':
-        "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+        "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
     });
     res.end(content);
   } catch (e) {
