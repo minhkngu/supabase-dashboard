@@ -13,6 +13,7 @@ import { initRecordEditor } from './src/record-editor.js';
 import { initMain } from './src/main.js';
 import { initKeyboard } from './src/grid/keyboard.js';
 import { initColumnMenu } from './src/grid/column-menu.js';
+import { initQuickSwitch } from './src/quick-switch.js';
 
 // Event wiring runs in the original top-to-bottom order of the former app.js.
 initMode();
@@ -29,6 +30,7 @@ initViewMenus2();
 initSelection();
 initKeyboard();
 initColumnMenu();
+initQuickSwitch();
 initRecordEditor();
 initSidebar2();
 await initMain();

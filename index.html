@@ -257,7 +257,12 @@
                   <circle cx="11" cy="11" r="8"></circle>
                   <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input id="search" placeholder="Tìm kiếm nhanh bản ghi..." aria-label="Tìm trong bảng" />
+                <input
+                  id="search"
+                  placeholder="Tìm kiếm nhanh bản ghi... ( / )"
+                  aria-label="Tìm trong bảng"
+                  aria-keyshortcuts="/"
+                />
               </label>
             </div>
             <div class="toolbar-right">
@@ -905,6 +910,20 @@
           </div>
         </form>
       </div>
+    </dialog>
+    <dialog id="quickSwitch" class="quick-switch" aria-label="Chuyển bảng nhanh">
+      <input
+        id="quickSwitchInput"
+        type="search"
+        placeholder="Tìm bảng…"
+        aria-label="Tìm bảng để mở"
+        role="combobox"
+        aria-controls="quickSwitchList"
+        aria-expanded="true"
+        autocomplete="off"
+      />
+      <ul id="quickSwitchList" role="listbox" aria-label="Bảng"></ul>
+      <p class="quick-switch-hint">↑↓ để chọn · Enter để mở · Esc để đóng</p>
     </dialog>
     <dialog id="linkedRecord" aria-labelledby="linkedTitle">
       <div class="dialog-head">

@@ -3916,3 +3916,66 @@ input.row-select:disabled {
   color: var(--text-primary);
   outline: none;
 }
+
+/* QUICK TABLE SWITCHER (Ctrl/⌘+K) */
+dialog.quick-switch {
+  width: min(480px, calc(100% - 32px));
+  margin-top: 12vh;
+  padding: 8px;
+}
+
+#quickSwitchInput {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: 14px;
+}
+
+#quickSwitchInput:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+#quickSwitchList {
+  max-height: 50vh;
+  margin: 6px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.quick-switch-option {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.quick-switch-option:hover,
+.quick-switch-option[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.quick-switch-current,
+.quick-switch-empty,
+.quick-switch-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.quick-switch-empty {
+  padding: 8px 10px;
+}
+
+.quick-switch-hint {
+  margin: 6px 4px 0;
+}
