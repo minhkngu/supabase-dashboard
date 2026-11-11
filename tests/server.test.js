@@ -90,6 +90,10 @@ describe('API trên máy cục bộ', () => {
     expect(skipped.rows).toHaveLength(1);
     expect(upstreamRequests.at(-1).prefer).toBeUndefined();
     expect(upstreamRequests.at(-1).url).not.toContain('count');
+    await fetch(`${origin}/api/table/branches?page=2&limit=1000`);
+    expect(upstreamRequests.at(-1).url).toContain('limit=1000&offset=2000');
+    await fetch(`${origin}/api/table/branches?limit=5000`);
+    expect(upstreamRequests.at(-1).url).toContain('limit=1000&offset=0');
   });
   it('phục vụ giao diện build và chặn tệp cấu hình', async () => {
     const response = await fetch(origin);

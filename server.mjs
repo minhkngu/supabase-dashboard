@@ -378,7 +378,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'GET') {
         const q = filterQuery(u.searchParams, t),
           page = Math.max(0, Math.min(100000, Number(u.searchParams.get('page')) || 0)),
-          limit = 50;
+          limit = Math.max(1, Math.min(1000, Number(u.searchParams.get('limit')) || 50));
         q.set('select', t.columns.map(c => '"' + c.name.replaceAll('"', '\\"') + '"').join(','));
         q.set('limit', String(limit));
         q.set('offset', String(page * limit));

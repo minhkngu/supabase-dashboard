@@ -83,6 +83,8 @@ const configs = {
     fields: ['name', 'category', 'amount', 'amount_type', 'is_active'],
   },
 };
+// Dashboards read whole tables, so they use the largest page the API allows.
+const PAGE_SIZE = 1000;
 export async function readAllTableRows(api, table, signal) {
   const rows = [],
     seen = new Set(),
@@ -92,6 +94,7 @@ export async function readAllTableRows(api, table, signal) {
   for (let page = 0; page <= 100000; page++) {
     const query = new URLSearchParams({
       page: String(page),
+      limit: String(PAGE_SIZE),
       search: '',
       filters: '[]',
       orders: JSON.stringify(orders),
@@ -115,6 +118,7 @@ export async function readAllTableRows(api, table, signal) {
     }
     if (rows.length === expected) return rows;
     if (rows.length > expected) throw Error('Dữ liệu thay đổi trong lúc tải. Hãy làm mới.');
+    if (result.rows.length < PAGE_SIZE) throw Error('Máy chủ trả về ít dòng hơn dự kiến. Hãy làm mới.');
   }
   throw Error('Số trang vượt giới hạn.');
 }

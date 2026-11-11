@@ -91,14 +91,15 @@ async function mock(page: Page, { empty = false, failRefresh = false, delay = fa
       return route.fulfill({ json: { rows: [] } });
     }
     if (url.pathname === '/api/table/promotions') {
-      const p = Number(url.searchParams.get('page') || 0);
+      const p = Number(url.searchParams.get('page') || 0),
+        limit = Number(url.searchParams.get('limit') || 50);
       pages.push(p);
       if (delay) await blocked;
       if (p === 0) loads++;
       if (failRefresh && loads > 1) return route.fulfill({ status: 403, json: { error: 'Không có quyền đọc' } });
       expect(JSON.parse(url.searchParams.get('filters') || '[]')).toEqual([]);
       return route.fulfill({
-        json: { rows: empty ? [] : rows.slice(p * 50, p * 50 + 50), total: empty ? 0 : rows.length },
+        json: { rows: empty ? [] : rows.slice(p * limit, p * limit + limit), total: empty ? 0 : rows.length },
       });
     }
     if (url.pathname === '/api/table/branches')
@@ -129,7 +130,8 @@ test('dashboard trong bảng promotions tải đủ các trang, liên kết tên
   const dashboard = page.locator('#promotionsDashboard');
   await expect(dashboard).toBeVisible();
   await expect(dashboard.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
-  expect(api.pages).toEqual([0, 1]);
+  // The dashboard reads 1,000 rows per request, so 51 rows take one page.
+  expect(api.pages).toEqual([0]);
   await expect(dashboard.locator('.promo-metrics strong')).toHaveText(['51', '50', '50', '1']);
   await expect(dashboard.locator('[data-promo-id="promotion-0"]')).toContainText('Mia · Studio');
   await dashboard.locator('[data-promo-id="promotion-0"]').click();

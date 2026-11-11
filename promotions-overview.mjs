@@ -50,6 +50,8 @@ const normalize = value =>
 
 // Same-origin table API enforces the existing Supabase credentials and RLS.
 // Read every page before publishing counts; the main grid's filters do not apply.
+// Dashboards read whole tables, so they use the largest page the API allows.
+const PAGE_SIZE = 1000;
 export async function readAllPromotions(api, table, signal) {
   const rows = [],
     ids = new Set();
@@ -57,6 +59,7 @@ export async function readAllPromotions(api, table, signal) {
   while (true) {
     const query = new URLSearchParams({
       page: String(page),
+      limit: String(PAGE_SIZE),
       search: '',
       filters: '[]',
       orders: JSON.stringify([{ column: 'id', direction: 'asc' }]),
@@ -72,6 +75,7 @@ export async function readAllPromotions(api, table, signal) {
       rows.push(row);
     }
     if (rows.length >= result.total) return rows;
+    if (result.rows.length < PAGE_SIZE) throw Error('Máy chủ trả về ít dòng hơn dự kiến. Hãy làm mới dashboard.');
     if (++page > 100000) throw Error('Số trang vượt giới hạn của API.');
   }
 }
