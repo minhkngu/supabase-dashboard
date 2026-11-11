@@ -141,10 +141,21 @@ test('cuộn ngang 600px giữ nguyên ô chọn của dòng đầu', async ({ p
   expect((await box.boundingBox())!.x).toBe(x);
 });
 
-test('khung 390px: nút Thêm bản ghi nằm trọn trong màn hình', async ({ page }) => {
+test('khung 390px: nút Thêm bản ghi nằm trọn trong màn hình, nút menu đủ lớn để bấm', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mock(page);
   const add = (await page.locator('#add').boundingBox())!;
   expect(add.x).toBeGreaterThanOrEqual(0);
   expect(add.x + add.width).toBeLessThanOrEqual(390);
+  // Icon only, but still named for screen readers.
+  await expect(page.getByRole('button', { name: 'Thêm bản ghi', exact: true })).toBeVisible();
+  expect(add.width).toBeLessThanOrEqual(40);
+  for (const id of ['#openNav', '#closeNav']) {
+    if (id === '#closeNav') await page.locator('#openNav').click();
+    const box = (await page.locator(id).boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(36);
+    expect(box.height).toBeGreaterThanOrEqual(36);
+  }
+  await expect(page.locator('#toggleSidebar')).toBeHidden();
+  await expect(page.locator('#sidebarToggleBtn')).toBeHidden();
 });

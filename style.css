@@ -4377,3 +4377,33 @@ dialog.confirm-dialog {
   text-align: left;
   padding-left: 12px;
 }
+
+/* Phone buttons: comfortable touch targets, icon-only add button. */
+@media (max-width: 768px) {
+  #openNav,
+  #closeNav {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 520px) {
+  .heading-actions #add {
+    width: 36px;
+    min-width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .heading-actions #add > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
