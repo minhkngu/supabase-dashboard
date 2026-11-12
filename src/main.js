@@ -1,6 +1,6 @@
 import { syncChrome } from './chrome.js';
 import { api, message, toast } from './api.js';
-import { choose, render } from './grid/render.js';
+import { choose, load, render } from './grid/render.js';
 import { updateHistoryButtons } from './history.js';
 import { loadLookups, restoreLookups, setLookupCloudAvailable } from './lookup.js';
 import { recordFieldHint } from './record-editor.js';
@@ -96,26 +96,56 @@ export async function initMain() {
 async function initialize() {
   const request = Promise.all([api('/api/formula-config'), api('/api/lookup-config')]);
   request.catch(() => {});
+  restoreLookups();
+  restoreViews();
+  let current, cachedLoad;
   try {
-    const data = await api('/api/meta');
-    state.tables = data.tables;
-    state.adminAvailable = !!data.adminAvailable;
-    state.adminError = data.adminError || '';
-    state.enumTypes = Array.isArray(data.enumTypes) ? data.enumTypes : [];
-    restoreSidebar();
-    restoreLookups();
-    restoreViews();
-    state.token = data.token;
-    nav();
-    let current;
-    try {
-      current = localStorage.getItem('siris-current-table');
-    } catch {}
-    if (state.tables.length) choose(state.tables.find(t => name(t) === current) || state.tables[0]);
-    else message('Không có bảng nào để hiển thị.');
+    current = localStorage.getItem('siris-current-table');
+  } catch {}
+  // Draw the sidebar and load a page from the metadata saved by the previous
+  // visit, so data appears without waiting for the metadata round trip.
+  try {
+    const saved = JSON.parse(localStorage.getItem('siris-metadata-v1') || 'null');
+    if (Array.isArray(saved?.tables) && saved.tables.length) {
+      state.tables = saved.tables;
+      restoreSidebar();
+      nav();
+      cachedLoad = choose(state.tables.find(t => name(t) === current) || state.tables[0]);
+    }
+  } catch {}
+  try {
+    const apply = async next => {
+      const old = state.table,
+        oldName = old && name(old);
+      state.tables = next.tables;
+      state.adminAvailable = !!next.adminAvailable;
+      state.adminError = next.adminError || '';
+      state.enumTypes = Array.isArray(next.enumTypes) ? next.enumTypes : [];
+      state.token = next.token;
+      restoreSidebar();
+      nav();
+      try {
+        localStorage.setItem('siris-metadata-v1', JSON.stringify({ tables: state.tables }));
+      } catch {}
+      const selected = state.tables.find(t => name(t) === (oldName || current)) || state.tables[0];
+      if (!selected) {
+        state.table = null;
+        message('Không có bảng nào để hiển thị.');
+        return;
+      }
+      if (!old || old.name !== selected.name || JSON.stringify(old) !== JSON.stringify(selected)) choose(selected);
+      else if (cachedLoad) {
+        await cachedLoad;
+        cachedLoad = null;
+        if ($('#message').classList.contains('error')) await load({ silent: true });
+      }
+    };
+    await apply(await api('/api/meta'));
     await loadConfigs(request);
   } catch (e) {
-    $('#tables').textContent = 'Không thể tải danh sách bảng';
-    message(e.message, true);
+    if (!state.table) {
+      $('#tables').textContent = 'Không thể tải danh sách bảng';
+      message(e.message, true);
+    } else showConfigStatus('Không thể xác nhận cấu trúc bảng. Đang ở chế độ chỉ đọc.', true);
   }
 }
