@@ -364,6 +364,14 @@ export function initSidebar2() {
     if ($('#sidebar').classList.contains('collapsed')) toggleSidebar();
   });
   if (sidebarToggleBtn) sidebarToggleBtn.onclick = () => toggleSidebar();
+  $('#logoutBtn').onclick = async () => {
+    $('#logoutBtn').disabled = true;
+    try {
+      await fetch('/auth/logout', { method: 'POST' });
+    } finally {
+      location.assign('/auth/login');
+    }
+  };
   document.addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) {
       e.preventDefault();

@@ -673,6 +673,19 @@ nav::-webkit-scrollbar-thumb {
   color: var(--text-primary);
 }
 
+.sidebar-logout-btn {
+  margin-bottom: 6px;
+}
+
+.sidebar-toggle-btn .logout-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.sidebar-toggle-btn:hover .logout-icon {
+  color: var(--text-primary);
+}
+
 .sidebar-toggle-btn .toggle-icon-sidebar {
   flex-shrink: 0;
   color: var(--text-muted);
@@ -733,6 +746,8 @@ nav::-webkit-scrollbar-thumb {
 
 .sidebar.collapsed .sidebar-footer {
   display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
   padding-top: 10px;
 }

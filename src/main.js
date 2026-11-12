@@ -137,6 +137,7 @@ async function initialize() {
       state.adminError = next.adminError || '';
       state.enumTypes = Array.isArray(next.enumTypes) ? next.enumTypes : [];
       state.token = next.token;
+      $('#logoutBtn').hidden = !next.logout;
       restoreSidebar();
       nav();
       setJSON(storageKeys.metadata, { tables: state.tables });

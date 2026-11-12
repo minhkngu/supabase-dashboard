@@ -198,6 +198,25 @@ describe('Vercel adapter', () => {
     expect(form.status).toBe(429);
     expect((await call(app, { headers: { 'x-forwarded-for': '203.0.113.5' } })).status).toBe(200);
   });
+  it('logs out by clearing the session cookie', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    expect(JSON.parse((await call(app)).text).logout).toBe(true);
+    const cross = await call(app, {
+      url: '/auth/logout',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://attacker.example' },
+    });
+    expect(cross.status).toBe(403);
+    const result = await call(app, {
+      url: '/auth/logout',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+    });
+    expect(result.status).toBe(303);
+    expect(result.headers.Location).toBe('/auth/login');
+    for (const part of ['__Host-siris_session=;', 'Max-Age=0', 'Secure', 'HttpOnly', 'Path=/'])
+      expect(result.headers['Set-Cookie']).toContain(part);
+  });
   it('passes authenticated same-origin requests to the shared routes', async () => {
     const app = await createVercelHandler(env, tables, process.cwd());
     const { token } = JSON.parse((await call(app)).text);

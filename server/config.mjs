@@ -49,7 +49,7 @@ export function loadConfig(root) {
 
 // Shared by the local server and the Vercel function, which passes its own
 // environment, a fixed port and a session token.
-export function configFromEnv(env, { root = '', port = Number(env.PORT || 4173), csrf = null } = {}) {
+export function configFromEnv(env, { root = '', port = Number(env.PORT || 4173), csrf = null, session = false } = {}) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL,
     key = env.SUPABASE_KEY || env.VITE_SUPABASE_ANON_KEY;
   return {
@@ -59,6 +59,8 @@ export function configFromEnv(env, { root = '', port = Number(env.PORT || 4173),
     key,
     port,
     csrf,
+    // Signed-in deployment (Vercel): the interface offers a logout button.
+    session,
     perfTiming: env.SIRIS_PERF_TIMING === '1',
     admin: adminConnection(env, url),
   };

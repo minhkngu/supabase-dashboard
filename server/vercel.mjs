@@ -47,6 +47,7 @@ export async function createVercelHandler(env, tables, root) {
     root,
     port,
     csrf: ready ? request => auth.csrf(request.headers) : 'unconfigured',
+    session: true,
   });
   const app = await createApp(config, tables, { liveMetadataEachRequest: true });
   return async (req, res) => {
@@ -59,6 +60,10 @@ export async function createVercelHandler(env, tables, root) {
     const sameOrigin = `${local ? 'http' : 'https'}://${req.headers.host}`;
     if ((origin && origin !== sameOrigin) || (!['GET', 'HEAD'].includes(req.method) && !origin)) {
       return response(res, 403, { error: 'Nguồn truy cập không hợp lệ' });
+    }
+    if (path === '/auth/logout' && req.method === 'POST') {
+      res.writeHead(303, { Location: '/auth/login', 'Set-Cookie': auth.clearedCookie() });
+      return res.end();
     }
     if (path === '/auth/login' && req.method === 'POST') {
       const ip = clientIp(req);

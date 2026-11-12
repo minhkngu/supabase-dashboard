@@ -47,7 +47,12 @@ export function createSessionAuth(user, password, { local = false, now = Date.no
       nonce = randomBytes(12).toString('hex');
     return `${cookieName}=${expires}.${nonce}.${sign(`${expires}:${nonce}`)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MS / 1000}${local ? '' : '; Secure'}`;
   }
-  return { authenticated, sessionValid, basicCredential, matches, sessionCookie, csrf };
+  // Clearing the cookie ends this browser's session; revoking every session
+  // still requires changing the password.
+  function clearedCookie() {
+    return `${cookieName}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${local ? '' : '; Secure'}`;
+  }
+  return { authenticated, sessionValid, clearedCookie, basicCredential, matches, sessionCookie, csrf };
 }
 export async function loginValues(req) {
   let parsed = req.body;
