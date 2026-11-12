@@ -1,5 +1,7 @@
 # Sửa giao diện: kéo thả, bố trí nút, lưu cấu hình lên Supabase
 
+**Trạng thái:** xong, đã merge ở PR #4 (12/11/2026). Mục A cần chạy `ui-settings.sql` trên Supabase một lần.
+
 ## Context
 Bạn chưa hài lòng ở 4 điểm: kéo thả cột trên lưới, kéo thả bảng ở sidebar, bố trí nút đầu trang, và cấu hình giao diện không được giữ khi mở trên Vercel hoặc máy khác. Tôi đã chạy app (1440 / 1024 / 390px), giả lập kéo thả và đọc mã. Kết quả:
 

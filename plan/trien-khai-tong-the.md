@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Siris
 
-Cập nhật 12/11/2026, sau khi đánh giá PR #3 (chạy lại lint, typecheck, build, test, e2e và đọc mã từng bước). Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
+Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (chờ quyết định). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-sau-danh-gia.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
 Mục lục:
 1. Tình hình hiện tại
@@ -19,7 +19,7 @@ Mục lục:
 
 Nhánh `claude/hopeful-gates-00krjq` đã được merge với `main` (cả 20 file xung đột đã giải quyết) để PR #3 là PR duy nhất, trên một nhánh duy nhất. Cách giải quyết: **lấy code và test của `main`** cho mọi file xung đột, vì `main` đã tách `server.mjs` thành `server/` và `app.js` thành `src/`; giữ plan này, `scripts/bench.mjs`, script `bench` và mục README về đo hiệu năng.
 
-Các thay đổi tốc độ viết trên nền cũ của PR #3 (commit `d21eac0`) đã được chuyển sang cấu trúc `server/` và `src/` (giai đoạn P). Bản edge/Sites đã gỡ (C), đã có CI (D), đã gom `localStorage`, tách e2e và tăng bảo mật Vercel (E). **Còn lại: sửa CI đang đỏ (H1) và các việc dọn trong giai đoạn H, rồi đo một lần trên Vercel (G).**
+Các thay đổi tốc độ viết trên nền cũ của PR #3 (commit `d21eac0`) đã được chuyển sang cấu trúc `server/` và `src/` (giai đoạn P). Bản edge/Sites đã gỡ (C), đã có CI (D), đã gom `localStorage`, tách e2e và tăng bảo mật Vercel (E). **Còn lại: đo một lần trên Vercel (G) và quyết định H4.** (H1–H3, H5, H6 đã xong.)
 
 Kết quả kiểm tra sau merge:
 
@@ -62,7 +62,7 @@ Kết quả kiểm tra sau merge:
 | Đọc/ghi | Không tải lại trang sau khi lưu ô (`cell-save.spec`), `limit` ≤ 1.000 cho Tổng quan, `group-counts`, `pageCache`, làm mới nền (`background-refresh.spec`), cỡ trang 50/100/200 (`paging.spec`) |
 | Thao tác | Bàn phím, menu tiêu đề cột, `/` và Ctrl/⌘+K, thẻ bộ lọc, hoàn tác sau lưu |
 | Dev server | Chặn dotfile (`denyDotfiles` trong `vite.config.ts`) |
-| Bản online | `vercel.json`, `api/handler.mjs`, `VERCEL.md`, đăng nhập phiên ký, `tests/vercel.test.js` |
+| Bản online | `vercel.json`, `api/handler.mjs`, mục Vercel trong `README.md`, đăng nhập phiên ký, `tests/vercel.test.js` |
 
 ### 3.2 Phần tốc độ đã chuyển từ `d21eac0` (giai đoạn P — xong)
 
@@ -80,16 +80,16 @@ Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel).
 
 ### 3.3 Lỗi và điểm yếu còn lại (xử lý ở giai đoạn H)
 
-| Mã | Vấn đề | Mức |
-|---|---|---|
-| H1 | **CI đỏ**: job `bench-cache` và `e2e` lỗi do runner Ubuntu 26.04 (không có `postgresql-16`, Playwright 1.55.1 không hỗ trợ). Test `bench-cache` chưa từng chạy xanh ở đâu | Cao |
-| H2 | Phiên bản Node không đồng bộ: CI dùng 22, project Vercel dùng 26.x, `engines` ghi `>=20`; cảnh báo `actions/checkout@v4`, `setup-node@v4` chạy Node 20 sắp bị bỏ | Thấp |
-| H3 | `VERCEL.md` chưa ghi: giới hạn đăng nhập sai nằm trong bộ nhớ từng instance (chỉ làm chậm, không chặn hẳn), các sự kiện log (`login_failed`, `login_blocked`, `schema_apply`), và việc đổi định dạng cookie làm mất mọi phiên đăng nhập cũ khi deploy lần đầu | Trung bình |
-| H4 | Giới hạn đăng nhập sai chưa dùng kho dùng chung | Quyết định |
-| H5 | `ARCHITECTURE.md` chưa mô tả `src/storage.js`, `scripts/bench.mjs`, bộ test e2e đã tách | Thấp |
-| H6 | Mô tả PR #3 lỗi thời (vẫn nói "grid-first", "overview editing", số liệu cũ) | Trung bình |
-| H7 | Hai mục tiêu tốc độ chưa đạt: mở ứng dụng ≈ 146–202 ms (mục tiêu 80 ms), ghi 50 dòng nối tiếp 3.175 ms (mục tiêu < 1 s) | Chấp nhận / ghi rõ |
-| H8 | Số đo mới chỉ là mô phỏng; chưa đo trên Vercel | Làm ở G |
+| Mã | Vấn đề | Mức | Trạng thái 13/11 |
+|---|---|---|---|
+| H1 | **CI đỏ**: job `bench-cache` và `e2e` lỗi do runner Ubuntu 26.04 (không có `postgresql-16`, Playwright 1.55.1 không hỗ trợ). Test `bench-cache` chưa từng chạy xanh ở đâu | Cao | Xong |
+| H2 | Phiên bản Node không đồng bộ: CI dùng 22, project Vercel dùng 26.x, `engines` ghi `>=20`; cảnh báo `actions/checkout@v4`, `setup-node@v4` chạy Node 20 sắp bị bỏ | Thấp | Xong |
+| H3 | `VERCEL.md` chưa ghi: giới hạn đăng nhập sai nằm trong bộ nhớ từng instance (chỉ làm chậm, không chặn hẳn), các sự kiện log (`login_failed`, `login_blocked`, `schema_apply`), và việc đổi định dạng cookie làm mất mọi phiên đăng nhập cũ khi deploy lần đầu | Trung bình | Xong |
+| H4 | Giới hạn đăng nhập sai chưa dùng kho dùng chung | Quyết định | Chờ quyết định |
+| H5 | `ARCHITECTURE.md` chưa mô tả `src/storage.js`, `scripts/bench.mjs`, bộ test e2e đã tách | Thấp | Xong (gộp vào README) |
+| H6 | Mô tả PR #3 lỗi thời (vẫn nói "grid-first", "overview editing", số liệu cũ) | Trung bình | Xong |
+| H7 | Hai mục tiêu tốc độ chưa đạt: mở ứng dụng ≈ 146–202 ms (mục tiêu 80 ms), ghi 50 dòng nối tiếp 3.175 ms (mục tiêu < 1 s) | Chấp nhận / ghi rõ | Đã ghi nhận |
+| H8 | Số đo mới chỉ là mô phỏng; chưa đo trên Vercel | Làm ở G | Làm ở G |
 
 ---
 
@@ -266,9 +266,9 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
 | F | Sửa điểm yếu của phép đo, test cache PostgreSQL | **Xong** (F1–F4) |
 | C | Gỡ edge/Sites | **Xong** (C1–C3) |
-| D | CI | File `.github/workflows/ci.yml` đã có nhưng **CI đang đỏ** (xem H1) |
+| D | CI | **Xong**; ba job xanh trên Ubuntu 24.04 |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | **Xong** (E1–E4); tài liệu và giới hạn đăng nhập xem H3–H4 |
-| H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Chưa làm**; H4 chờ quyết định |
+| H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Xong** H1–H3, H5, H6; H4 chờ quyết định |
 | G (B4) | Đo một lần trên Vercel | Sau H, do người dùng thao tác |
 
 ---
@@ -392,4 +392,4 @@ Kết luận: với dữ liệu hiện tại, ưu tiên là bớt lượt gọi 
 
 Lưu ý: bảng "Đo lại sau tối ưu" phía trên đo trên mã PR #3 cũ (`d21eac0`). Bảng "Đo lại trên nhánh sau merge" là số hiện tại của nhánh này; các mục tiêu chưa đạt được ghi lý do ngay dưới bảng đó.
 
-Kiến trúc hiện tại của mã (thư mục `server/`, `src/`) xem `ARCHITECTURE.md`.
+Kiến trúc hiện tại của mã (thư mục `server/`, `src/`) xem mục Kiến trúc trong `README.md`.

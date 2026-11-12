@@ -15,7 +15,7 @@ Tạo không gian làm việc dữ liệu giống thao tác bảng tính của L
 
 - `style.css`: token màu, chữ, kích thước, trạng thái và responsive.
 - `index.html`: app shell, toolbar, dialog và cấu trúc biểu mẫu.
-- `app.js`: custom select, sửa ô, chọn vùng, nhóm, ghim và cập nhật nền.
+- `src/`: custom select (`custom-select.js`), sửa ô, chọn vùng, nhóm, ghim (`grid/*`) và cập nhật nền.
 - `tests/e2e/`: kiểm tra hành vi giao diện đang có.
 
 Trước khi sửa, đọc component và các CSS override liên quan. Tái sử dụng class và hàm hiện có; không tạo thêm một bộ dropdown hoặc dialog riêng cho tính năng mới. Những thông số dưới đây được đối chiếu với mã nguồn tại thời điểm viết; nếu mã thay đổi, kiểm tra computed style trước khi quyết định.

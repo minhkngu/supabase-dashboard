@@ -1,84 +1,186 @@
-# Siris — Quản lý dữ liệu cục bộ
+# Siris — Quản lý dữ liệu Supabase
 
-Ứng dụng quản lý dữ liệu Supabase chạy cục bộ: xem và sửa bảng, thiết lập cột, đồng bộ lookup, formula và dashboard chỉ xem. Chỉ dùng trên máy cá nhân. Các bước cải thiện tiếp theo được ghi trong `IMPLEMENTATION_PLAN.md`.
+Ứng dụng web xem và sửa dữ liệu một dự án Supabase theo kiểu bảng tính: sửa tại ô, lọc, nhóm, sắp xếp, view, thiết lập cột, đồng bộ lookup, formula và dashboard chỉ xem. Chạy cục bộ trên máy cá nhân, hoặc online trên Vercel có đăng nhập.
 
-## Chạy ứng dụng
+- Frontend: JavaScript thuần (ES module trong `src/`), build bằng Vite.
+- Backend: Node.js (`server/`), gọi Supabase Data API bằng key ở máy chủ; thêm kết nối PostgreSQL cho các chức năng quản trị cấu trúc.
+- Kế hoạch và việc còn lại: thư mục [`plan/`](plan/).
 
-Cần Node.js 20.19+ hoặc 22.12+ (Vite 7), sau đó:
+## Mục lục
+
+1. [Cài đặt và chạy](#cài-đặt-và-chạy)
+2. [Cấu hình](#cấu-hình)
+3. [Tính năng](#tính-năng)
+4. [Kiến trúc](#kiến-trúc)
+5. [Kiểm thử](#kiểm-thử)
+6. [Triển khai lên Vercel](#triển-khai-lên-vercel)
+7. [Kế hoạch](#kế-hoạch)
+
+## Cài đặt và chạy
+
+Cần Node.js 22.12+ (CI chạy Node 22 và 24).
 
 ```sh
 npm install
 cp .env.example .env.local
+npm run dev
 ```
 
-Điền `SUPABASE_URL` và khóa publishable/anon trong `.env.local`. Tệp này chỉ được máy chủ đọc và đã được loại khỏi Git. Nếu cần discovery trực tiếp, thêm `SUPABASE_DB_URL` với quyền phù hợp ở máy chủ. Không đưa service role key, database password hoặc access token vào mã nguồn hay trình duyệt.
+Mở http://localhost:3000. `npm run dev` chạy Vite ở cổng 3000 và máy chủ Node ở cổng 3001 (Vite chuyển `/api` sang).
 
-Chạy `npm run dev` rồi mở http://localhost:3000. Khi dùng `npm start`, chạy `npm run build` trước để máy chủ phục vụ giao diện đã build. Ứng dụng kết nối trực tiếp bằng URL và key đã cấu hình ở máy chủ; quyền truy cập dữ liệu phụ thuộc vào key và các chính sách Supabase tương ứng.
+Chạy bản đã build: `npm run build` rồi `npm start` (mặc định cổng 4173, đổi bằng `PORT`).
 
-Thiết lập cột (thêm, đổi tên, đổi kiểu, xóa, nhân bản), đồng bộ lookup và formula cần `SUPABASE_DB_URL` trỏ đúng dự án Supabase đang dùng. Nếu thiếu kết nối PostgreSQL, các chức năng này bị khóa và metadata dùng bản `schema.json` đã lưu, có thể không phản ánh các thay đổi gần đây.
+## Cấu hình
 
-## Kiểm tra
+Biến môi trường đặt trong `.env.local` (chỉ máy chủ đọc, đã loại khỏi Git) hoặc trong môi trường tiến trình:
+
+| Biến | Bắt buộc | Nội dung |
+| --- | --- | --- |
+| `SUPABASE_URL` | Có | URL dự án Supabase |
+| `SUPABASE_KEY` | Có | Publishable/anon key. Quyền đọc ghi dữ liệu theo key này và RLS tương ứng |
+| `SUPABASE_DB_URL` | Không | Kết nối PostgreSQL cho thiết lập cột, lookup đồng bộ, formula, lưu cấu hình giao diện và metadata trực tiếp. Phải cùng dự án với `SUPABASE_URL` |
+| `PORT` | Không | Cổng của `npm start` |
+| `SIRIS_PERF_TIMING` | Không | `1` để trả header `Server-Timing` |
+
+Không đưa service role key, mật khẩu database hay access token vào mã nguồn hoặc trình duyệt; không dùng tiền tố `VITE_`.
+
+Khi thiếu `SUPABASE_DB_URL`, metadata lấy từ `schema.json` đã lưu (có thể cũ) và các chức năng quản trị bị khóa. Bảng không có khóa chính chỉ xem được.
+
+### Bảng phụ trên Supabase
+
+Các bảng cấu hình nằm trong schema `siris_admin`, đã thu hồi quyền của `anon` và `authenticated`. Chạy một lần trong SQL editor của Supabase:
+
+- `lookup-store.sql`: nơi lưu cấu hình lookup (`siris_admin.lookup_configs`).
+- `ui-settings.sql`: nơi lưu cấu hình giao diện (`siris_admin.ui_settings`).
+
+Bảng formula (`siris_admin.formula_configs`) được tạo tự động lần đầu lưu formula.
+
+## Tính năng
+
+### Phím tắt
+
+- Mũi tên: di chuyển giữa các ô; gõ ký tự để sửa ô; F2 hoặc Enter để mở ô.
+- Khi sửa: Enter lưu và xuống dòng, Tab lưu và sang phải (Shift+Tab sang trái), Escape hủy.
+- `/`: vào ô tìm kiếm. Ctrl/⌘+K: chuyển bảng nhanh. Ctrl/⌘+Z, Ctrl/⌘+Shift+Z: hoàn tác, làm lại. Ctrl/⌘+B: thu gọn thanh bên.
+- Bấm tiêu đề cột để sắp xếp, lọc, nhóm, ẩn, ghim hoặc thiết lập cột.
+
+### Sửa nhiều ô
+
+Chọn các ô cùng cột bằng Shift và nhấp ô đầu, ô cuối; nhập giá trị rồi bấm **Áp dụng**, hoặc dán dữ liệu từ bàn phím. Mỗi dòng được lưu riêng (tối đa 50 dòng một lô) và lỗi được báo theo dòng. Hoàn tác/làm lại chỉ áp dụng cho sửa từng ô trong phiên.
+
+### Lưu cấu hình giao diện lên Supabase
+
+View, thư mục, thứ tự bảng và tên hiển thị được lưu trong `localStorage` và đồng bộ lên `siris_admin.ui_settings`, nên theo bạn sang Vercel hoặc máy khác. Khi khởi động, bản nào mới hơn thắng; máy chủ trống thì bản trên trình duyệt được đẩy lên. Mỗi khóa được ghi đè nguyên khối, nên hai trình duyệt cùng sửa một lúc thì bản sau thắng. Cấu hình là chung cho mọi người dùng app. Chưa chạy `ui-settings.sql` thì app vẫn chạy và báo "Cấu hình chỉ lưu trên trình duyệt này".
+
+### Thiết lập cột
+
+Thêm, đổi tên, đổi kiểu, đổi thuộc tính, xóa và nhân bản cột (cần `SUPABASE_DB_URL`). Mọi thay đổi đi qua bước xem trước: máy chủ trả số bản ghi bị ảnh hưởng và một chữ ký; bước áp dụng khóa bảng, kiểm tra lại chữ ký và chạy trong một transaction, từ chối nếu cấu trúc hoặc dữ liệu đã đổi.
+
+- **Xóa cột công thức** (`GENERATED ALWAYS AS`): được phép nếu không có phụ thuộc. Máy chủ kiểm tra phụ thuộc PostgreSQL, liên kết và lookup trước khi xác nhận, dùng `DROP COLUMN ... RESTRICT`. Khóa chính và identity luôn được bảo vệ. Phụ thuộc trong mã bên ngoài database cần tự kiểm tra.
+- **Nhân bản cột**: tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị trong một transaction. Cột mới cho phép trống; không sao chép khóa, unique, identity, mặc định hay cấu hình lookup/formula.
+
+### Đồng bộ lookup vào cột có sẵn
+
+Trong **Thiết lập cột** của một cột có sẵn, bật **Đồng bộ từ lookup**, chọn bảng nguồn, trường cần lấy và các điều kiện. Cột cần cho phép trống và có cùng kiểu PostgreSQL với trường được lấy (chế độ đếm trả `bigint`); cột khóa chính, tự sinh hoặc có phụ thuộc không được chọn.
+
+Khi lưu, máy chủ tạo trigger trên cả hai bảng và cập nhật giá trị ban đầu trong cùng transaction. Trigger chạy với quyền của thao tác đang ghi (kể cả ghi trực tiếp qua Supabase); thiếu quyền sẽ báo lỗi. Một ô chỉ nhận một giá trị: nhiều bản ghi cùng khớp thì cần thêm điều kiện hoặc dùng đếm. Tắt đồng bộ thì máy chủ gỡ trigger và để trống cột. Cột đang đồng bộ chỉ đọc trên web.
+
+### Formula
+
+Cột số có thể tính tự động từ các cột số khác bằng công thức (`+ - * /`, phần trăm hậu tố `%`, `ROUND`, `ABS`, `MIN`, `MAX`, tham chiếu cột dạng `[tên_cột]`). Công thức được phân tích thành cây, không chấp nhận SQL hay JavaScript, rồi cài thành trigger `BEFORE INSERT OR UPDATE`.
+
+### Dashboard
+
+Mỗi bảng mở mặc định ở lưới dữ liệu; chế độ Tổng quan (dashboard) hiện khi người dùng chọn. Bảng `promotions` có dashboard riêng.
+
+## Kiến trúc
+
+Supabase là nguồn dữ liệu. Giao diện chỉ gọi API cùng origin; credentials nằm ở máy chủ.
+
+**Máy chủ**
+
+- `server/app.mjs`: bộ xử lý request dùng chung cho bản cục bộ (`server.mjs`, bind `127.0.0.1`) và bản Vercel (`api/handler.mjs` → `server/vercel.mjs`).
+- `server/http.mjs`: kiểm tra Host/Origin và token CSRF (`x-siris-token`) cho mọi thao tác ghi; che lỗi Postgres.
+- `server/context.mjs`: metadata đang dùng, pool PostgreSQL dùng chung, cache và client Data API.
+- `server/routes/*`: `meta`, `table` (đọc, ghi, ghi theo lô, đếm nhóm), `schema` (`/api/admin/schema/preview|apply`), `lookup`, `formula`, `ui-settings`.
+- `filters.mjs`: dựng query PostgREST từ bộ lọc, tìm kiếm, sắp xếp đã kiểm tra.
+- `server-cache.mjs`: cache cấu hình 60 giây, chỉ bị xóa khi cấu hình hoặc schema thay đổi; ghi dữ liệu không xóa cache.
+- `admin.mjs`: đọc metadata thật của schema `public` (lọc theo quyền của `anon`) và thay đổi cột.
+- `lookup-sync.mjs`, `lookup-store.mjs`, `formula-sync.mjs`, `formula-parser.mjs`: lookup và formula bằng trigger.
+- `ui-settings-store.mjs`: lưu cấu hình giao diện.
+- `table-config.mjs`, `table-overview.mjs`, `promotions-overview.mjs`: cấu hình riêng theo bảng và dashboard.
+
+**Giao diện**
+
+- `index.html`, `style.css`, `app.js`. `app.js` chỉ nạp các module trong `src/` và gọi hàm `init*` theo thứ tự cố định.
+- `src/state.js`: trạng thái chung. `src/chrome.js` (`syncChrome()`): nơi duy nhất suy ra trạng thái hiện/ẩn/khóa của thanh tiêu đề và thanh công cụ.
+- `src/grid/*`: lưới (`render`, `selection`, `cell-edit`, `keyboard`, `column-menu`). Các module khác: sidebar, menu view, form bản ghi, thiết lập cột, lookup, lịch sử hoàn tác, xóa bản ghi, chuyển bảng nhanh.
+- `src/storage.js`: mọi khóa `localStorage` (có phiên bản). `src/ui-sync.js` đồng bộ các khóa dùng chung lên máy chủ; `currentTable`, `metadata`, `sidebarCollapsed` chỉ theo từng máy.
+
+## Kiểm thử
 
 ```sh
 npm run lint
 npm run format:check
 npm run typecheck
-npm test
-npm run build
+npm test              # tự build giao diện trước (pretest)
 npx playwright install chromium
 npm run test:e2e
 ```
 
-Nếu máy đã có sẵn Chromium, bỏ bước `npx playwright install` và trỏ Playwright tới nó:
+- Vitest (`tests/*.test.js`) kiểm tra logic và API. Playwright (`tests/e2e/`) kiểm tra luồng trên trình duyệt với API giả lập, chia theo tính năng; mỗi test dừng sau 15 giây.
+- Dùng Chromium có sẵn: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e`.
+- CI (`.github/workflows/ci.yml`, Ubuntu 24.04): `checks` (lint, typecheck, build, test; Node 22 và 24), `bench-cache` (PostgreSQL 16), `e2e`.
+- Kiểm thử tự động dùng dữ liệu giả lập, không thay cho nghiệm thu RLS, Storage, Realtime hay ghi thật. Không ghi lên Supabase thật khi chưa được phê duyệt.
 
-```sh
-PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e
-```
+### Đo hiệu năng
 
-Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
-
-Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
-
-## Bản online
-
-Bản online chạy trên Vercel: `vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`, dùng chung `server/app.mjs` với bản cục bộ. Xem `VERCEL.md` để cấu hình biến môi trường và deploy bằng `npx vercel deploy --prod`.
-
-## Phím tắt
-
-- Mũi tên: di chuyển giữa các ô; gõ ký tự để sửa ô; F2 hoặc Enter để mở ô.
-- Khi sửa: Enter lưu và xuống dòng dưới, Tab lưu và sang phải (Shift+Tab sang trái), Escape hủy.
-- `/`: vào ô tìm kiếm. Ctrl/⌘+K: chuyển bảng nhanh. Ctrl/⌘+Z, Ctrl/⌘+Shift+Z: hoàn tác, làm lại. Ctrl/⌘+B: thu gọn thanh bên.
-- Bấm tiêu đề cột để sắp xếp, lọc, nhóm, ẩn, ghim hoặc thiết lập cột.
-
-## Sửa nhiều ô
-
-Chọn các ô cùng cột trực tiếp trên bảng bằng Shift và nhấp ô đầu, ô cuối; nhập giá trị rồi bấm **Áp dụng**. Có thể dán dữ liệu vào ô đang được chọn bằng bàn phím. Mỗi dòng được lưu riêng, và lỗi được báo theo dòng. Hoàn tác/làm lại chỉ hỗ trợ sửa từng ô trong phiên. Cấu hình hiển thị được lưu riêng cho từng bảng trên trình duyệt.
-
-## Lưu cấu hình giao diện lên Supabase
-
-Để view, thư mục, thứ tự bảng và tên hiển thị theo bạn sang Vercel hoặc máy khác, chạy một lần `ui-settings.sql` trong SQL editor của Supabase (tạo bảng `siris_admin.ui_settings`, thu hồi quyền của `anon` và `authenticated`). Chưa chạy thì app vẫn hoạt động bằng `localStorage` và báo "Cấu hình chỉ lưu trên trình duyệt này" khi bạn đổi cấu hình. Lần mở đầu tiên sau khi tạo bảng, cấu hình đang có trên trình duyệt được đẩy lên tự động. Cấu hình là chung cho mọi người dùng app (một phiên đăng nhập chung).
-
-## Đồng bộ lookup vào cột có sẵn
-
-Trong **Thiết lập cột** của cột Supabase có sẵn, bật **Đồng bộ từ lookup** rồi cấu hình bảng nguồn, trường cần lấy và các điều kiện ngay bên trong. Cấu hình gắn trực tiếp với cột này, không tạo cột lookup trung gian. Cột cần cho phép trống và có kiểu PostgreSQL giống trường được lấy (bao gồm độ chính xác, mảng và enum); chế độ đếm trả về `bigint`. Cột khóa chính, tự sinh hoặc có phụ thuộc không được chọn.
-
-Khi lưu, giao diện hiển thị số bản ghi bị ảnh hưởng để xác nhận; máy chủ kiểm tra lại và thực hiện cấu hình, trigger và cập nhật ban đầu trong cùng transaction. Trigger cập nhật cột khi bản ghi nguồn hoặc điều kiện thay đổi, kể cả thay đổi qua Supabase. Một ô chỉ nhận một giá trị; nếu nhiều bản ghi cùng khớp, cần thêm điều kiện hoặc chọn đếm. Khi tắt toggle và lưu, máy chủ gỡ trigger và để trống toàn bộ cột đó. Cột đang đồng bộ chỉ đọc trên web.
-
-Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.lookup_configs` hiện có. Không cần Docker hay dịch vụ đồng bộ riêng. SQL chạy với quyền của thao tác đang thay đổi bản ghi; thiếu quyền sẽ báo lỗi. Kiểm thử tự động của luồng này dùng dữ liệu và kết nối giả lập.
-
-## Nhân bản cột
-
-
-Cột công thức tạo trực tiếp trong Supabase (`GENERATED ALWAYS AS`) có thể xóa trong **Thiết lập cột** nếu không có phụ thuộc. Máy chủ kiểm tra phụ thuộc PostgreSQL, liên kết và lookup trước khi hiện xác nhận, rồi kiểm tra lại trong transaction sau khi khóa bảng. Xác nhận hiển thị công thức và số giá trị bị xóa; thao tác dùng `DROP COLUMN ... RESTRICT`, không xóa dây chuyền. Khóa chính và identity vẫn được bảo vệ. Phụ thuộc trong mã ứng dụng bên ngoài database cần được người quản trị kiểm tra riêng.
-
-Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.
-
-## Đo hiệu năng cục bộ
-
-`npm run bench` dựng PostgreSQL tạm và Data API giả lập chỉ trên loopback; không dùng dữ liệu Supabase. Cần PostgreSQL 16 (`initdb` và `pg_ctl` trong PATH), hoặc chỉ định thư mục `bin`:
+`npm run bench` dựng PostgreSQL tạm và Data API giả lập trên loopback, không dùng dữ liệu Supabase. Cần PostgreSQL 16 (`initdb`, `pg_ctl` trong PATH) hoặc:
 
 ```sh
 SIRIS_BENCH_PG_BIN=/duong/dan/postgresql/bin npm run bench
 ```
 
-Mặc định giả lập độ trễ Data API 60 ms và mỗi gói phản hồi PostgreSQL 40 ms. Có thể đặt `SIRIS_BENCH_API_MS=150 SIRIS_BENCH_DB_MS=100` để đo mạng xa. Cột gói tin là số lần nhận dữ liệu qua proxy, không phải số truy vấn SQL; phép đo có thể khác số liệu thực do cách hệ điều hành gom gói. Chạy cùng cấu hình để so sánh trước và sau.
+Mặc định giả lập độ trễ Data API 60 ms và mỗi gói PostgreSQL 40 ms; đổi bằng `SIRIS_BENCH_API_MS`, `SIRIS_BENCH_DB_MS`. Cột gói tin là số lần nhận dữ liệu qua proxy, không phải số truy vấn SQL. Chạy cùng cấu hình để so sánh trước và sau.
+
+## Triển khai lên Vercel
+
+`vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`; function phục vụ `dist/` và API. `public/` để trống để mọi tài nguyên đều qua kiểm tra đăng nhập. Bản Vercel đọc metadata trực tiếp ở mỗi request.
+
+### Biến môi trường
+
+Đặt cho Production và Preview (Project → Settings → Environment Variables):
+
+| Biến | Nội dung |
+| --- | --- |
+| `SIRIS_LOGIN_USER` | Tên đăng nhập riêng cho ứng dụng |
+| `SIRIS_LOGIN_PASSWORD` | Mật khẩu riêng, ít nhất 16 ký tự |
+| `SUPABASE_URL`, `SUPABASE_KEY` | Như bản cục bộ |
+| `SUPABASE_DB_URL` | Dùng Supabase pooler tương thích mạng Vercel |
+
+Thiếu tài khoản đăng nhập thì ứng dụng trả 503.
+
+### Deploy
+
+```sh
+npx vercel link
+npx vercel project inspect --non-interactive
+npx vercel deploy --prod
+```
+
+Deploy không tự thay đổi dữ liệu Supabase.
+
+### Đăng nhập và log
+
+- `/auth/login` nhận tên đăng nhập và mật khẩu. Phiên lưu trong cookie ký HMAC (HttpOnly, Secure, SameSite=Strict) 8 giờ; đổi tên đăng nhập hoặc mật khẩu sẽ vô hiệu mọi phiên cũ. Request ghi vẫn cần cùng nguồn và token CSRF theo phiên.
+- Giới hạn 10 lần sai trong 15 phút theo IP, nằm trong bộ nhớ từng instance nên chỉ làm chậm kẻ dò mật khẩu. Cần chặn chắc thì bật rate limit của Vercel Firewall cho `/auth/login`.
+- Sự kiện log (JSON một dòng, không ghi mật khẩu): `login_failed`, `login_blocked`, `schema_apply`. Xem bằng `vercel logs <deployment-url>`.
+- Thử luồng đăng nhập trên máy: `npm run build` rồi `node scripts/preview-login.mjs`, mở http://127.0.0.1:3002. Đọc tài khoản từ `.env.vercel.local`, chỉ nghe loopback, không bật cookie Secure; bị vô hiệu trên Vercel.
+
+## Kế hoạch
+
+| File | Nội dung | Trạng thái |
+| --- | --- | --- |
+| [`plan/sua-loi-sau-danh-gia.md`](plan/sua-loi-sau-danh-gia.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Chưa làm |
+| [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Còn đo trên Vercel (G), H4 chờ quyết định |
+| [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong (PR #4) |
