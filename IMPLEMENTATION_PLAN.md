@@ -19,7 +19,7 @@ Mục lục:
 
 Nhánh `claude/hopeful-gates-00krjq` đã được merge với `main` (cả 20 file xung đột đã giải quyết) để PR #3 là PR duy nhất, trên một nhánh duy nhất. Cách giải quyết: **lấy code và test của `main`** cho mọi file xung đột, vì `main` đã tách `server.mjs` thành `server/` và `app.js` thành `src/`; giữ plan này, `scripts/bench.mjs`, script `bench` và mục README về đo hiệu năng.
 
-Hệ quả cần biết: **các thay đổi tốc độ viết trên nền cũ của PR #3 không còn trong code của nhánh.** Chúng vẫn nằm nguyên trong lịch sử, commit `d21eac0`, và được chuyển sang cấu trúc mới ở giai đoạn P bên dưới. PR #3 sau merge khác `main` ở: plan, `scripts/bench.mjs`, script `bench`, mục README.
+Các thay đổi tốc độ viết trên nền cũ của PR #3 (commit `d21eac0`) đã được chuyển sang cấu trúc `server/` và `src/` (giai đoạn P). Bản edge/Sites đã gỡ (C), đã có CI (D), đã gom `localStorage`, tách e2e và tăng bảo mật Vercel (E). **Còn lại: sửa CI đang đỏ (H1) và các việc dọn trong giai đoạn H, rồi đo một lần trên Vercel (G).**
 
 Kết quả kiểm tra sau merge:
 
@@ -30,7 +30,8 @@ Kết quả kiểm tra sau merge:
 | `npm run build` | Đạt |
 | `npm test` | 88 đạt, 1 bỏ qua (test benchmark cần `SIRIS_BENCH_PG_BIN`); `pretest` tự build giao diện trước khi chạy |
 | `npm run test:e2e` | **108/108 đạt** |
-| `npm run bench` | Đạt với PostgreSQL 16.15 và Chromium; số đo ở mục 9.1 |
+| `npm run bench` | Đạt với PostgreSQL 16.15 và Chromium; số đo ở mục 9.1 (người đánh giá chưa chạy lại được vì thiếu PostgreSQL) |
+| CI GitHub (commit `53a56a0`) | **Đỏ**: `checks` đạt; `bench-cache` lỗi `Unable to locate package postgresql-16`; `e2e` lỗi `Playwright does not support chromium on ubuntu26.04-x64` (vì `ubuntu-latest` nay là Ubuntu 26.04) |
 
 ---
 
@@ -63,28 +64,32 @@ Kết quả kiểm tra sau merge:
 | Dev server | Chặn dotfile (`denyDotfiles` trong `vite.config.ts`) |
 | Bản online | `vercel.json`, `api/handler.mjs`, `VERCEL.md`, đăng nhập phiên ký, `tests/vercel.test.js` |
 
-### 3.2 Chưa có trên nhánh — phải chuyển từ `d21eac0` (giai đoạn P)
+### 3.2 Phần tốc độ đã chuyển từ `d21eac0` (giai đoạn P — xong)
 
-Mỗi mục ghi tình trạng thật sự trên `main` (kiểm bằng `grep`) và số đo PR #3 đã ghi:
+| Mã | Tính năng | Commit |
+|---|---|---|
+| P1 | Pool Postgres dùng chung, giữ kết nối rảnh 5 phút, `keepAlive` | `afb7ffa` |
+| P2 | `count=none`, dùng lại tổng khi chuyển trang | `d5d766e` |
+| P3 | `POST /api/table/:name/batch` (≤ 50 dòng, 5 lượt song song, lỗi theo dòng, chống trùng khóa) và `pasteCells` gửi một request | `c2c5ee4` |
+| P4 | Cache lookup phía trình duyệt 60 giây | `cba5541` |
+| P5 | Hiện trang đã tải rồi làm mới nền; tải trước trang kế và bảng khi rê chuột | `07529fd` |
+| P6 | Metadata lần trước trong `localStorage` | `1e33d98` |
+| P7 | Tìm kiếm: từ khóa ≥ 2 ký tự, `searchColumn`, đếm sau khi dừng gõ | `a8473df`, `bcf6eac` |
 
-| Mã | Tính năng | Trên `main` hiện nay | Số đo PR #3 đã ghi (mô phỏng, mạng gần) |
-|---|---|---|---|
-| P1 | Pool Postgres giữ kết nối rảnh 5 phút, `keepAlive` | Chưa (không có `idleTimeoutMillis`/`keepAlive`) | Lưu ô sau 11 giây 383 → 73 ms |
-| P2 | Tham số `count=none`, giao diện dùng lại tổng khi chuyển trang | Chưa | Tải trang bớt một truy vấn đếm |
-| P3 | `POST /api/table/:name/batch` (≤ 50 dòng, 5 lượt song song, lỗi theo dòng, chống trùng khóa) và `pasteCells` gửi một request | Chưa (`selection.js` chỉ có sửa hàng loạt phía trình duyệt) | Ghi 50 dòng 13.863 → 640 ms |
-| P4 | Cache lookup phía trình duyệt 60 giây theo bảng nguồn và giá trị, xóa khi ghi bảng nguồn | Chưa | Chưa đo |
-| P5 | Hiện trang đã tải bất kể tuổi rồi làm mới nền; tải trước trang kế tiếp và bảng khi rê chuột 150 ms | Một phần (`pageCache` 15 giây) | Chưa đo |
-| P6 | Metadata lần trước trong `localStorage` để dựng sidebar và tải bảng ngay | Chưa | Chưa đo |
-| P7 | Tìm kiếm: bỏ từ khóa < 2 ký tự, chọn cột tìm (`searchColumn`), chỉ đếm khi dừng gõ | Chưa | Chưa đo |
+Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel).
 
-Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel), `scripts/to-edge-backend.mjs` và test edge của PR.
+### 3.3 Lỗi và điểm yếu còn lại (xử lý ở giai đoạn H)
 
-### 3.3 Điểm yếu đã biết
-
-1. Mọi số đo là **mô phỏng**; chưa đo trên Vercel.
-2. Hai test cache với PostgreSQL bị bỏ qua mặc định (`SIRIS_BENCH_PG_BIN`); repo chưa có `.github/`, tức chưa có CI.
-3. `npm test` cần `npm run build` trước.
-4. ~~Còn mã edge/Sites cần gỡ~~ — đã gỡ ở giai đoạn C.
+| Mã | Vấn đề | Mức |
+|---|---|---|
+| H1 | **CI đỏ**: job `bench-cache` và `e2e` lỗi do runner Ubuntu 26.04 (không có `postgresql-16`, Playwright 1.55.1 không hỗ trợ). Test `bench-cache` chưa từng chạy xanh ở đâu | Cao |
+| H2 | Phiên bản Node không đồng bộ: CI dùng 22, project Vercel dùng 26.x, `engines` ghi `>=20`; cảnh báo `actions/checkout@v4`, `setup-node@v4` chạy Node 20 sắp bị bỏ | Thấp |
+| H3 | `VERCEL.md` chưa ghi: giới hạn đăng nhập sai nằm trong bộ nhớ từng instance (chỉ làm chậm, không chặn hẳn), các sự kiện log (`login_failed`, `login_blocked`, `schema_apply`), và việc đổi định dạng cookie làm mất mọi phiên đăng nhập cũ khi deploy lần đầu | Trung bình |
+| H4 | Giới hạn đăng nhập sai chưa dùng kho dùng chung | Quyết định |
+| H5 | `ARCHITECTURE.md` chưa mô tả `src/storage.js`, `scripts/bench.mjs`, bộ test e2e đã tách | Thấp |
+| H6 | Mô tả PR #3 lỗi thời (vẫn nói "grid-first", "overview editing", số liệu cũ) | Trung bình |
+| H7 | Hai mục tiêu tốc độ chưa đạt: mở ứng dụng ≈ 146–202 ms (mục tiêu 80 ms), ghi 50 dòng nối tiếp 3.175 ms (mục tiêu < 1 s) | Chấp nhận / ghi rõ |
+| H8 | Số đo mới chỉ là mô phỏng; chưa đo trên Vercel | Làm ở G |
 
 ---
 
@@ -99,9 +104,10 @@ Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel), `s
 | C1–C3 | Gỡ edge/Sites, sửa tài liệu | Không còn `chatgpt-site`, `siris-manager` |
 | D1 | Tạo CI | Cả ba job được định nghĩa; test cache chạy thật khi có PostgreSQL |
 | E1–E4 | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Từng bước xong, mỗi bước một commit |
+| H1–H6 | Sửa các lỗi còn lại (mục 3.3) | CI xanh cả ba job, tài liệu và mô tả PR khớp thực tế |
 | **G (B4)** | **Đo một lần trên Vercel sau khi xong hết** | Có bộ số thật cho bản cũ và bản mới |
 
-Không còn điểm dừng giữa chừng: làm F → C → D → E rồi mới đo G một lần.
+Không còn điểm dừng giữa chừng: F → C → D → E đã xong; làm tiếp H rồi mới đo G một lần.
 
 Đã hủy so với bản plan trước, vì `main` đã làm: A1 (dotfile, có `denyDotfiles`), A2 (snapshot đĩa, mã đã không còn), A4 (plugin React/Tailwind đã gỡ), tách backend/frontend thành module, thao tác nhanh và giao diện (giai đoạn 5–8 cũ).
 
@@ -178,9 +184,46 @@ Xong giai đoạn P khi: e2e và unit test của từng mục (lấy từ `d21ea
 **E3. Tách `tests/e2e/auth.spec.ts`** theo tính năng; gom giả lập API vào `tests/e2e/helpers/mock-api.ts`.
 **E4. Vercel an toàn hơn:** giới hạn đăng nhập sai theo IP và ghi log lần thất bại (không ghi mật khẩu); token CSRF theo phiên; `/api/admin/*` giữ, bắt buộc xem trước và chữ ký, ghi log mỗi lần áp dụng thay đổi schema.
 
+### Giai đoạn H — Sửa các lỗi còn lại
+
+Mỗi bước một commit; bước H1 phải xong và CI xanh trước khi sang các bước khác.
+
+**H1. Sửa CI đỏ**
+- File: `.github/workflows/ci.yml`.
+- Việc: đổi `runs-on: ubuntu-latest` thành `runs-on: ubuntu-24.04` cho cả ba job (`checks`, `bench-cache`, `e2e`) để mọi job chạy trên cùng một hệ điều hành mà Playwright 1.55.1 và gói `postgresql-16` hỗ trợ. (Cách khác, chỉ dùng nếu muốn runner mới nhất: nâng Playwright lên phiên bản hỗ trợ Ubuntu 26.04 và cài PostgreSQL 16 từ kho `apt.postgresql.org`; không khuyên vì tốn công hơn.)
+- Kiểm: đẩy nhánh, xem `actions_list` / trang Actions: ba job đều xanh; log job `bench-cache` phải có `bench-cache.test.js` **đạt** (không phải `skipped`) và dòng `Kiểm tra cache và pool sau hai lần ghi: đạt`; job `e2e` chạy đủ 108 test.
+- Commit: "CI chạy trên Ubuntu 24.04".
+
+**H2. Đồng bộ phiên bản Node và actions**
+- Việc: chạy `checks` với Node 22 và 24 bằng `matrix`; ghi phiên bản Node được hỗ trợ trong `README.md` và `engines`; nâng `actions/checkout`, `actions/setup-node` lên bản chạy Node 24 khi có (hoặc đặt `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`) để hết cảnh báo.
+- Kiểm: CI xanh, không còn cảnh báo Node 20 deprecated.
+
+**H3. Ghi tài liệu bảo mật Vercel**
+- File: `VERCEL.md`.
+- Việc: thêm mục "Đăng nhập và log" gồm: ngưỡng 10 lần sai trong 15 phút theo IP, chỉ nằm trong bộ nhớ từng instance (chỉ làm chậm); tên các sự kiện log `login_failed`, `login_blocked`, `schema_apply` và cách xem bằng `vercel logs`; việc đổi định dạng cookie phiên làm mọi người phải đăng nhập lại sau lần deploy đầu.
+- Kiểm: đọc lại cùng mã `server/vercel.mjs`, `server/routes/schema.mjs` để tên sự kiện và ngưỡng khớp.
+
+**H4. (Cần bạn quyết) Giới hạn đăng nhập sai dùng kho chung**
+- Phương án mặc định: **không làm**, chấp nhận rủi ro vì app một người dùng, phiên 8 giờ, mật khẩu ≥ 16 ký tự và chặn thêm ở Vercel Firewall nếu cần.
+- Nếu muốn chặn chắc: dùng Vercel Firewall rate limit cho `/auth/login` (cấu hình trên Vercel, không sửa mã) hoặc kho dùng chung (Marketplace Redis, hoặc bảng trong `siris_admin`).
+
+**H5. Cập nhật `ARCHITECTURE.md`**
+- Việc: mô tả `src/storage.js` (mọi khóa `localStorage`, có phiên bản), `scripts/bench.mjs` và `npm run bench`, bộ test e2e theo tính năng (`cell-edit`, `columns`, `grid`, `lookup`, `records`, `relations`, `perf`...), CI ba job.
+- Kiểm: mọi tên file trong tài liệu có trong repo (`git ls-files`).
+
+**H6. Viết lại mô tả PR #3**
+- Nội dung: (1) chuyển phần tốc độ sang `server/` và `src/` (P1–P7) kèm số đo mô phỏng và ghi rõ là mô phỏng; (2) gỡ edge/Sites; (3) CI; (4) gom `localStorage`, tách e2e; (5) giới hạn đăng nhập, CSRF theo phiên, log schema; (6) hai mục tiêu tốc độ chưa đạt (H7) và việc đo Vercel còn lại; (7) phần "Merge Danger" cập nhật: phiên đăng nhập cũ mất khi deploy.
+- Bỏ các câu về "grid-first" và "overview editing" vì đã có từ trước.
+
+**H7. Ghi nhận hai mục tiêu chưa đạt (không sửa mã)**
+- Mở ứng dụng: giữ ghi chú "≈ một lượt API + tải trang"; chỉ thử giảm tiếp nếu số đo ở G cho thấy chờ lâu hơn bảng mô phỏng.
+- Ghi 50 dòng nối tiếp: đường dán/sửa hàng loạt đã dùng lô (630 ms); chỉ làm nếu có luồng thật gửi nối tiếp nhiều dòng.
+
+Xong giai đoạn H khi: CI xanh cả ba job trên commit mới nhất, `grep -ri "ubuntu-latest" .github` rỗng, và mô tả PR đã cập nhật.
+
 ### Giai đoạn G (B4) — Đo một lần trên Vercel
 
-Làm sau cùng, khi F, C, D, E đã xong và đã push. Người dùng thao tác (sandbox không truy cập được `vercel.app`, và biến môi trường của app là bí mật).
+Làm sau cùng, khi F, C, D, E, H đã xong, CI xanh và đã push. Người dùng thao tác (sandbox không truy cập được `vercel.app`, và biến môi trường của app là bí mật).
 
 1. Clone sạch nhánh vào thư mục riêng, `npx vercel link --project siris-supabase-manager --scope lucas-projects-5f5d0170`.
 2. Thêm 6 biến Preview: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`, `SIRIS_LOGIN_USER`, `SIRIS_LOGIN_PASSWORD` (giá trị giống production) và `SIRIS_PERF_TIMING=1`; `npx vercel deploy` (không `--prod`).
@@ -200,7 +243,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 - Không gộp thay đổi hành vi với thay đổi định dạng hay di chuyển file trong cùng một commit.
 - Không sửa test để che lỗi.
 - Không chạy ghi lên Supabase thật khi thử.
-- Làm hết F → C → D → E rồi mới đo G một lần; không dừng giữa chừng.
+- Làm hết F → C → D → E → H rồi mới đo G một lần; không dừng giữa chừng.
 
 ## 7. Rủi ro
 
@@ -223,9 +266,10 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
 | F | Sửa điểm yếu của phép đo, test cache PostgreSQL | **Xong** (F1–F4) |
 | C | Gỡ edge/Sites | **Xong** (C1–C3) |
-| D | CI | **Xong** (`.github/workflows/ci.yml`) |
-| E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | **Xong** (E1–E4) |
-| G (B4) | Đo một lần trên Vercel | Sau cùng, do người dùng thao tác |
+| D | CI | File `.github/workflows/ci.yml` đã có nhưng **CI đang đỏ** (xem H1) |
+| E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | **Xong** (E1–E4); tài liệu và giới hạn đăng nhập xem H3–H4 |
+| H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Chưa làm**; H4 chờ quyết định |
+| G (B4) | Đo một lần trên Vercel | Sau H, do người dùng thao tác |
 
 ---
 
