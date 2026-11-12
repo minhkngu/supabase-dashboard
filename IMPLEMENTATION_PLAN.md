@@ -84,6 +84,41 @@ Lưu ý vận hành: thay đổi chỉ lên bản online sau khi chạy lại sc
 
 Server không chèn độ trễ: lưu một ô 8 ms, tải một trang 6 ms. Trình duyệt vẽ 22 cột × 50 dòng mất 47–68 ms. Vậy thời gian chờ nằm ở số lượt gọi ra mạng, không nằm ở mã xử lý hay phần vẽ.
 
+### Số gốc từ `scripts/bench.mjs` (12/11/2026)
+
+Đo lại bằng PostgreSQL 16.15 cục bộ và API giả lập. Proxy thêm độ trễ cho các gói phản hồi PostgreSQL; số gói không đồng nhất với số truy vấn SQL. Hai cấu hình lần lượt là 60/40 ms và 150/100 ms (API/PostgreSQL). Các số này là đường cơ sở cho chính script này và có thể khác số đo ở bảng trước.
+
+| Thao tác | Mạng gần | Mạng xa |
+|---|---:|---:|
+| Metadata lần đầu | 152 ms | 347 ms |
+| Metadata trong cache | 2 ms | 4 ms |
+| Đọc 50 dòng | 83 ms | 236 ms |
+| Lưu một ô | 275 ms | 673 ms |
+| Metadata sau khi ghi | 91 ms | 220 ms |
+| Sửa ô và tải lại | 353 ms | 830 ms |
+| Lưu ô sau 11 giây | 383 ms | 902 ms |
+| Ghi 50 dòng nối tiếp | 13.863 ms | 33.429 ms |
+| Tổng quan 500 dòng | 658 ms | 1.566 ms |
+
+### Đo lại sau tối ưu (12/11/2026)
+
+Cùng phép giả lập và PostgreSQL 16.15 như bảng số gốc; số đo là một lần chạy, không phải cam kết thời gian trên mạng thật. Từ bước 3.4, giao diện không tải lại trang sau khi sửa ô nếu bảng không có formula hoặc lookup đồng bộ. Cột “sửa và tải lại” bên dưới vẫn đo hai yêu cầu để dễ so sánh.
+
+| Thao tác | Gần: trước → sau | Xa: trước → sau |
+|---|---:|---:|
+| Lưu một ô | 275 → 65 ms | 673 → 162 ms |
+| Sửa ô và tải lại | 353 → 129 ms | 830 → 314 ms |
+| Lưu ô sau 11 giây | 383 → 73 ms | 902 → 158 ms |
+| Metadata sau khi ghi | 91 → 1 ms | 220 → 2 ms |
+| Ghi 50 dòng | 13.863 → 640 ms | 33.429 → 1.535 ms |
+| Tổng quan 500 dòng | 658 → 67 ms | 1.566 → 154 ms |
+
+Lô 50 dòng vẫn gửi 50 yêu cầu tới Data API, tối đa 5 yêu cầu song song; từ trình duyệt chỉ gửi một yêu cầu lô. Các số cho Tổng quan giả định dữ liệu nằm vừa trong một trang 1.000 dòng.
+
+Đo chỉ đọc một lần trên Supabase đã cấu hình: metadata 918 ms; trang đầu của 11 bảng thành công trong khoảng 194–1.069 ms; bảng lớn nhất có 36 dòng. Không ghi dữ liệu thật. Số liệu này không có đường cơ sở thật tương ứng và không đủ để kết luận hiệu quả theo cột hay font.
+
+Bước 3.9 chưa thực hiện vì chưa có số đo chứng minh số cột hoặc font là nút thắt. Bước 3.14 chưa thực hiện vì bảng lớn nhất đo được còn dưới ngưỡng 50.000 dòng.
+
 ### 3.3b Tốc độ đọc
 
 Đường đọc hiện tại: mỗi lần mở bảng, chuyển trang, tìm kiếm, lọc hay sắp xếp là đúng 1 lượt gọi Data API (65 ms ở mạng gần), cộng thêm 1 lượt cho mỗi cột lookup ảo và mỗi cột liên kết có hiện tên. Với các bảng nhỏ hiện có (vài chục tới vài trăm dòng), thời gian trong database gần bằng 0; thứ người dùng phải chờ là số lượt gọi và việc không dùng lại dữ liệu đã tải.
@@ -604,9 +639,9 @@ Mỗi mục có test e2e riêng.
 
 | Giai đoạn | Nội dung | Trạng thái |
 |---|---|---|
-| 1 | Lưới an toàn | Chưa bắt đầu |
-| 2 | Nút bấm và Dashboard | Chưa bắt đầu |
-| 3 | Tốc độ dữ liệu | Đã đo số gốc; chưa sửa |
+| 1 | Lưới an toàn | Xong |
+| 2 | Nút bấm và Dashboard | Xong |
+| 3 | Tốc độ dữ liệu | Xong 3.0–3.8 và 3.10–3.13; 3.9 và 3.14 chưa đủ điều kiện |
 | 4 | Dọn dẹp | Chưa bắt đầu |
 | 5 | Tách backend | Chưa bắt đầu |
 | 6 | Tách frontend | Chưa bắt đầu |

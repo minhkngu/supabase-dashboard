@@ -44,14 +44,14 @@ test('chọn nhiều dòng để xóa, thành công từng phần giữ dòng l�
  await expect(page.locator('#grid tbody tr')).toHaveCount(3);
  await page.getByRole('checkbox',{name:'Chọn tất cả dòng hiển thị trên trang',exact:true}).check();
  await expect(page.locator('#editor')).toBeHidden();
- await expect(page.locator('#rowSelectionSummary')).toHaveText('Đã chọn 3 dòng');
+ await expect(page.locator('#rowSelectionSummary')).toHaveText('3 dòng đã chọn');
  await page.locator('#deleteSelectedRows').click();
  await expect(page.locator('#grid tbody tr')).toHaveCount(1);
  await expect(page.locator('#grid')).toContainText('Dòng 2');
  await expect(page.locator('#rowDeleteResults')).toContainText('Đã xóa 2/3 dòng');
  await expect(page.locator('#rowDeleteResults')).toContainText('đang được tham chiếu');
  await expect(page.locator('#deleteSelectedRows')).toBeEnabled();
- await expect(page.locator('#rowSelectionSummary')).toHaveText('Đã chọn 1 dòng');
+ await expect(page.locator('#rowSelectionSummary')).toHaveText('1 dòng đã chọn');
  expect(api.deletes).toEqual([1,2,3]);
  await page.screenshot({path:'test-results/delete-selection-desktop.png',fullPage:true});
  await page.locator('#clearRowSelection').click();
@@ -107,4 +107,60 @@ test('lỗi mạng dừng lô xóa và báo kết quả chưa xác định, khô
  await expect(page.locator('#grid tbody tr')).toHaveCount(3);
  await expect(page.locator('#deleteSelectedRows')).toBeEnabled();
  expect(api.deletes).toEqual([1]);
+});
+
+
+test('cột chọn dòng giữ nguyên vị trí khi cuộn ngang',async({page})=>{
+ await mock(page);await page.goto('/');
+ await expect(page.locator('#grid tbody tr')).toHaveCount(3);
+ await page.locator('#grid').evaluate(grid=>{grid.style.minWidth='1800px'});
+ const scroll=page.locator('.table-scroll');
+ const cell=page.locator('#grid tbody td.record-detail').first();
+ const before=await cell.boundingBox();
+ await scroll.evaluate(element=>{element.scrollLeft=600});
+ await expect.poll(()=>scroll.evaluate(element=>element.scrollLeft)).toBeGreaterThan(0);
+ const after=await cell.boundingBox();
+ expect(before).not.toBeNull();expect(after).not.toBeNull();
+ expect(Math.abs(after!.x-before!.x)).toBeLessThanOrEqual(1);
+});
+
+
+test('chọn dòng không làm lưới nhảy',async({page})=>{
+ await mock(page);await page.goto('/');
+ const row=page.locator('#grid tbody tr').first();
+ await expect(row).toBeVisible();const before=await row.boundingBox();
+ await page.getByRole('checkbox',{name:'Chọn dòng 1',exact:true}).check();
+ const afterOne=await row.boundingBox();
+ await page.getByRole('checkbox',{name:'Chọn tất cả dòng hiển thị trên trang',exact:true}).check();
+ const afterAll=await row.boundingBox();
+ expect(before).not.toBeNull();expect(afterOne).not.toBeNull();expect(afterAll).not.toBeNull();
+ expect(Math.abs(afterOne!.y-before!.y)).toBeLessThanOrEqual(1);
+ expect(Math.abs(afterAll!.y-before!.y)).toBeLessThanOrEqual(1);
+});
+
+
+test('ô chọn tất cả thẳng hàng với ô chọn dòng',async({page})=>{
+ await mock(page);await page.goto('/');
+ const all=page.getByRole('checkbox',{name:'Chọn tất cả dòng hiển thị trên trang',exact:true});
+ const first=page.getByRole('checkbox',{name:'Chọn dòng 1',exact:true});
+ await expect(first).toBeVisible();
+ const a=await all.boundingBox(),b=await first.boundingBox();
+ expect(a).not.toBeNull();expect(b).not.toBeNull();
+ expect(Math.abs(a!.x-b!.x)).toBeLessThanOrEqual(1);
+});
+
+
+test('chuyển trang dùng lại tổng, tìm kiếm đếm lại',async({page})=>{
+ const requests:Array<{count:string,search:string}>=[];
+ await page.route('**/api/**',async route=>{const url=new URL(route.request().url());
+  if(url.pathname==='/api/meta')return route.fulfill({json:{tables:[table],token:'t'}});
+  if(url.pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});
+  if(url.pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
+  requests.push({count:url.searchParams.get('count')||'exact',search:url.searchParams.get('search')||''});const pageNo=Number(url.searchParams.get('page')||0);
+  return route.fulfill({json:{rows:[{id:pageNo+1,name:'Dòng'}],total:url.searchParams.get('count')==='none'?null:51}});
+ });
+ await page.goto('/');await expect(page.locator('#count')).toHaveText('51 bản ghi');
+ await page.locator('#next').click();await expect(page.locator('#page')).toHaveText('Trang 2');
+ expect(requests.slice(0,2).map(x=>x.count)).toEqual(['exact','none']);
+ await page.locator('#search').fill('Dòng');await expect.poll(()=>requests.some(x=>x.search==='Dòng'&&x.count==='exact')).toBe(true);
 });

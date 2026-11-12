@@ -14,3 +14,7 @@ chatgpt-site/
 
 # macOS
 .DS_Store
+
+# Metadata tạm theo môi trường cục bộ
+.siris-metadata-cache.json
+.siris-metadata-cache.json.*.tmp

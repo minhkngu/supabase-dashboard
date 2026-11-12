@@ -69,15 +69,15 @@
             </span>
             <h1 id="title">Cơ sở dữ liệu</h1>
           </div>
-        </div>
-        <div class="heading-actions">
           <div id="promotionsViewSwitch" class="promotions-view-switch" role="group" aria-label="Chế độ xem bảng" hidden>
             <button id="promotionsOverviewButton" type="button" class="secondary" aria-pressed="true">Dashboard</button>
             <button id="promotionsTableButton" type="button" class="secondary" aria-pressed="false">Bảng dữ liệu</button>
           </div>
+        </div>
+        <div class="heading-actions">
           <button type="button" id="undoCell" class="secondary" title="Hoàn tác sửa ô" aria-label="Hoàn tác sửa ô" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h9a7 7 0 0 1 0 14h-1"/></svg></button>
           <button type="button" id="redoCell" class="secondary" title="Làm lại sửa ô" aria-label="Làm lại sửa ô" disabled><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9h-9a7 7 0 0 0 0 14h1"/></svg></button>
-          <button id="add" class="primary" disabled>
+          <button id="add" class="primary" aria-label="Thêm bản ghi" disabled>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             <span>Thêm bản ghi</span>
           </button>
@@ -89,6 +89,7 @@
             <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             <input id="search" placeholder="Tìm kiếm nhanh bản ghi..." aria-label="Tìm trong bảng">
           </label>
+          <select id="searchColumn" aria-label="Tìm trong cột"><option value="">Mọi cột văn bản</option></select>
         </div>
         <div class="toolbar-right">
           <div class="view-menu">
@@ -205,14 +206,14 @@
       </div>
       <form id="bulkBar" class="bulk-bar" hidden><label id="bulkLabel" for="bulkValue"></label><span id="bulkField"></span><button type="submit" id="bulkApply" class="secondary">Áp dụng</button><button type="button" id="bulkCancel" class="secondary">Hủy</button><span id="bulkError" role="status"></span></form>
       <div id="configStatus" class="config-status" role="status" hidden><span id="configStatusText"></span> <button id="retryConfig" type="button" class="secondary" hidden>Thử lại</button></div>
-      <section id="rowSelectionBar" class="row-selection-bar" aria-label="Thao tác dòng đã chọn" hidden>
-        <span id="rowSelectionSummary" role="status"></span>
-        <div class="row-selection-actions"><button type="button" id="deleteSelectedRows" class="danger">Xóa dòng đã chọn</button><button type="button" id="clearRowSelection" class="secondary">Bỏ chọn</button></div>
-        <div id="rowDeleteResults" role="status" hidden></div>
-      </section>
       <section id="promotionsDashboard" class="promotions-dashboard" aria-label="Dashboard promotions" hidden></section>
       <section id="tableDashboard" class="promotions-dashboard" aria-label="Dashboard bảng" hidden></section>
       <section class="grid-shell" aria-label="Dữ liệu bảng">
+      <section id="rowSelectionBar" class="row-selection-bar" aria-label="Thao tác dòng đã chọn" hidden>
+        <span id="rowSelectionSummary" role="status"></span>
+        <div class="row-selection-actions"><button type="button" id="clearRowSelection" class="secondary">Bỏ chọn</button><button type="button" id="deleteSelectedRows" class="danger">Xóa</button></div>
+        <div id="rowDeleteResults" role="status" hidden></div>
+      </section>
         <div id="message" class="grid-message">Đang kết nối…</div>
         <div class="table-scroll"><table id="grid"></table></div>
         <div class="grid-footer">

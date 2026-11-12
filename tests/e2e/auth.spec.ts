@@ -65,7 +65,7 @@ test('giữ cấu hình bảng và dữ liệu view cũ khi bỏ nhiều view', 
 test('sửa nhiều ô trực tiếp trên bảng đang nhóm, báo lỗi từng dòng', async ({ page }) => {
   const rows=[{id:1,name:'Mia',category:'A'},{id:2,name:'Lune',category:'A'}];
   await page.addInitScript(()=>localStorage.setItem('siris-views-v1',JSON.stringify({demo:{groups:[{column:'category',direction:'asc'}]}})));
-  await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'name',data_type:'text',options:['updatable']},{name:'category',data_type:'text',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(req.method()==='PATCH'){const body=req.postDataJSON();if(body.key.id===2){await route.fulfill({status:409,json:{error:'Xung đột'}});return}Object.assign(rows[0],body.values);await route.fulfill({json:{rows:[rows[0]]}});return}await route.fulfill({json:{rows,total:2}})});
+  await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'name',data_type:'text',options:['updatable']},{name:'category',data_type:'text',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(new URL(req.url()).pathname.endsWith('/batch')){const results=req.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{if(body.key.id===2)return {ok:false,error:'Xung đột'};Object.assign(rows[0],body.values);return {ok:true,rows:[rows[0]]}});return route.fulfill({json:{results}})}if(req.method()==='PATCH'){const body=req.postDataJSON();if(body.key.id===2){await route.fulfill({status:409,json:{error:'Xung đột'}});return}Object.assign(rows[0],body.values);await route.fulfill({json:{rows:[rows[0]]}});return}await route.fulfill({json:{rows,total:2}})});
   await page.goto('/');
   await expect(page.locator('.group-label')).toHaveText('A');
   const first=page.locator('td[data-bulk-column="name"]').nth(0),second=page.locator('td[data-bulk-column="name"]').nth(1);
@@ -81,17 +81,17 @@ test('sửa nhiều ô trực tiếp trên bảng đang nhóm, báo lỗi từng
 
 test('dán dữ liệu trực tiếp vào bảng', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('siris-views-v1', JSON.stringify({ demo: { frozen: [], freezeDefaultInitialized: true } })));
-  const rows=[{id:1,name:'Mia',count:1},{id:2,name:'Lune',count:2}];
-  await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'name',data_type:'text',options:['updatable']},{name:'count',data_type:'integer',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(req.method()==='PATCH'){const body=req.postDataJSON();const row=rows.find(x=>x.id===body.key.id)!;Object.assign(row,body.values);await route.fulfill({json:{rows:[row]}});return}await route.fulfill({json:{rows,total:2}})});
+  const rows=[{id:1,name:'Mia',count:1},{id:2,name:'Lune',count:2}];let batches=0;
+  await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'name',data_type:'text',options:['updatable']},{name:'count',data_type:'integer',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(new URL(req.url()).pathname.endsWith('/batch')){batches++;expect(req.postDataJSON().changes).toHaveLength(2);const results=req.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{const row=rows.find(x=>x.id===body.key.id)!;Object.assign(row,body.values);return {ok:true,rows:[row]}});return route.fulfill({json:{results}})}if(req.method()==='PATCH'){const body=req.postDataJSON();const row=rows.find(x=>x.id===body.key.id)!;Object.assign(row,body.values);await route.fulfill({json:{rows:[row]}});return}await route.fulfill({json:{rows,total:2}})});
   await page.goto('/');await expect(page.locator('tbody')).toContainText('Mia');
   await page.locator('td[data-bulk-column="name"]').first().evaluate(el=>{const data=new DataTransfer();data.setData('text/plain','A\t3\nB\t4');el.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}))});
   await expect.poll(()=>rows[1].name).toBe('B');
-  expect(rows).toEqual([{id:1,name:'A',count:3},{id:2,name:'B',count:4}]);
+  expect(rows).toEqual([{id:1,name:'A',count:3},{id:2,name:'B',count:4}]);expect(batches).toBe(1);
 });
 
 test('sửa hàng loạt số thập phân không làm tròn giá trị nhập', async ({page})=>{
  const rows=[{id:1,price:10},{id:2,price:20}];const values:string[]=[];
- await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'price',data_type:'numeric',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(req.method()==='PATCH'){const body=req.postDataJSON();values.push(body.values.price);await route.fulfill({json:{rows:[{...rows[body.key.id-1],...body.values}]}});return}await route.fulfill({json:{rows,total:2}})});
+ await page.route('**/api/**',async route=>{if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});const req=route.request();if(new URL(req.url()).pathname==='/api/meta'){await route.fulfill({json:{tables:[{name:'public.demo',columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'price',data_type:'numeric',options:['updatable']}],primary_keys:['id']}],token:'csrf'}});return}if(new URL(req.url()).pathname.endsWith('/batch')){const results=req.postDataJSON().changes.map((body:{key:{id:number},values:{price:string}})=>{values.push(body.values.price);return {ok:true,rows:[{...rows[body.key.id-1],...body.values}]}});return route.fulfill({json:{results}})}if(req.method()==='PATCH'){const body=req.postDataJSON();values.push(body.values.price);await route.fulfill({json:{rows:[{...rows[body.key.id-1],...body.values}]}});return}await route.fulfill({json:{rows,total:2}})});
  await page.goto('/');await expect(page.locator('tbody')).toContainText('10');const cells=page.locator('td[data-bulk-column="price"]');await cells.nth(0).click({modifiers:['Shift']});await cells.nth(1).click({modifiers:['Shift']});await page.locator('#bulkValue').fill('123456789012345678.25');await page.locator('#bulkApply').click();await expect.poll(()=>values.length).toBe(2);expect(values).toEqual(['123456789012345678.25','123456789012345678.25']);
 });
 
@@ -215,7 +215,7 @@ test('chọn trường hiển thị cho khóa ngoại và giữ sau khi tải l�
   await expect(page.locator('#pickerList')).toContainText('Mia');
 });
 
-test('lưu ô giữ bảng hiển thị trong lúc dữ liệu được làm mới', async ({ page }) => {
+test('lưu ô không tải lại bảng khi không có formula hoặc lookup đồng bộ', async ({ page }) => {
   let value = 'Mia', gets = 0;
   await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
     const request = route.request(), path = new URL(request.url()).pathname;
@@ -234,8 +234,8 @@ test('lưu ô giữ bảng hiển thị trong lúc dữ liệu được làm m�
   await expect(cell).toHaveText('Lune');
   await expect(page.locator('#message')).toBeHidden();
   await expect(cell).toHaveText('Lune');
-  await expect.poll(() => gets).toBeGreaterThan(1);
-  await page.waitForTimeout(1000);
+  await expect(page.locator('#toast')).toContainText('Đã lưu thay đổi');
+  expect(gets).toBe(1);
   expect(await page.locator('td[data-bulk-column="id"]').evaluate(node => node === (window as unknown as { unchangedCell: Element }).unchangedCell)).toBe(true);
 });
 
@@ -263,6 +263,7 @@ test('Delete xóa giá trị vùng chọn, chặn cột bắt buộc và không 
   await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
     const request = route.request(), path = new URL(request.url()).pathname;
     if (path === '/api/meta') return route.fulfill({ json: { tables: [{ name: 'public.demo', columns: [{ name: 'id', data_type: 'integer', options: ['updatable'] }, { name: 'name', data_type: 'text', options: ['updatable', 'nullable'] }, { name: 'note', data_type: 'text', options: ['updatable', 'nullable'] }, { name: 'required', data_type: 'text', options: ['updatable'] }], primary_keys: ['id'] }], token: 'csrf' } });
+    if (path.endsWith('/batch')) { const results=request.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{writes.push(body);const row=rows.find(item=>item.id===body.key.id)!;Object.assign(row,body.values);return {ok:true,rows:[row]}});return route.fulfill({json:{results}}); }
     if (request.method() === 'PATCH') { const body = request.postDataJSON(); writes.push(body); const row = rows.find(item => item.id === body.key.id)!; Object.assign(row, body.values); return route.fulfill({ json: { rows: [row] } }); }
     return route.fulfill({ json: { rows, total: rows.length } });
   });
@@ -278,7 +279,7 @@ test('Delete xóa giá trị vùng chọn, chặn cột bắt buộc và không 
   await page.keyboard.press('Delete');
   await expect(page.locator('#toast')).toContainText('không được để trống');
   expect(writes).toHaveLength(2);
-  await page.locator('#search').fill('abc');
+  await page.locator('#search').pressSequentially('abc');
   await page.locator('#search').press('Backspace');
   await expect(page.locator('#search')).toHaveValue('ab');
   expect(writes).toHaveLength(2);
@@ -291,6 +292,7 @@ test('dán nhiều dòng vào ô đang sửa và giữ cách dán văn bản th�
   await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
     const req = route.request(), path = new URL(req.url()).pathname;
     if (path === '/api/meta') return route.fulfill({ json: { tables: [{ name: 'public.demo', columns: [{ name: 'id', data_type: 'integer', options: ['updatable'] }, { name: 'name', data_type: 'text', options: ['updatable', 'nullable'] }, { name: 'note', data_type: 'text', options: ['updatable', 'nullable'] }], primary_keys: ['id'] }], token: 'csrf' } });
+    if (path.endsWith('/batch')) { const results=req.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{writes.push(body);const row=rows.find(item=>item.id===body.key.id)!;Object.assign(row,body.values);return {ok:true,rows:[row]}});return route.fulfill({json:{results}}); }
     if (req.method() === 'PATCH') { const body = req.postDataJSON(); writes.push(body); const row = rows.find(item => item.id === body.key.id)!; Object.assign(row, body.values); return route.fulfill({ json: { rows: [row] } }); }
     return route.fulfill({ json: { rows, total: rows.length } });
   });
@@ -412,6 +414,7 @@ test('copy vùng rồi chọn ô khác và dán bằng bàn phím', async ({ pag
   await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
     const req = route.request();
     if (new URL(req.url()).pathname === '/api/meta') return route.fulfill({ json: { tables: [{ name: 'public.demo', columns: [{ name: 'id', data_type: 'integer', options: ['updatable'] }, { name: 'name', data_type: 'text', options: ['updatable', 'nullable'] }, { name: 'note', data_type: 'text', options: ['updatable', 'nullable'] }], primary_keys: ['id'] }], token: 'csrf' } });
+    if (new URL(req.url()).pathname.endsWith('/batch')) { const results=req.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{const row=rows.find(x=>x.id===body.key.id)!;Object.assign(row,body.values);return {ok:true,rows:[row]}});return route.fulfill({json:{results}}); }
     if (req.method() === 'PATCH') { const body = req.postDataJSON(), row = rows.find(x => x.id === body.key.id)!; Object.assign(row, body.values); return route.fulfill({ json: { rows: [row] } }); }
     return route.fulfill({ json: { rows, total: 2 } });
   });
@@ -432,6 +435,7 @@ test('dán nhiều dòng vào cột bigint giữ nguyên giá trị lớn', asyn
   await page.route('**/api/**', async route => {if(new URL(route.request().url()).pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});if(new URL(route.request().url()).pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
     const req = route.request();
     if (new URL(req.url()).pathname === '/api/meta') return route.fulfill({ json: { tables: [{ name: 'public.demo', columns: [{ name: 'id', data_type: 'integer', options: ['updatable'] }, { name: 'amount', data_type: 'bigint', options: ['updatable', 'nullable'] }], primary_keys: ['id'] }], token: 'csrf' } });
+    if (new URL(req.url()).pathname.endsWith('/batch')) { const results=req.postDataJSON().changes.map((body:{key:{id:number},values:Record<string,unknown>})=>{const row=rows.find(x=>x.id===body.key.id)!;Object.assign(row,body.values);return {ok:true,rows:[row]}});return route.fulfill({json:{results}}); }
     if (req.method() === 'PATCH') { const body = req.postDataJSON(), row = rows.find(x => x.id === body.key.id)!; Object.assign(row, body.values); return route.fulfill({ json: { rows: [row] } }); }
     return route.fulfill({ json: { rows, total: 2 } });
   });
@@ -705,4 +709,25 @@ test('đổi tên cột lookup và giữ cấu hình đồng bộ',async({page})
  await expect(page.locator('#columnSyncEnabled')).toBeChecked();await page.locator('#columnName').fill('ten_chi_nhanh');await page.locator('#saveColumn').click();
  await expect(page.locator('#columnDialog')).toBeHidden();await expect(page.locator('td[data-bulk-column="ten_chi_nhanh"]')).toHaveText('Mia');
  await page.getByRole('button',{name:'Thiết lập cột ten_chi_nhanh',exact:true}).click();await expect(page.locator('#columnSyncEnabled')).toBeChecked();
+});
+
+test('lookup nhớ giá trị và cập nhật sau khi bảng nguồn thay đổi',async({page})=>{
+ const rooms={name:'public.rooms',primary_keys:['id'],columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'branchid',data_type:'integer',options:['updatable']},{name:'note',data_type:'text',options:['updatable']}]};
+ const branches={name:'public.branches',primary_keys:['id'],columns:[{name:'id',data_type:'integer',options:['updatable']},{name:'name',data_type:'text',options:['updatable']}]};
+ let calls=0,branchName='Mia',note='A';
+ await page.addInitScript(()=>localStorage.setItem('siris-lookups-v1',JSON.stringify([{id:'test',sourceTable:'rooms',sourceColumn:'branchid',targetTable:'branches',targetKey:'id',targetField:'name',label:'Tên chi nhánh'}])));
+ await page.route('**/api/**',async route=>{const req=route.request(),url=new URL(req.url());
+  if(url.pathname==='/api/meta')return route.fulfill({json:{tables:[rooms,branches],token:'csrf'}});
+  if(url.pathname==='/api/formula-config')return route.fulfill({json:{items:[]}});
+  if(url.pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
+  if(url.pathname==='/api/lookup/branches'){calls++;return route.fulfill({json:{rows:[{id:1,name:branchName}]}})}
+  if(req.method()==='PATCH'){if(url.pathname.endsWith('/rooms')){note=req.postDataJSON().values.note;return route.fulfill({json:{rows:[{id:1,branchid:1,note}]}})}branchName=req.postDataJSON().values.name;return route.fulfill({json:{rows:[{id:1,name:branchName}]}})}
+  return route.fulfill({json:url.pathname.endsWith('/branches')?{rows:[{id:1,name:branchName}],total:1}:{rows:[{id:1,branchid:1,note}],total:1}});
+ });
+ await page.goto('/');await expect(page.locator('td.lookup-cell')).toContainText('Mia');expect(calls).toBe(1);
+ await page.locator('td[data-bulk-column="note"]').click();await page.locator('td.editing input').fill('B');await page.locator('td.editing input').press('Enter');
+ await expect(page.locator('#toast')).toContainText('Đã lưu');await expect(page.locator('td.lookup-cell')).toContainText('Mia');expect(calls).toBe(1);
+ await page.getByRole('button',{name:'branches',exact:true}).click();await page.locator('td[data-bulk-column="name"]').click();await page.locator('td.editing input').fill('Mới');await page.locator('td.editing input').press('Enter');
+ await expect(page.locator('#toast')).toContainText('Đã lưu');await page.getByRole('button',{name:'rooms',exact:true}).click();
+ await expect(page.locator('td.lookup-cell')).toContainText('Mới');expect(calls).toBe(2);
 });

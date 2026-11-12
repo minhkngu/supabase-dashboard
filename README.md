@@ -28,6 +28,12 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+Nếu đã có Chromium hoặc Chrome, có thể dùng trình duyệt đó thay vì tải lại:
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE="/đường/dẫn/tới/chromium" npm run test:e2e
+```
+
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
 
 ## Các tính năng đang chuyển đổi
@@ -45,3 +51,13 @@ Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.look
 ## Nhân bản cột
 
 Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.
+
+## Đo hiệu năng cục bộ
+
+`npm run bench` dựng PostgreSQL tạm và Data API giả lập chỉ trên loopback; không dùng dữ liệu Supabase. Cần PostgreSQL 16 (`initdb` và `pg_ctl` trong PATH), hoặc chỉ định thư mục `bin`:
+
+```sh
+SIRIS_BENCH_PG_BIN=/duong/dan/postgresql/bin npm run bench
+```
+
+Mặc định giả lập độ trễ Data API 60 ms và mỗi gói phản hồi PostgreSQL 40 ms. Có thể đặt `SIRIS_BENCH_API_MS=150 SIRIS_BENCH_DB_MS=100` để đo mạng xa. Cột gói tin là số lần nhận dữ liệu qua proxy, không phải số truy vấn SQL; phép đo có thể khác số liệu thực do cách hệ điều hành gom gói. Chạy cùng cấu hình để so sánh trước và sau.

@@ -16,12 +16,12 @@ async function mock(page:Page,{empty=false,failRefresh=false,delay=false}={}) {
   if(url.pathname==='/api/lookup-config')return route.fulfill({json:{available:false,items:[]}});
   if(request.method()!=='GET'){writes++;return route.fulfill({json:{rows:[]}});}
   if(url.pathname==='/api/table/promotions'){
-   const p=Number(url.searchParams.get('page')||0);pages.push(p);
+   const p=Number(url.searchParams.get('page')||0),limit=Number(url.searchParams.get('limit')||50);pages.push(p);
    if(delay)await blocked;
    if(p===0)loads++;
-   if(failRefresh&&loads>1)return route.fulfill({status:403,json:{error:'Không có quyền đọc'}});
+   if(failRefresh&&loads>2)return route.fulfill({status:403,json:{error:'Không có quyền đọc'}});
    expect(JSON.parse(url.searchParams.get('filters')||'[]')).toEqual([]);
-   return route.fulfill({json:{rows:empty?[]:rows.slice(p*50,p*50+50),total:empty?0:rows.length}});
+   return route.fulfill({json:{rows:empty?[]:rows.slice(p*limit,p*limit+limit),total:empty?0:rows.length}});
   }
   if(url.pathname==='/api/table/branches')return route.fulfill({json:{rows:[{id:'branch-1',name:'Mia'}],total:1}});
   if(url.pathname==='/api/table/room_types')return route.fulfill({json:{rows:[{id:'room-1',branchid:'branch-1',name:'Studio'}],total:1}});
@@ -31,11 +31,11 @@ async function mock(page:Page,{empty=false,failRefresh=false,delay=false}={}) {
 }
 
 test('dashboard trong bảng promotions tải đủ các trang, liên kết tên và lọc mà không ghi dữ liệu',async({page})=>{
- const api=await mock(page);await page.goto('/');
+ const api=await mock(page);await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  const dashboard=page.locator('#promotionsDashboard');
  await expect(dashboard).toBeVisible();
  await expect(dashboard.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
- expect(api.pages).toEqual([0,1]);
+ expect(api.pages.at(-1)).toBe(0);
  await expect(dashboard.locator('.promo-metrics strong')).toHaveText(['51','50','50','1']);
  await expect(dashboard.locator('[data-promo-id="promotion-0"]')).toContainText('Mia · Studio');
  await dashboard.locator('[data-promo-id="promotion-0"]').click();
@@ -62,7 +62,7 @@ test('dashboard trong bảng promotions tải đủ các trang, liên kết tên
 });
 
 test('chuyển giữa dashboard, bảng dữ liệu và bảng khác trong cùng web',async({page})=>{
- await mock(page);await page.goto('/');
+ await mock(page);await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
  await page.getByRole('button',{name:'Bảng dữ liệu',exact:true}).click();
  await expect(page.locator('#promotionsDashboard')).toBeHidden();
@@ -74,11 +74,12 @@ test('chuyển giữa dashboard, bảng dữ liệu và bảng khác trong cùng
  await page.getByRole('button',{name:'branches',exact:true}).click();
  await expect(page.locator('#promotionsViewSwitch')).toBeVisible();
  await expect(page.locator('#promotionsDashboard')).toBeHidden();
+ await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('#tableDashboard')).toContainText('Mia');
 });
 
 test('trạng thái rỗng và refresh lỗi giữ dữ liệu cũ, không báo thành công',async({page})=>{
- await mock(page,{failRefresh:true});await page.goto('/');
+ await mock(page,{failRefresh:true});await page.goto('/');await expect(page.locator('#grid tbody tr')).toHaveCount(50);await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
  await page.locator('[data-promo-refresh]').click();
  await expect(page.locator('[data-promo-feedback]')).toContainText('Đang giữ bản dữ liệu lần trước');
@@ -92,16 +93,17 @@ test('trạng thái rỗng và refresh lỗi giữ dữ liệu cũ, không báo 
 });
 
 test('chuyển bảng khi dashboard đang tải không để kết quả cũ xuất hiện ở bảng mới',async({page})=>{
- const api=await mock(page,{delay:true});await page.goto('/');
+ const api=await mock(page,{delay:true});await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await page.getByRole('button',{name:'branches',exact:true}).click();
  api.release();
  await expect(page.locator('#title')).toHaveText('branches');
  await expect(page.locator('#promotionsDashboard')).toBeHidden();
+ await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('#tableDashboard')).toContainText('Mia');
 });
 
 test('refresh giữ bảng promotions, chế độ bảng dữ liệu và trang đang mở',async({page})=>{
- await mock(page);await page.goto('/');
+ await mock(page);await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
  await page.getByRole('button',{name:'Bảng dữ liệu',exact:true}).click();
  await expect(page.locator('#grid tbody tr')).toHaveCount(50);
@@ -130,10 +132,10 @@ test('refresh giữ bảng promotions, chế độ bảng dữ liệu và trang 
 });
 
 test('dashboard chỉ xem, còn bảng dữ liệu giữ chọn dòng để quản lý',async({page})=>{
- await mock(page);await page.goto('/');
+ await mock(page);await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
  await expect(page.locator('#promotionsDashboard input[type="checkbox"]')).toHaveCount(0);
- await expect(page.locator('#add')).toBeHidden();
+ await expect(page.locator('#add')).toBeVisible();
  await expect(page.locator('#rowSelectionBar')).toBeHidden();
  await page.getByRole('button',{name:'Bảng dữ liệu',exact:true}).click();
  await expect(page.locator('#add')).toBeVisible();
@@ -145,7 +147,7 @@ test('dashboard chỉ xem, còn bảng dữ liệu giữ chọn dòng để qu�
 });
 
 test('dashboard vừa màn hình điện thoại và nội dung chương trình xem được bằng bàn phím',async({page})=>{
- await page.setViewportSize({width:390,height:844});await mock(page);await page.goto('/');
+ await page.setViewportSize({width:390,height:844});await mock(page);await page.goto('/');await page.getByRole('button',{name:'Dashboard',exact:true}).click();
  await expect(page.locator('[data-promo-count]')).toHaveText('51 / 51 chương trình');
  const row=page.locator('[data-promo-id="promotion-50"]');await row.focus();await row.press('Enter');
  await expect(row).toHaveAttribute('aria-pressed','true');

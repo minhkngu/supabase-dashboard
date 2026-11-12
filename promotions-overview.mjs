@@ -34,8 +34,9 @@ const normalize=value=>String(value??'').normalize('NFD').replace(/[\u0300-\u036
 export async function readAllPromotions(api, table, signal) {
  const rows=[],ids=new Set();let page=0;
  while(true){
-  const query=new URLSearchParams({page:String(page),search:'',filters:'[]',orders:JSON.stringify([{column:'id',direction:'asc'}])});
+  const query=new URLSearchParams({page:String(page),limit:'1000',search:'',filters:'[]',orders:JSON.stringify([{column:'id',direction:'asc'}])});
   const result=await api(`/api/table/${table}?${query}`,{signal});
+  if(result.limit!==undefined&&result.limit!==1000)throw Error('Máy chủ trả về ít dòng hơn dự kiến. Cần cập nhật máy chủ.');
   if(!Array.isArray(result.rows)||!Number.isSafeInteger(result.total)||result.total<0)throw Error('Dữ liệu dashboard không hợp lệ.');
   if(!result.rows.length&&rows.length<result.total)throw Error('Chưa tải đủ dữ liệu. Hãy làm mới dashboard.');
   for(const row of result.rows){if(row.id!=null&&ids.has(row.id))throw Error('Dữ liệu đang thay đổi giữa các trang. Hãy làm mới dashboard.');if(row.id!=null)ids.add(row.id);rows.push(row);}
@@ -44,7 +45,7 @@ export async function readAllPromotions(api, table, signal) {
  }
 }
 
-export function createPromotionsOverview({host,api,createSelect,getColumns,getTables}) {
+export function createPromotionsOverview({host,api,createSelect,getColumns,getTables,onEdit}) {
  let rows=[],selected=null,request=null,version=0,loaded=false;
  let branches=new Map(),rooms=new Map(),referenceWarning='';
  const filters={search:'',status:'all',type:'all',basis:'all'};
@@ -55,7 +56,7 @@ export function createPromotionsOverview({host,api,createSelect,getColumns,getTa
  <div class="promo-metrics" data-promo-metrics></div>
  <div class="promo-filters"><label class="promo-search"><span>Tìm chương trình</span><input type="search" placeholder="Tên hoặc mô tả…" aria-label="Tìm chương trình khuyến mãi" data-promo-search></label><div data-promo-status></div><div data-promo-type></div><div data-promo-basis></div><button type="button" class="quiet" data-promo-clear>Xóa lọc</button></div>
  <div class="promo-section-title"><h3>Danh sách chương trình</h3><span data-promo-count></span></div>
- <div class="promo-workspace"><div class="promo-list" data-promo-list></div></div><dialog class="promo-detail-dialog" aria-labelledby="promoDetailTitle"><div class="dialog-head"><h2 id="promoDetailTitle">Chi tiết chương trình</h2><button type="button" class="icon" data-promo-close aria-label="Đóng chi tiết">×</button></div><div class="promo-detail" data-promo-detail></div></dialog>
+ <div class="promo-workspace"><div class="promo-list" data-promo-list></div></div><dialog class="promo-detail-dialog" aria-labelledby="promoDetailTitle"><div class="dialog-head"><h2 id="promoDetailTitle">Chi tiết chương trình</h2><button type="button" class="icon" data-promo-close aria-label="Đóng chi tiết">×</button></div><div class="promo-detail" data-promo-detail></div><button type="button" class="secondary" data-promo-edit>Sửa bản ghi</button></dialog>
  `;
  const selectControls=[];
  for(const [key,label,options] of [
@@ -71,6 +72,7 @@ export function createPromotionsOverview({host,api,createSelect,getColumns,getTa
  find('[data-promo-clear]').onclick=()=>{Object.assign(filters,{search:'',status:'all',type:'all',basis:'all'});find('[data-promo-search]').value='';selectControls.forEach(control=>control.setValue('all'));render();};
  find('[data-promo-refresh]').onclick=()=>void load();
  find('[data-promo-close]').onclick=()=>find('.promo-detail-dialog').close();
+ find('[data-promo-edit]').onclick=()=>{if(!selected)return;find('.promo-detail-dialog').close();onEdit(selected)};
  function scope(row){
   if(row.room_type_id){const room=rooms.get(row.room_type_id);return room?`${branches.get(room.branchid)?.name??'Chi nhánh'} · ${room.name}`:`Loại phòng: ${row.room_type_id}`;}
   if(row.branchid)return branches.get(row.branchid)?.name??`Chi nhánh: ${row.branchid}`;
