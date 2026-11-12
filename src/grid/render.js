@@ -106,12 +106,22 @@ export function choose(t) {
         ? ['col:name']
         : [],
     search: typeof saved.search === 'string' ? saved.search : '',
+    searchColumn: typeof saved.searchColumn === 'string' ? saved.searchColumn : '',
     collapsed: Array.isArray(saved.collapsed) ? saved.collapsed.filter(x => typeof x === 'string') : [],
     page: Number.isSafeInteger(saved.page) && saved.page >= 0 ? Math.min(saved.page, 100000) : 0,
     pageSize: PAGE_SIZES.includes(saved.pageSize) ? saved.pageSize : PAGE_SIZE,
   };
   state.page = state.view.page;
   $('#search').value = state.view.search;
+  const searchColumn = $('#searchColumn');
+  searchColumn.replaceChildren(
+    new Option('Mọi cột văn bản', ''),
+    ...t.columns
+      .filter(c => ['text', 'character varying'].includes(c.data_type))
+      .map(c => new Option(c.name, c.name)),
+  );
+  searchColumn.value = state.view.searchColumn;
+  state.view.searchColumn = searchColumn.value;
   $('#title').textContent = tableLabel(t);
   syncPromotionsView();
   syncChrome();
@@ -221,7 +231,7 @@ async function loadGroupCounts(table, version) {
     // Keep the per-page counts when whole-table counts are unavailable.
   }
 }
-export async function load({ silent = false } = {}) {
+export async function load({ silent = false, skipCount = false, forceCount = false } = {}) {
   if (!state.table) return;
   if (deletionBusy && deletionTable?.name === state.table.name) return;
   if (isPromotionsOverview()) {
@@ -242,10 +252,10 @@ export async function load({ silent = false } = {}) {
   const search = $('#search').value,
     filters = JSON.stringify(state.view?.filters || []),
     orders = serverOrder(),
-    searchColumn = '',
+    searchColumn = $('#searchColumn')?.value || '',
     limit = pageSize(),
     countKey = JSON.stringify([table.name, search, filters, searchColumn]),
-    needsCount = countedKey !== countKey,
+    needsCount = forceCount || (!skipCount && countedKey !== countKey),
     cacheKey = pageQuery(table, state.page, search, filters, orders, searchColumn, limit),
     cached = pageCache.get(cacheKey),
     canShowCached = cached && !state.cellEdit && !state.rows.some(row => pendingRows.has(row));
@@ -271,8 +281,8 @@ export async function load({ silent = false } = {}) {
       (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row))))
     )
       return;
-    putPage(cacheKey, d);
-    if (d.total != null) setCountedKey(countKey);
+    if (!skipCount) putPage(cacheKey, d);
+    if (!skipCount && d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;
     if (state.page > 0 && state.page * limit >= total) {
       state.page = total ? Math.floor((total - 1) / limit) : 0;
@@ -295,7 +305,7 @@ export async function load({ silent = false } = {}) {
     loadLookups();
     loadNativeDisplays();
     message(d.rows.length ? '' : 'Không tìm thấy bản ghi nào.');
-    if ((state.page + 1) * limit < total)
+    if (!skipCount && (state.page + 1) * limit < total)
       void prefetchPage(table, state.page + 1, search, state.view?.filters || [], orders, total, searchColumn, limit);
   } catch (e) {
     if (e.name === 'AbortError' || version !== state.loadVersion || table !== state.table) return;

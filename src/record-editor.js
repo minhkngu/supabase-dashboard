@@ -2,12 +2,12 @@ import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
 import { nativeRelations, relationDisplayField } from './relation-display.js';
 import { fieldHints } from '../table-config.mjs';
-import { api, toast } from './api.js';
+import { api, message, toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
 import { load } from './grid/render.js';
-import { $, $$, PAGE_SIZES, deletionBusy, el, name, pageSize, state, writable } from './state.js';
+import { $, $$, PAGE_SIZES, deletionBusy, el, loadController, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
 export function recordFieldHint(column, row = null) {
@@ -303,11 +303,30 @@ export function initRecordEditor() {
     persistView();
     void load({ silent: true });
   };
+  let previewTimer;
   $('#search').oninput = () => {
     state.page = 0;
     persistView();
     clearTimeout(timer);
-    timer = setTimeout(() => load({ silent: true }), 350);
+    clearTimeout(previewTimer);
+    const value = $('#search').value.trim();
+    if (value && value.length < 2) {
+      loadController?.abort();
+      state.loadVersion++;
+      message('Nhập ít nhất 2 ký tự để tìm kiếm.');
+      return;
+    }
+    message('');
+    if (value) {
+      previewTimer = setTimeout(() => load({ silent: true, skipCount: true }), 0);
+      timer = setTimeout(() => load({ silent: true, forceCount: true }), 350);
+    } else void load({ silent: true });
+  };
+  $('#searchColumn').onchange = () => {
+    state.page = 0;
+    persistView();
+    const value = $('#search').value.trim();
+    if (!value || value.length >= 2) void load({ silent: true });
   };
 }
 

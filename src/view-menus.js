@@ -51,6 +51,7 @@ function currentView() {
 export function persistView() {
   if (!state.table || !state.view) return;
   state.view.search = $('#search').value;
+  state.view.searchColumn = $('#searchColumn')?.value || '';
   state.view.freezeDefaultInitialized = true;
   state.view.page = state.page;
   state.view.collapsed = [...state.collapsed];
