@@ -4,7 +4,6 @@ import { expectedValues } from './history.js';
 import { load, render } from './grid/render.js';
 import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
-
 // Lookup values are stable for a short while; asking again on every page load
 // costs one request per virtual lookup column. Duplicate in-flight values wait
 // for the same request instead of issuing their own.
@@ -43,7 +42,8 @@ export async function cachedLookup(table, column, values, fields) {
         return data.rows;
       })
       .finally(() => {
-        for (const value of missing) if (group.pending.get(String(value)) === request) group.pending.delete(String(value));
+        for (const value of missing)
+          if (group.pending.get(String(value)) === request) group.pending.delete(String(value));
       });
     for (const value of missing) group.pending.set(String(value), request);
     waiting.add(request);

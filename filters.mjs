@@ -17,7 +17,10 @@ export function filterQuery(params, table) {
     cols = new Map(table.columns.map(c => [c.name, c]));
   const search = params.get('search')?.trim(),
     searchColumn = params.get('search_column');
-  if (searchColumn && (!cols.has(searchColumn) || !['text', 'character varying'].includes(cols.get(searchColumn).data_type)))
+  if (
+    searchColumn &&
+    (!cols.has(searchColumn) || !['text', 'character varying'].includes(cols.get(searchColumn).data_type))
+  )
     throw Error('Cột tìm kiếm không hợp lệ');
   if (search) {
     const candidates = table.columns.filter(
