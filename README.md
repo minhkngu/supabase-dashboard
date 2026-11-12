@@ -41,7 +41,7 @@ Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm
 
 ## Bản online
 
-Bản online chạy qua edge function `supabase/functions/siris-manager/` và Sites worker trong repo riêng `chatgpt-site/`. Sau khi đổi mã, trên máy có `chatgpt-site/` chạy `npm run build` rồi `node scripts/prepare-chatgpt-site.mjs`, sau đó deploy cả edge function lẫn Sites worker.
+Bản online chạy trên Vercel: `vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`, dùng chung `server/app.mjs` với bản cục bộ. Xem `VERCEL.md` để cấu hình biến môi trường và deploy bằng `npx vercel deploy --prod`.
 
 ## Phím tắt
 

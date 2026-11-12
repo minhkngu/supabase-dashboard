@@ -1,6 +1,6 @@
 # Triển khai Siris lên Vercel
 
-Bản Vercel dùng cùng backend với bản local. Không cần triển khai Sites hoặc Supabase Edge Function.
+Bản Vercel dùng cùng backend với bản local; chỉ cần deploy một function Vercel.
 
 `vercel.json` build giao diện bằng Vite rồi chuyển toàn bộ request tới `api/handler.mjs`. Function phục vụ giao diện từ `dist/` và xử lý API. `public/` để trống để các tài nguyên luôn đi qua kiểm tra đăng nhập.
 

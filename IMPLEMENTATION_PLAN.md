@@ -28,7 +28,7 @@ Kết quả kiểm tra sau merge:
 | `npm run lint` | Đạt |
 | `npm run typecheck` | Đạt (TypeScript và `checkJs`) |
 | `npm run build` | Đạt |
-| `npm test` | 90 đạt, 1 bỏ qua (test benchmark cần `SIRIS_BENCH_PG_BIN`); `pretest` tự build giao diện trước khi chạy |
+| `npm test` | 85 đạt, 1 bỏ qua (test benchmark cần `SIRIS_BENCH_PG_BIN`); `pretest` tự build giao diện trước khi chạy |
 | `npm run test:e2e` | **108/108 đạt** |
 | `npm run bench` | Đạt với PostgreSQL 16.15 và Chromium; số đo ở mục 9.1 |
 
@@ -84,7 +84,7 @@ Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel), `s
 1. Mọi số đo là **mô phỏng**; chưa đo trên Vercel.
 2. Hai test cache với PostgreSQL bị bỏ qua mặc định (`SIRIS_BENCH_PG_BIN`); repo chưa có `.github/`, tức chưa có CI.
 3. `npm test` cần `npm run build` trước.
-4. Còn mã edge/Sites cần gỡ (`supabase/functions/siris-manager/`, `server/edge.mjs`, `scripts/prepare-chatgpt-site.mjs`, `scripts/check-sites-backend.mjs`, `scripts/edge-files.mjs`, `tests/sites-bridge.test.js`, `tests/edge-backend.test.js`).
+4. ~~Còn mã edge/Sites cần gỡ~~ — đã gỡ ở giai đoạn C.
 
 ---
 
@@ -222,7 +222,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | P1–P7 | Chuyển phần tốc độ từ `d21eac0` | **Xong**; mỗi mục có test unit/e2e tương ứng |
 | B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
 | F | Sửa điểm yếu của phép đo, test cache PostgreSQL | **Xong** (F1–F4) |
-| C | Gỡ edge/Sites | Chưa bắt đầu |
+| C | Gỡ edge/Sites | **Xong** (C1–C3) |
 | D | CI | Chưa bắt đầu |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
 | G (B4) | Đo một lần trên Vercel | Sau cùng, do người dùng thao tác |

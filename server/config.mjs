@@ -47,8 +47,8 @@ export function loadConfig(root) {
   return configFromEnv({ ...envFile(path.join(root, '.env.local')), ...process.env }, { root });
 }
 
-// Shared by the local server and the Supabase edge function, which passes
-// its own environment, a fixed port and a fixed session token.
+// Shared by the local server and the Vercel function, which passes its own
+// environment, a fixed port and a session token.
 export function configFromEnv(env, { root = '', port = Number(env.PORT || 4173), csrf = null } = {}) {
   const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL,
     key = env.SUPABASE_KEY || env.VITE_SUPABASE_ANON_KEY;
