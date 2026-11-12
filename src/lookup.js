@@ -1,5 +1,6 @@
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
+import { expectedValues } from './history.js';
 import { load, render } from './grid/render.js';
 import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
@@ -651,7 +652,7 @@ async function saveLink(value) {
         body: JSON.stringify({
           key,
           values: { [picker.column.name]: value },
-          expected: { [picker.column.name]: picker.row[picker.column.name] ?? null },
+          expected: expectedValues(picker.table, { [picker.column.name]: picker.row[picker.column.name] ?? null }),
         }),
       });
     }

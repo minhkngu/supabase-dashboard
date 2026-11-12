@@ -12,12 +12,28 @@ export function updateHistoryButtons() {
   $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
   $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
 }
+// Điều kiện chống ghi đè: máy chủ so từng cột bằng `eq.` nên chỉ nhận giá trị đơn.
+// Bỏ cột JSON, mảng và mọi giá trị object; trả undefined khi không còn cột nào.
+export function expectedValues(table, values) {
+  const result = {};
+  for (const [column, value] of Object.entries(values)) {
+    const type = String(table.columns?.find(c => c.name === column)?.data_type || '');
+    if (/json|array/i.test(type) || type.startsWith('_')) continue;
+    if (value !== null && typeof value === 'object') continue;
+    result[column] = value;
+  }
+  return Object.keys(result).length ? result : undefined;
+}
 export async function commitCell(table, row, column, value) {
   const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
     old = row[column.name] ?? null;
   const result = await api(`/api/table/${name(table)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ key, values: { [column.name]: value }, expected: { [column.name]: old } }),
+    body: JSON.stringify({
+      key,
+      values: { [column.name]: value },
+      expected: expectedValues(table, { [column.name]: old }),
+    }),
   });
   const saved = result.rows?.[0];
   if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
@@ -58,7 +74,11 @@ export async function changeHistory(direction) {
       expected = undo ? item.after : item.before;
     await api(`/api/table/${name(table)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ key, values: { [item.column]: value }, expected: { [item.column]: expected } }),
+      body: JSON.stringify({
+        key,
+        values: { [item.column]: value },
+        expected: expectedValues(table, { [item.column]: expected }),
+      }),
     });
     from.pop();
     history[undo ? 'redo' : 'undo'].push(item);

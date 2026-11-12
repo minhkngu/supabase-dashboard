@@ -87,3 +87,51 @@ test('sửa hàng loạt gửi một yêu cầu lô và báo lỗi theo dòng', 
   expect(batches).toBe(1);
   expect(rows.filter(x => x.name === 'Mới')).toHaveLength(7);
 });
+
+test('sửa hàng loạt ô JSON đã có giá trị vẫn lưu được', async ({ page }) => {
+  const jsonColumns = [
+    { name: 'id', data_type: 'integer', options: ['updatable'] },
+    { name: 'data', data_type: 'jsonb', options: ['nullable', 'updatable'] },
+  ];
+  const rows = [
+    { id: 1, data: { a: 1 } },
+    { id: 2, data: [1, 2] },
+  ];
+  const sent: unknown[] = [];
+  await page.route('**/api/**', async route => {
+    const request = route.request(),
+      url = new URL(request.url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({
+        json: { tables: [{ name: 'public.demo', columns: jsonColumns, primary_keys: ['id'] }], token: 't' },
+      });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (request.method() === 'POST' && url.pathname.endsWith('/batch')) {
+      const { changes } = request.postDataJSON();
+      const results = changes.map(
+        (change: { key: { id: number }; values: Record<string, unknown>; expected?: Record<string, unknown> }) => {
+          sent.push(change.expected);
+          // Giống máy chủ: điều kiện chỉ nhận giá trị đơn.
+          if (Object.values(change.expected || {}).some(v => v !== null && typeof v === 'object'))
+            return { ok: false, error: 'Điều kiện cập nhật không hợp lệ' };
+          const row = rows.find(x => x.id === change.key.id)!;
+          Object.assign(row, change.values);
+          return { ok: true, rows: [row] };
+        },
+      );
+      return route.fulfill({ json: { results } });
+    }
+    return route.fulfill({ json: { rows, total: rows.length } });
+  });
+  await page.goto('/');
+  const cells = page.locator('td[data-bulk-column="data"]');
+  await expect(cells).toHaveCount(2);
+  await cells.nth(0).click({ modifiers: ['Shift'] });
+  await cells.nth(1).click({ modifiers: ['Shift'] });
+  await expect(page.locator('#bulkLabel')).toHaveText('data · 2 ô');
+  await page.locator('#bulkValue').fill('{"b":2}');
+  await page.locator('#bulkApply').click();
+  await expect.poll(() => rows.map(x => x.data)).toEqual([{ b: 2 }, { b: 2 }]);
+  expect(sent).toEqual([undefined, undefined]);
+});

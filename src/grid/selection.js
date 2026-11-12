@@ -1,6 +1,6 @@
 import { autoScrollWhileDragging } from '../dnd.js';
 import { api, toast } from '../api.js';
-import { historyFor, updateHistoryButtons } from '../history.js';
+import { expectedValues, historyFor, updateHistoryButtons } from '../history.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
 import { $, PAGE_SIZES, el, name, pendingRows, state, writable, $$ } from '../state.js';
@@ -352,6 +352,8 @@ export async function pasteFromCell(rowValue, columnName, text) {
     bulkBusy = false;
   }
 }
+// Object và mảng (cột JSON) phải so theo nội dung; String() biến mọi object thành "[object Object]".
+const sameText = value => (value !== null && typeof value === 'object' ? JSON.stringify(value) : String(value));
 async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = false } = {}) {
   const table = state.table,
     columns = displayedColumns(),
@@ -393,7 +395,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
         throw Error(`Giá trị của cột ${col.name} không hợp lệ.`);
       if (/^(integer|smallint)$/.test(col.data_type) && value !== null && !Number.isInteger(value))
         throw Error(`Cột ${col.name} cần số nguyên.`);
-      if (!(value === null ? row[col.name] == null : String(value) === String(row[col.name] ?? ''))) {
+      if (!(value === null ? row[col.name] == null : sameText(value) === sameText(row[col.name] ?? ''))) {
         data[col.name] = value;
         expected[col.name] = row[col.name] ?? null;
       }
@@ -424,7 +426,11 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
       const result = await api(`/api/table/${name(table)}/batch`, {
         method: 'POST',
         body: JSON.stringify({
-          changes: chunk.map(({ key, values, expected }) => ({ key, values, expected })),
+          changes: chunk.map(({ key, values, expected }) => ({
+            key,
+            values,
+            expected: expectedValues(table, expected),
+          })),
         }),
       });
       if (!Array.isArray(result.results) || result.results.length !== chunk.length)
