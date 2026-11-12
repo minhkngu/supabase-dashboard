@@ -92,14 +92,16 @@ Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel), `s
 
 | # | Việc | Xong khi |
 |---|---|---|
-| A3 | `npm test` không cần `build` trước | `rm -rf dist && npm test` đạt |
-| P1–P7 | Chuyển phần tốc độ từ `d21eac0` sang cấu trúc mới | Mỗi mục có test (lấy lại từ `d21eac0`), e2e đạt |
-| B1–B3 | Chạy `bench` và đo nốt mở ứng dụng, quay lại trang, lookup | Bảng đo không còn ô "chưa đo" |
-| B4 | Đo trên Vercel | Có bộ số thật |
-| **Dừng** | **Dừng sau B4 để bạn kiểm tra** | Bạn đồng ý mới làm tiếp |
+| A3 | `npm test` không cần `build` trước | Xong |
+| P1–P7 | Chuyển phần tốc độ từ `d21eac0` sang cấu trúc mới | Xong |
+| B1–B3 | Chạy `bench`, đo mở ứng dụng, quay lại trang, lookup | Xong (xem F cho các điểm yếu của phép đo) |
+| F | Sửa điểm yếu của phép đo và test cache | Phép đo "quay lại trang" đếm request thay vì `waitFor`; test cache PostgreSQL chạy được; mục tiêu "mở ứng dụng" ghi lại theo giới hạn thật |
 | C1–C3 | Gỡ edge/Sites, sửa tài liệu | Không còn `chatgpt-site`, `siris-manager` |
-| D1 | Tạo CI | Các job xanh, 2 test cache chạy thật |
-| E | Phần còn lại sau rà soát (E1–E3), bảo mật Vercel (E4) | Theo từng bước |
+| D1 | Tạo CI | Cả ba job được định nghĩa; test cache chạy thật khi có PostgreSQL |
+| E1–E4 | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Từng bước xong, mỗi bước một commit |
+| **G (B4)** | **Đo một lần trên Vercel sau khi xong hết** | Có bộ số thật cho bản cũ và bản mới |
+
+Không còn điểm dừng giữa chừng: làm F → C → D → E rồi mới đo G một lần.
 
 Đã hủy so với bản plan trước, vì `main` đã làm: A1 (dotfile, có `denyDotfiles`), A2 (snapshot đĩa, mã đã không còn), A4 (plugin React/Tailwind đã gỡ), tách backend/frontend thành module, thao tác nhanh và giao diện (giai đoạn 5–8 cũ).
 
@@ -152,9 +154,12 @@ Xong giai đoạn P khi: e2e và unit test của từng mục (lấy từ `d21ea
 **B1.** Cài PostgreSQL 16, đặt `SIRIS_BENCH_PG_BIN`, chạy `npm run bench`. Nếu `bench.mjs` không khởi động được với `server.mjs` mới (biến môi trường, đăng nhập) thì sửa trước; lưu bảng làm số gốc mới.
 **B2.** Thêm 3 phép đo vào `scripts/bench.mjs` (cần Chromium qua `PLAYWRIGHT_CHROMIUM_EXECUTABLE`): (1) mở ứng dụng tới khi thấy dữ liệu, hai lần (`localStorage` trống và đã có `siris-metadata-v1`); (2) quay lại trang đã xem (1 → 2 → 1); (3) số request `/api/lookup/*` sau khi sửa 1 ô.
 **B3.** Ghi "trước → sau" vào mục 9.1; dòng nào không đạt mục tiêu (428 → ~80 ms, tức thì, 0–1 lượt) thì ghi lý do và mở bước sửa.
-**B4.** Đo trên Vercel (cần bạn thao tác hoặc cấp quyền): bật `SIRIS_PERF_TIMING=1` ở bản Preview; đo mở lúc nguội và ấm, tải trang 50 dòng, Tổng quan, chuyển bảng; ghi vùng Vercel và Supabase; kiểm `SUPABASE_DB_URL` dùng pooler.
+### Giai đoạn F — Sửa điểm yếu của phép đo (sau đánh giá push `cd1d7a7`)
 
-> **Điểm dừng.** Sau B4 dừng lại để bạn kiểm tra. Không làm giai đoạn C trở đi khi chưa có đồng ý.
+**F1.** `scripts/bench.mjs`: đo "quay lại trang đã xem" bằng số request mạng phải chờ và thời điểm lưới hiển thị đo trong trang (`performance.now()`), thay cho `waitFor`.
+**F2.** Test cache PostgreSQL: thêm `tests/bench-cache.test.js` gọi `node scripts/bench.mjs --verify-cache`, `describe.skipIf(!process.env.SIRIS_BENCH_PG_BIN)`.
+**F3.** Mục tiêu "mở ứng dụng": ghi lại thành "≈ một lượt API + tải trang" (đo được 146 ms đã lưu cấu trúc, 202 ms lần đầu), vì số 428 ms cũ là đo phía server, không so trực tiếp với đo bằng trình duyệt.
+**F4.** Sửa số test trong plan (89 đạt + 1 bỏ qua).
 
 ### Giai đoạn C — Gỡ edge/Sites
 
@@ -173,6 +178,18 @@ Xong giai đoạn P khi: e2e và unit test của từng mục (lấy từ `d21ea
 **E3. Tách `tests/e2e/auth.spec.ts`** theo tính năng; gom giả lập API vào `tests/e2e/helpers/mock-api.ts`.
 **E4. Vercel an toàn hơn:** giới hạn đăng nhập sai theo IP và ghi log lần thất bại (không ghi mật khẩu); token CSRF theo phiên; `/api/admin/*` giữ, bắt buộc xem trước và chữ ký, ghi log mỗi lần áp dụng thay đổi schema.
 
+### Giai đoạn G (B4) — Đo một lần trên Vercel
+
+Làm sau cùng, khi F, C, D, E đã xong và đã push. Người dùng thao tác (sandbox không truy cập được `vercel.app`, và biến môi trường của app là bí mật).
+
+1. Clone sạch nhánh vào thư mục riêng, `npx vercel link --project siris-supabase-manager --scope lucas-projects-5f5d0170`.
+2. Thêm 6 biến Preview: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`, `SIRIS_LOGIN_USER`, `SIRIS_LOGIN_PASSWORD` (giá trị giống production) và `SIRIS_PERF_TIMING=1`; `npx vercel deploy` (không `--prod`).
+3. Đăng nhập cả bản production cũ (`a189b16`) và Preview mới, chờ ≥ 15 phút để nguội.
+4. Chạy script đo ở tab Console của từng bản (`/api/meta`, trang 1, `count=none`, trang 2, `limit=1000`, mỗi phép 5 lần; ghi cả `Server-Timing`) và hai lần tải lại để đo "mở ứng dụng" (xóa và giữ `siris-metadata-v1`).
+5. Ghi vùng Vercel (`iad1`) và vùng Supabase; kiểm `SUPABASE_DB_URL` dùng pooler.
+6. Dán kết quả vào mục 9.1; dọn biến Preview.
+Xong khi: có bảng số thật cho cả hai bản cạnh bảng mô phỏng.
+
 Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.000 dòng), chỉ lấy cột đang hiển thị, ghi một lượt cho lô lớn hơn 50.
 
 ---
@@ -183,7 +200,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 - Không gộp thay đổi hành vi với thay đổi định dạng hay di chuyển file trong cùng một commit.
 - Không sửa test để che lỗi.
 - Không chạy ghi lên Supabase thật khi thử.
-- Dừng ở B4 để người dùng kiểm tra trước khi làm tiếp.
+- Làm hết F → C → D → E rồi mới đo G một lần; không dừng giữa chừng.
 
 ## 7. Rủi ro
 
@@ -203,10 +220,12 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | Merge `main` | Giải quyết 20 file xung đột; lint, typecheck, build, test, e2e 105/105 đạt | **Xong** |
 | A3 | `npm test` tự dựng giao diện | **Xong** (`pretest: vite build`) |
 | P1–P7 | Chuyển phần tốc độ từ `d21eac0` | **Xong**; mỗi mục có test unit/e2e tương ứng |
-| B | Đo (B4 trên Vercel) | **B1–B3 xong** trên PostgreSQL 16.15 + Chromium; B4 chờ Vercel. **Dừng ở đây để kiểm tra** |
-| C | Gỡ edge/Sites | Chưa bắt đầu (sau điểm dừng) |
+| B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
+| F | Sửa điểm yếu của phép đo, test cache PostgreSQL | Đang làm |
+| C | Gỡ edge/Sites | Chưa bắt đầu |
 | D | CI | Chưa bắt đầu |
-| E | Rà soát mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
+| E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
+| G (B4) | Đo một lần trên Vercel | Sau cùng, do người dùng thao tác |
 
 ---
 
