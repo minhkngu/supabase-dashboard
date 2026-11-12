@@ -84,7 +84,37 @@ Lưu ý vận hành: thay đổi chỉ lên bản online sau khi chạy lại sc
 
 Server không chèn độ trễ: lưu một ô 8 ms, tải một trang 6 ms. Trình duyệt vẽ 22 cột × 50 dòng mất 47–68 ms. Vậy thời gian chờ nằm ở số lượt gọi ra mạng, không nằm ở mã xử lý hay phần vẽ.
 
-Chưa đo được: `count=exact` và tìm kiếm `ilike` trên bảng lớn thật.
+### 3.3b Tốc độ đọc
+
+Đường đọc hiện tại: mỗi lần mở bảng, chuyển trang, tìm kiếm, lọc hay sắp xếp là đúng 1 lượt gọi Data API (65 ms ở mạng gần), cộng thêm 1 lượt cho mỗi cột lookup ảo và mỗi cột liên kết có hiện tên. Với các bảng nhỏ hiện có (vài chục tới vài trăm dòng), thời gian trong database gần bằng 0; thứ người dùng phải chờ là số lượt gọi và việc không dùng lại dữ liệu đã tải.
+
+Điểm chậm theo luồng (đọc từ mã, kèm số đã đo ở bảng trên):
+
+| Luồng | Vì sao chậm |
+|---|---|
+| Mở ứng dụng | `/api/meta` phải chạy 7 truy vấn cấu trúc và mở kết nối Postgres (342 ms gần, 759 ms xa) rồi giao diện mới biết có bảng nào để tải |
+| Chuyển trang, tìm, lọc, sắp xếp | Các lần tải "im lặng" không bao giờ dùng cache trang (`load` trong `app.js:879`), nên quay lại trang vừa xem vẫn chờ mạng |
+| Quay lại bảng đã mở | Cache trang chỉ được dùng trong 15 giây, sau đó xóa lưới và hiện "Đang tải dữ liệu…" |
+| Bảng có lookup hoặc cột liên kết | Mỗi lần tải lại trang (kể cả sau khi sửa một ô) gọi lại toàn bộ lookup, không nhớ kết quả cũ |
+| Dashboard | Đọc toàn bộ bảng, 50 dòng mỗi lượt, nối tiếp nhau |
+
+Thời gian trong database khi bảng lớn lên (đo trên Postgres cục bộ, bảng mẫu 300.000 dòng, 16 cột, 147 MB, chưa tính mạng):
+
+| Truy vấn | Thời gian |
+|---|---|
+| Trang đầu, 50 dòng | 0,2 ms |
+| Trang thứ 5.001 (`OFFSET 250000`) | 200 ms |
+| Cùng vị trí bằng "khóa lớn hơn giá trị cuối" thay cho OFFSET | 0,3 ms |
+| Đếm tổng (`count=exact`), không lọc | 27 ms |
+| Tìm kiếm trên 10 cột text, có kết quả sớm | 145 ms |
+| Tìm kiếm trên 10 cột text, không có kết quả (quét hết bảng) | 1.600 ms |
+| Đếm kết quả tìm kiếm | 429 ms |
+| Tìm trên 1 cột | 52 ms |
+| Sắp xếp theo cột không có index | 34 ms |
+
+Kích thước phản hồi: một trang 50 dòng với đủ 16 cột là khoảng 33 KB; chỉ 6 cột đang hiển thị là khoảng 8 KB.
+
+Kết luận: với dữ liệu hiện tại, ưu tiên là bớt lượt gọi và dùng lại dữ liệu đã tải. Phân trang sâu, đếm tổng và tìm kiếm chỉ thành vấn đề từ vài chục nghìn dòng trở lên. Thử với index trigram cho tìm kiếm chưa cho kết quả ổn định nên chưa đưa vào kế hoạch.
 
 ### 3.4 Vấn đề kiến trúc
 
@@ -342,7 +372,7 @@ Mục tiêu: hết hiện tượng nút nhảy, Dashboard thêm và sửa đư�
 **2.8 Ảnh đối chiếu**
 - Chụp lại desktop và điện thoại ở các trạng thái: lưới, chọn tất cả, Dashboard, form sửa từ Dashboard.
 
-### Giai đoạn 3 — Tốc độ dữ liệu
+### Giai đoạn 3 — Tốc độ dữ liệu (ghi: 3.1–3.5, đọc: 3.6–3.7 và 3.10–3.14)
 
 Mục tiêu theo mức "mạng gần":
 
@@ -354,6 +384,9 @@ Mục tiêu theo mức "mạng gần":
 | Dán 50 dòng | 13,6 giây | dưới 1 giây |
 | Dashboard 500 dòng | 641 ms | khoảng 70 ms |
 | `/api/meta` sau một lần ghi | 90 ms | khoảng 2 ms |
+| Mở ứng dụng tới lúc thấy dữ liệu | 428 ms | khoảng 80 ms |
+| Quay lại trang hoặc bảng đã xem | 65 ms | tức thì, làm mới ở nền |
+| Tải lại trang có lookup sau khi sửa ô | 1 + số cột lookup lượt gọi | 0–1 lượt gọi |
 
 **3.0 Đưa script đo vào repo**
 - File: `scripts/bench.mjs`, `package.json` (script `bench`), `README.md`.
@@ -392,6 +425,37 @@ Mục tiêu theo mức "mạng gần":
 **3.7 Đếm tổng ít hơn**
 - File: `server.mjs`, `app.js` (`load`).
 - Việc: thêm tham số bỏ đếm; giao diện chỉ yêu cầu đếm khi bảng, bộ lọc hoặc tìm kiếm đổi, và dùng lại tổng khi chuyển trang.
+
+**3.10 Mở ứng dụng không chờ metadata**
+- File: `server.mjs` (`/api/meta`), `app.js` (`initialize`).
+- Việc:
+  - server lưu bản metadata gần nhất xuống đĩa và trả ngay bản đó, đồng thời làm mới ở nền; phản hồi có cờ cho biết đang dùng bản lưu;
+  - giao diện lưu metadata lần trước vào `localStorage`, dựng sidebar và tải bảng ngay từ bản này, rồi đối chiếu khi `/api/meta` trả về; nếu cấu trúc bảng đang mở đã đổi thì vẽ lại.
+- Mục tiêu: thấy dữ liệu sau 1 lượt gọi API (khoảng 70–90 ms ở mạng gần, hiện là 428 ms).
+- Test: mở lần hai, lưới hiện trước khi `/api/meta` trả lời; cột bị xóa ở phía server thì biến mất sau khi đối chiếu.
+
+**3.11 Dùng lại trang đã tải**
+- File: `app.js` (`load`, `choose`, `pageCache`).
+- Việc:
+  - mọi lần tải (kể cả chuyển trang, tìm, lọc, sắp xếp) hiện ngay bản trong cache nếu có, bất kể tuổi, rồi làm mới ở nền và chỉ vẽ lại phần khác;
+  - quay lại bảng đã mở: hiện ngay trang đã xem, không xóa lưới;
+  - sau khi một trang tải xong, tải trước trang kế tiếp;
+  - rê chuột lên tên bảng ở sidebar quá 150 ms thì tải trước trang đầu của bảng đó.
+- Giữ quy tắc hiện có: mọi lần ghi xóa cache trang.
+- Test: chuyển trang 1 → 2 → 1 thì lần quay lại không chờ mạng; dữ liệu đổi ở server thì lưới cập nhật sau lượt làm mới nền.
+
+**3.12 Nhớ kết quả lookup**
+- File: `app.js` (`loadLookups`, `loadNativeDisplays`).
+- Việc: cache theo bảng nguồn, cột đối chiếu và giá trị, sống 60 giây; mỗi lần tải trang chỉ gọi cho các giá trị chưa có; xóa cache khi có ghi vào bảng nguồn.
+- Test: sửa một ô không liên quan thì không phát sinh request lookup.
+
+**3.13 Tìm kiếm nhẹ hơn**
+- File: `app.js` (ô tìm kiếm), `filters.mjs`.
+- Việc: trong lúc gõ không yêu cầu đếm tổng, chỉ đếm khi dừng gõ; từ khóa dưới 2 ký tự không gửi; thêm lựa chọn "tìm trong cột…" để tìm trên một cột thay vì mọi cột text.
+
+**3.14 (Khi có bảng trên 50.000 dòng) Phân trang theo khóa**
+- Việc: thay `OFFSET` bằng điều kiện "khóa lớn hơn giá trị cuối của trang trước" khi sắp xếp theo khóa chính; đếm tổng bằng ước lượng của Postgres thay cho đếm chính xác.
+- Chỉ làm khi số đo trên dữ liệu thật cho thấy cần.
 
 **3.8 Đo lại và ghi số**
 - Chạy `npm run bench`, điền cột "sau khi sửa" vào bảng mục tiêu.
