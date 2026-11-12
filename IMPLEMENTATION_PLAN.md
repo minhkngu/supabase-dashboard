@@ -28,9 +28,9 @@ Kết quả kiểm tra sau merge:
 | `npm run lint` | Đạt |
 | `npm run typecheck` | Đạt (TypeScript và `checkJs`) |
 | `npm run build` | Đạt |
-| `npm test` | 85 đạt, 1 bỏ qua; lỗi 1 test (`tests/server.test.js`, phục vụ giao diện build) nếu chưa `npm run build` |
-| `npm run test:e2e` | **105/105 đạt** |
-| `npm run bench` | Chưa chạy được ở môi trường này (thiếu PostgreSQL 16); chưa kiểm `bench.mjs` còn tương thích với `server.mjs` mới |
+| `npm test` | 90 đạt; `pretest` tự build giao diện trước khi chạy |
+| `npm run test:e2e` | **108/108 đạt** |
+| `npm run bench` | Chưa chạy được ở môi trường này (thiếu PostgreSQL 16 và không có quyền cài vào Homebrew); `bench.mjs` đã bỏ phần snapshot đĩa và thêm ba phép đo trình duyệt |
 
 ---
 
@@ -201,9 +201,9 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | Giai đoạn | Nội dung | Trạng thái |
 |---|---|---|
 | Merge `main` | Giải quyết 20 file xung đột; lint, typecheck, build, test, e2e 105/105 đạt | **Xong** |
-| A3 | `npm test` tự dựng giao diện | Chưa bắt đầu |
-| P1–P7 | Chuyển phần tốc độ từ `d21eac0` | Chưa bắt đầu |
-| B | Đo (B4 trên Vercel) | Chưa bắt đầu; **dừng sau B4 để kiểm tra** |
+| A3 | `npm test` tự dựng giao diện | **Xong** (`pretest: vite build`) |
+| P1–P7 | Chuyển phần tốc độ từ `d21eac0` | **Xong**; mỗi mục có test unit/e2e tương ứng |
+| B | Đo (B4 trên Vercel) | **Một phần**: B2 xong; B1/B3 chặn vì máy chưa có PostgreSQL 16 (Homebrew không có quyền ghi); B4 chờ Vercel. **Dừng ở đây để kiểm tra** |
 | C | Gỡ edge/Sites | Chưa bắt đầu (sau điểm dừng) |
 | D | CI | Chưa bắt đầu |
 | E | Rà soát mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |

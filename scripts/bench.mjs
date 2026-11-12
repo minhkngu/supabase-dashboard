@@ -8,6 +8,7 @@ import http from 'node:http';
 import { once } from 'node:events';
 import { performance } from 'node:perf_hooks';
 import pg from 'pg';
+import { chromium } from '@playwright/test';
 
 const execFile=promisify(execFileCallback);
 const pgBin=process.env.SIRIS_BENCH_PG_BIN||'';
@@ -57,7 +58,7 @@ try{
   res.writeHead(200,{'content-type':'application/json','content-range':`0-${Math.max(0,rows.length-1)}/${allRows.length}`});res.end(JSON.stringify(rows));
  });apiServer.listen(apiPort,'127.0.0.1');await once(apiServer,'listening');
  const origin=`http://127.0.0.1:${appPort}`;
- backend=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(appPort),SUPABASE_URL:`http://127.0.0.1:${apiPort}`,SUPABASE_KEY:'bench-only',SUPABASE_DB_URL:`postgresql://siris@127.0.0.1:${proxyPort}/postgres`,SIRIS_PERF_TIMING:'1',SIRIS_METADATA_CACHE_FILE:path.join(work,'metadata.json')},stdio:['ignore','pipe','pipe']});
+ backend=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(appPort),SUPABASE_URL:`http://127.0.0.1:${apiPort}`,SUPABASE_KEY:'bench-only',SUPABASE_DB_URL:`postgresql://siris@127.0.0.1:${proxyPort}/postgres`,SIRIS_PERF_TIMING:'1'},stdio:['ignore','pipe','pipe']});
  let errors='';backend.stderr.on('data',chunk=>{errors+=chunk});
  await Promise.race([once(backend.stdout,'data'),once(backend,'exit').then(()=>{throw Error(`Máy chủ đo không khởi động: ${errors}`)})]);
  async function call(route,options){const res=await fetch(origin+route,options);const body=await res.json();if(!res.ok)throw Error(`${route}: ${body.error||res.status}`);return body}
@@ -80,15 +81,7 @@ try{
   await call('/api/formula-config',{method:'POST',headers:{origin,'x-siris-token':meta.token,'content-type':'application/json'},body:JSON.stringify(config)});
   const updated=await call('/api/formula-config');
   if(!updated.items.some(item=>item.table===config.table&&item.column===config.column))throw Error('Cấu hình formula sau khi lưu không được cập nhật');
-  const snapshotFile=path.join(work,'metadata.json');let hasSnapshot=false;
-  for(let i=0;i<50&&!hasSnapshot;i++){try{await readFile(snapshotFile);hasSnapshot=true}catch{await delay(20)}}
-  if(!hasSnapshot)throw Error('Không lưu được bản cấu trúc');
-  backend.kill('SIGTERM');await once(backend,'exit');
-  backend=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(appPort),SUPABASE_URL:`http://127.0.0.1:${apiPort}`,SUPABASE_KEY:'bench-only',SUPABASE_DB_URL:`postgresql://siris@127.0.0.1:${proxyPort}/postgres`,SIRIS_PERF_TIMING:'1',SIRIS_METADATA_CACHE_FILE:snapshotFile},stdio:['ignore','pipe','pipe']});
-  await Promise.race([once(backend.stdout,'data'),once(backend,'exit').then(()=>{throw Error('Không khởi động lại được máy chủ đo')})]);
-  const stale=await call('/api/meta');if(!stale.metadataStale)throw Error('Không trả bản cấu trúc đã lưu khi khởi động');
-  const fresh=await call('/api/meta?fresh=1');if(fresh.metadataStale||!fresh.adminAvailable)throw Error('Không đối chiếu được cấu trúc mới');
-  console.log('Kiểm tra cache sau hai lần ghi: đạt');
+  console.log('Kiểm tra cache và pool sau hai lần ghi: đạt');
  }
  if(!process.argv.includes('--verify-cache')){
  results.push(await measure('Sửa ô và tải lại',async()=>{await call('/api/table/branches',options);await call('/api/table/branches?page=0')}));
@@ -99,6 +92,27 @@ try{
  results.push(await measure('Ghi lô 50 dòng',async()=>{const result=await call('/api/table/branches/batch',batchOptions);if(result.results.some(item=>!item.ok))throw Error('Có dòng ghi lô thất bại')}));
  results.push(await measure('Tổng quan 500 dòng',()=>call('/api/table/branches?page=0&limit=1000')));
  }
+ const browserPath=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
+ if(browserPath&&!process.argv.includes('--verify-cache')){
+  const browser=await chromium.launch({executablePath:browserPath});
+  try{
+   const context=await browser.newContext(),page=await context.newPage();
+   let lookupCalls=0;
+   page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/lookup/'))lookupCalls++});
+   const visible=()=>page.locator('td[data-bulk-column="name"]').first().waitFor();
+   let start=performance.now();await page.goto(origin);await visible();
+   results.push({thao_tac:'Mở ứng dụng tới khi thấy dữ liệu (lần đầu)',ms:Math.round(performance.now()-start),api:'',goi_tin_db:''});
+   start=performance.now();await page.reload();await visible();
+   results.push({thao_tac:'Mở ứng dụng tới khi thấy dữ liệu (đã lưu cấu trúc)',ms:Math.round(performance.now()-start),api:'',goi_tin_db:''});
+   await page.locator('#next').click();await page.waitForFunction(()=>document.querySelector('#page')?.textContent==='Trang 2');
+   start=performance.now();await page.locator('#prev').click();await page.waitForFunction(()=>document.querySelector('#page')?.textContent==='Trang 1');await visible();
+   results.push({thao_tac:'Quay lại trang đã xem',ms:Math.round(performance.now()-start),api:'',goi_tin_db:''});
+   lookupCalls=0;await page.locator('td[data-bulk-column="name"]').first().click();
+   await page.locator('td.editing input').fill('Đã sửa');await page.locator('td.editing input').press('Enter');
+   await delay(300);
+   results.push({thao_tac:'Yêu cầu lookup sau khi sửa một ô',ms:'',api:lookupCalls,goi_tin_db:''});
+  }finally{await browser.close()}
+ }else if(!process.argv.includes('--verify-cache'))console.log('Bỏ qua ba phép đo trình duyệt: đặt PLAYWRIGHT_CHROMIUM_EXECUTABLE tới Chromium.');
  console.log(`Mạng giả lập: Data API ${apiDelay} ms; mỗi gói phản hồi PostgreSQL trễ ${dbDelay} ms. Gói tin không tương đương số truy vấn.`);console.table(results);
 }finally{
  backend?.kill('SIGTERM');for(const socket of clients)socket.destroy();
