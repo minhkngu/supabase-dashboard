@@ -223,7 +223,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
 | F | Sửa điểm yếu của phép đo, test cache PostgreSQL | **Xong** (F1–F4) |
 | C | Gỡ edge/Sites | **Xong** (C1–C3) |
-| D | CI | Chưa bắt đầu |
+| D | CI | **Xong** (`.github/workflows/ci.yml`) |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
 | G (B4) | Đo một lần trên Vercel | Sau cùng, do người dùng thao tác |
 
