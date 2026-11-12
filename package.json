@@ -6,16 +6,18 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "vitest run",
+    "pretest": "vite build",
     "dev": "node dev.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.js.json",
     "test:e2e": "playwright test",
+    "bench": "node scripts/bench.mjs",
     "format": "prettier --write \"**/*.{mjs,js,ts,css,html}\"",
     "format:check": "prettier --check \"**/*.{mjs,js,ts,css,html}\""
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "pg": "^8.16.3"

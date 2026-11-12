@@ -1,37 +1,64 @@
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
 import { load, render } from './grid/render.js';
-import { $, PAGE_SIZE, el, name, state } from './state.js';
+import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
-const lookupStorageKey = 'siris-lookups-v1';
-export function restoreLookups() {
-  try {
-    const data = JSON.parse(localStorage.getItem(lookupStorageKey) || '[]');
-    state.lookups = Array.isArray(data)
-      ? data.filter(
-          x =>
-            x &&
-            typeof x.id === 'string' &&
-            typeof x.sourceTable === 'string' &&
-            typeof x.sourceColumn === 'string' &&
-            typeof x.targetTable === 'string' &&
-            typeof x.targetKey === 'string' &&
-            typeof x.targetField === 'string' &&
-            typeof x.label === 'string',
-        )
-      : [];
-  } catch {
-    state.lookups = [];
+
+// Lookup values are stable for a short while; asking again on every page load
+// costs one request per virtual lookup column. Duplicate in-flight values wait
+// for the same request instead of issuing their own.
+export async function cachedLookup(table, column, values, fields) {
+  const key = JSON.stringify([table, column, fields ? [...new Set(fields)].sort() : null]);
+  let group = lookupCache.get(key);
+  if (!group) {
+    group = { table, values: new Map(), pending: new Map() };
+    lookupCache.set(key, group);
   }
+  const unique = [...new Map(values.map(value => [String(value), value])).values()],
+    now = Date.now(),
+    waiting = new Set(),
+    missing = [];
+  for (const value of unique) {
+    const k = String(value),
+      cached = group.values.get(k);
+    if (cached && now - cached.time < 60000) continue;
+    if (group.pending.has(k)) waiting.add(group.pending.get(k));
+    else missing.push(value);
+  }
+  if (missing.length) {
+    let request;
+    request = api(`/api/lookup/${table}`, {
+      method: 'POST',
+      body: JSON.stringify({ column, values: missing, ...(fields ? { fields } : {}) }),
+    })
+      .then(data => {
+        if (!Array.isArray(data.rows)) throw Error('Kết quả lookup không hợp lệ.');
+        if (lookupCache.get(key) === group)
+          for (const value of missing)
+            group.values.set(String(value), {
+              time: Date.now(),
+              rows: data.rows.filter(row => row[column] != null && String(row[column]) === String(value)),
+            });
+        return data.rows;
+      })
+      .finally(() => {
+        for (const value of missing) if (group.pending.get(String(value)) === request) group.pending.delete(String(value));
+      });
+    for (const value of missing) group.pending.set(String(value), request);
+    waiting.add(request);
+  }
+  if (waiting.size) await Promise.all(waiting);
+  if (lookupCache.get(key) !== group) return cachedLookup(table, column, values, fields);
+  return unique.flatMap(value => group.values.get(String(value))?.rows || []);
+}
+// Lookup configuration lives in Supabase (`siris_admin.lookup_configs`), never
+// in this browser: a local copy would drift from the server that actually
+// writes the trigger-maintained columns.
+export function restoreLookups() {
+  state.lookups = [];
 }
 export function persistLookups() {
-  if (lookupCloudAvailable) return true;
-  try {
-    localStorage.setItem(lookupStorageKey, JSON.stringify(state.lookups));
-    return true;
-  } catch {
-    return false;
-  }
+  return lookupCloudAvailable;
 }
 export function lookupType(c) {
   if (!c || /json|array|bytea/i.test(c.data_type) || c.data_type.startsWith('_')) return null;
@@ -448,11 +475,7 @@ export async function loadLookups() {
             ).values(),
           ];
           if (!values.length) return [];
-          const data = await api(`/api/lookup/${x.targetTable}`, {
-            method: 'POST',
-            body: JSON.stringify({ column: rule.targetKey, values }),
-          });
-          return data.rows;
+          return cachedLookup(x.targetTable, rule.targetKey, values);
         }),
       )
         .then(lists => {

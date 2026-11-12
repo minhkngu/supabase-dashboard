@@ -41,7 +41,7 @@ Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm
 
 ## Bản online
 
-Bản online chạy qua edge function `supabase/functions/siris-manager/` và Sites worker trong repo riêng `chatgpt-site/`. Sau khi đổi mã, trên máy có `chatgpt-site/` chạy `npm run build` rồi `node scripts/prepare-chatgpt-site.mjs`, sau đó deploy cả edge function lẫn Sites worker.
+Bản online chạy trên Vercel: `vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`, dùng chung `server/app.mjs` với bản cục bộ. Xem `VERCEL.md` để cấu hình biến môi trường và deploy bằng `npx vercel deploy --prod`.
 
 ## Phím tắt
 
@@ -68,3 +68,13 @@ Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.look
 Cột công thức tạo trực tiếp trong Supabase (`GENERATED ALWAYS AS`) có thể xóa trong **Thiết lập cột** nếu không có phụ thuộc. Máy chủ kiểm tra phụ thuộc PostgreSQL, liên kết và lookup trước khi hiện xác nhận, rồi kiểm tra lại trong transaction sau khi khóa bảng. Xác nhận hiển thị công thức và số giá trị bị xóa; thao tác dùng `DROP COLUMN ... RESTRICT`, không xóa dây chuyền. Khóa chính và identity vẫn được bảo vệ. Phụ thuộc trong mã ứng dụng bên ngoài database cần được người quản trị kiểm tra riêng.
 
 Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.
+
+## Đo hiệu năng cục bộ
+
+`npm run bench` dựng PostgreSQL tạm và Data API giả lập chỉ trên loopback; không dùng dữ liệu Supabase. Cần PostgreSQL 16 (`initdb` và `pg_ctl` trong PATH), hoặc chỉ định thư mục `bin`:
+
+```sh
+SIRIS_BENCH_PG_BIN=/duong/dan/postgresql/bin npm run bench
+```
+
+Mặc định giả lập độ trễ Data API 60 ms và mỗi gói phản hồi PostgreSQL 40 ms. Có thể đặt `SIRIS_BENCH_API_MS=150 SIRIS_BENCH_DB_MS=100` để đo mạng xa. Cột gói tin là số lần nhận dữ liệu qua proxy, không phải số truy vấn SQL; phép đo có thể khác số liệu thực do cách hệ điều hành gom gói. Chạy cùng cấu hình để so sánh trước và sau.

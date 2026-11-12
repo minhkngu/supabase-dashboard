@@ -66,6 +66,45 @@ export async function handleTable(ctx, req, res, u) {
     response(res, 200, { counts: await groupCounts(ctx, t, grouped[1], u.searchParams) });
     return true;
   }
+  const batch = u.pathname.match(/^\/api\/table\/([a-zA-Z0-9_]+)\/batch$/);
+  if (batch) {
+    if (req.method !== 'POST') {
+      response(res, 405, { error: 'Không hỗ trợ' });
+      return true;
+    }
+    const name = batch[1],
+      t = ctx.meta(name),
+      input = await body(req);
+    if (!Array.isArray(input.changes) || !input.changes.length || input.changes.length > 50)
+      throw Error('Danh sách thay đổi phải có từ 1 đến 50 dòng.');
+    const seen = new Set();
+    for (const change of input.changes) {
+      if (!change || typeof change !== 'object' || Array.isArray(change)) throw Error('Thay đổi không hợp lệ.');
+      if (t.primary_keys.length && t.primary_keys.every(k => change.key?.[k] != null)) {
+        const key = JSON.stringify(t.primary_keys.map(k => change.key[k]));
+        if (seen.has(key)) throw Error('Không thể gửi trùng khóa trong một lô.');
+        seen.add(key);
+      }
+    }
+    const results = new Array(input.changes.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(5, input.changes.length) }, async () => {
+        for (;;) {
+          const i = next++;
+          if (i >= input.changes.length) return;
+          try {
+            const result = await writeTable(ctx, t, name, 'PATCH', input.changes[i]);
+            results[i] = { ok: true, rows: result.rows };
+          } catch (error) {
+            results[i] = { ok: false, error: error.message || 'Không thể lưu dòng.' };
+          }
+        }
+      }),
+    );
+    response(res, 200, { results });
+    return true;
+  }
   const match = u.pathname.match(/^\/api\/table\/([a-zA-Z0-9_]+)$/);
   if (!match) return false;
   const name = match[1],
@@ -77,20 +116,23 @@ export async function handleTable(ctx, req, res, u) {
     q.set('select', t.columns.map(c => '"' + c.name.replaceAll('"', '\\"') + '"').join(','));
     q.set('limit', String(limit));
     q.set('offset', String(page * limit));
-    // count=0 skips the exact count when the client already knows the total.
-    const withCount = u.searchParams.get('count') !== '0';
+    // count=none skips the exact count when the client already knows the total.
+    const withCount = !['none', '0'].includes(u.searchParams.get('count'));
     const { data, range } = await ctx.upstream(`${name}?${q}`, withCount ? { headers: { Prefer: 'count=exact' } } : {});
     const total = withCount ? Number(range?.split('/')[1]) || 0 : null;
     response(res, 200, { rows: data, total, page, limit });
     return true;
   }
-  if (!t.primary_keys?.length) {
-    response(res, 403, { error: 'Bảng không có khóa chính; chỉ có thể xem dữ liệu.' });
-    return true;
-  }
-  const b = await body(req);
-  const method = req.method,
-    q = new URLSearchParams();
+  response(res, 200, await writeTable(ctx, t, name, req.method, await body(req)));
+  return true;
+}
+
+// Applies one POST, PATCH or DELETE through the Data API. The batch route runs
+// this five times at once and reports the outcome per row.
+async function writeTable(ctx, t, name, method, b) {
+  if (!t.primary_keys?.length)
+    throw Object.assign(Error('Bảng không có khóa chính; chỉ có thể xem dữ liệu.'), { status: 403 });
+  const q = new URLSearchParams();
   if (method === 'PATCH' || method === 'DELETE') {
     for (const pk of t.primary_keys) {
       if (b.key?.[pk] === undefined || b.key[pk] === null) throw Error('Thiếu khóa chính');
@@ -112,10 +154,7 @@ export async function handleTable(ctx, req, res, u) {
       q.append(column, value === null ? 'is.null' : `eq.${value}`);
     }
   }
-  if (!['POST', 'PATCH', 'DELETE'].includes(method)) {
-    response(res, 405, { error: 'Không hỗ trợ' });
-    return true;
-  }
+  if (!['POST', 'PATCH', 'DELETE'].includes(method)) throw Object.assign(Error('Không hỗ trợ'), { status: 405 });
   if (method !== 'DELETE') {
     const formulas = (await ctx.cachedConfig('formula', () => ctx.admin.formulaSync.list())).filter(
       f => f.enabled && f.table === name,
@@ -133,6 +172,5 @@ export async function handleTable(ctx, req, res, u) {
   });
   if ((method === 'PATCH' || method === 'DELETE') && !result.data?.length)
     throw Error('Không có bản ghi nào được cập nhật. Kiểm tra quyền hoặc dữ liệu đã thay đổi.');
-  response(res, 200, { rows: result.data });
-  return true;
+  return { rows: result.data };
 }

@@ -15,9 +15,14 @@ const allowed = new Set([
 export function filterQuery(params, table) {
   const q = new URLSearchParams(),
     cols = new Map(table.columns.map(c => [c.name, c]));
-  const search = params.get('search')?.trim();
+  const search = params.get('search')?.trim(),
+    searchColumn = params.get('search_column');
+  if (searchColumn && (!cols.has(searchColumn) || !['text', 'character varying'].includes(cols.get(searchColumn).data_type)))
+    throw Error('Cột tìm kiếm không hợp lệ');
   if (search) {
-    const candidates = table.columns.filter(c => ['text', 'character varying'].includes(c.data_type));
+    const candidates = table.columns.filter(
+      c => ['text', 'character varying'].includes(c.data_type) && (!searchColumn || c.name === searchColumn),
+    );
     if (candidates.length)
       q.set('or', `(${candidates.map(c => `${c.name}.ilike.*${search.replace(/[,*().\\]/g, ' ')}*`).join(',')})`);
   }

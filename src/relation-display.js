@@ -1,7 +1,8 @@
-import { api, toast } from './api.js';
+import { toast } from './api.js';
 import { load, render } from './grid/render.js';
-import { fillOptions, lookupTable } from './lookup.js';
+import { cachedLookup, fillOptions, lookupTable } from './lookup.js';
 import { $, name, state } from './state.js';
+import { getJSON, setJSON, storageKeys } from './storage.js';
 
 export function nativeRelations(table = state.table) {
   return (table?.foreign_key_constraints || [])
@@ -18,13 +19,10 @@ export function nativeRelations(table = state.table) {
       },
     }));
 }
-const relationDisplayKey = 'siris-relation-display-v1';
 export let relationDisplaySettings = {};
 export function initRelationDisplay() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(relationDisplayKey) || '{}');
-    if (saved && typeof saved === 'object' && !Array.isArray(saved)) relationDisplaySettings = saved;
-  } catch {}
+  const saved = getJSON(storageKeys.relationDisplay, {});
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) relationDisplaySettings = saved;
   $('#closeRelationDisplay').onclick = $('#cancelRelationDisplay').onclick = () => $('#relationDisplayDialog').close();
   $('#relationDisplayForm').onsubmit = e => {
     e.preventDefault();
@@ -38,9 +36,7 @@ export function initRelationDisplay() {
     const key = displaySettingKey(relation),
       previous = relationDisplaySettings[key];
     relationDisplaySettings[key] = field;
-    try {
-      localStorage.setItem(relationDisplayKey, JSON.stringify(relationDisplaySettings));
-    } catch {
+    if (!setJSON(storageKeys.relationDisplay, relationDisplaySettings)) {
       if (previous === undefined) delete relationDisplaySettings[key];
       else relationDisplaySettings[key] = previous;
       $('#relationDisplayError').textContent = 'Không thể lưu lựa chọn trên trình duyệt.';
@@ -119,18 +115,13 @@ export async function loadNativeDisplays() {
       ];
       if (!values.length) return;
       try {
-        const result = await api(`/api/lookup/${relation.config.targetTable}`, {
-          method: 'POST',
-          body: JSON.stringify({
-            column: relation.config.targetKey,
-            values,
-            fields: [relationDisplayField(relation)],
-          }),
-        });
+        const result = await cachedLookup(relation.config.targetTable, relation.config.targetKey, values, [
+          relationDisplayField(relation),
+        ]);
         if (version === nativeDisplayVersion)
           nativeDisplayRows.set(
             relation.id,
-            new Map(result.rows.map(row => [String(row[relation.config.targetKey]), row])),
+            new Map(result.map(row => [String(row[relation.config.targetKey]), row])),
           );
       } catch {
         if (version === nativeDisplayVersion) nativeDisplayRows.set(relation.id, null);

@@ -1,8 +1,11 @@
-import { $, clearPageCache, state, el } from './state.js';
+import { $, clearPageCache, invalidateLookupCache, state, el } from './state.js';
 
 export async function api(url, opts = {}) {
-  if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/'))
+  if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/')) {
     clearPageCache();
+    const match = url.match(/^\/api\/table\/([^/?]+)/);
+    invalidateLookupCache(match ? decodeURIComponent(match[1]) : null);
+  }
   let r;
   try {
     r = await fetch(url, {

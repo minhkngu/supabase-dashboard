@@ -1,5 +1,5 @@
 // Local server: binds to loopback and keeps Supabase credentials server-side.
-// The request handling itself is shared with the edge function (server/app.mjs).
+// The request handling itself is shared with the Vercel function (server/app.mjs).
 import http from 'node:http';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';

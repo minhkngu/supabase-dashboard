@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Readable } from 'node:stream';
-import { createVercelHandler } from '../server/vercel.mjs';
+import { createLoginThrottle, createVercelHandler } from '../server/vercel.mjs';
 import { createSessionAuth } from '../server/session-auth.mjs';
 
 const env = { SIRIS_LOGIN_USER: 'owner', SIRIS_LOGIN_PASSWORD: 'test-password-with-16-characters' };
@@ -125,6 +125,58 @@ describe('Vercel adapter', () => {
     for (const origin of [undefined, 'https://attacker.example', 'https://siris.vercel.app']) {
       expect((await call(app, { method: 'POST', headers: origin ? { origin } : {} })).status).toBe(403);
     }
+  });
+  it('gives each session its own write token', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const first = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+      body: new URLSearchParams({ username: env.SIRIS_LOGIN_USER, password: env.SIRIS_LOGIN_PASSWORD }).toString(),
+    });
+    const second = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app', 'x-forwarded-for': '203.0.113.9' },
+      body: new URLSearchParams({ username: env.SIRIS_LOGIN_USER, password: env.SIRIS_LOGIN_PASSWORD }).toString(),
+    });
+    const cookieA = first.headers['Set-Cookie'].split(';')[0],
+      cookieB = second.headers['Set-Cookie'].split(';')[0];
+    const tokenA = JSON.parse((await call(app, { headers: { authorization: '', cookie: cookieA } })).text).token;
+    const tokenB = JSON.parse((await call(app, { headers: { authorization: '', cookie: cookieB } })).text).token;
+    expect(tokenA).not.toBe(tokenB);
+    const crossed = await call(app, {
+      url: '/api/unknown',
+      method: 'POST',
+      headers: { authorization: '', cookie: cookieB, origin: 'https://siris.vercel.app', 'x-siris-token': tokenA },
+      body: {},
+    });
+    expect(crossed.status).toBe(403);
+  });
+  it('throttles repeated failed logins and recovers after the window', () => {
+    let time = 0;
+    const throttle = createLoginThrottle({ limit: 2, windowMs: 1000, now: () => time });
+    throttle.fail('203.0.113.1');
+    throttle.fail('203.0.113.1');
+    expect(throttle.blocked('203.0.113.1')).toBe(true);
+    expect(throttle.blocked('203.0.113.2')).toBe(false);
+    time = 1001;
+    expect(throttle.blocked('203.0.113.1')).toBe(false);
+    throttle.fail('203.0.113.1');
+    throttle.clear('203.0.113.1');
+    expect(throttle.blocked('203.0.113.1')).toBe(false);
+  });
+  it('returns 429 after too many wrong passwords from one address', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const attempt = () =>
+      call(app, {
+        url: '/auth/login',
+        method: 'POST',
+        headers: { authorization: '', origin: 'https://siris.vercel.app', 'x-forwarded-for': '203.0.113.3' },
+        body: { username: env.SIRIS_LOGIN_USER, password: 'wrong' },
+      });
+    for (let i = 0; i < 10; i++) expect((await attempt()).status).toBe(401);
+    expect((await attempt()).status).toBe(429);
   });
   it('passes authenticated same-origin requests to the shared routes', async () => {
     const app = await createVercelHandler(env, tables, process.cwd());

@@ -246,14 +246,6 @@ export function createAdmin(connectionString, poolOverride) {
     if (!validName(enumName) || !(await enumTypes(client)).includes(enumName)) throw Error('Kiểu enum không tồn tại.');
     return `public.${ident(enumName)}`;
   }
-  async function definitions(client = pool) {
-    const check = await client.query("SELECT to_regclass('siris_admin.columns') AS name");
-    if (!check.rows[0].name) return [];
-    const result = await client.query(
-      'SELECT id::text,source_table,label,kind,config FROM siris_admin.columns ORDER BY created_at,id',
-    );
-    return result.rows;
-  }
   function getTable(tables, n) {
     const t = tables.find(x => x.name === `public.${n}`);
     if (!t) throw Error('Không tìm thấy bảng.');
@@ -266,12 +258,7 @@ export function createAdmin(connectionString, poolOverride) {
       t = getTable(tables, req.table),
       col = t.columns.find(c => c.name === req.column);
     if (!col) throw Error('Không tìm thấy cột.');
-    const defs = await definitions(client);
-    if (
-      t.columns.some(c => c.name === req.newName) ||
-      defs.some(d => d.source_table === req.table && d.label === req.newName)
-    )
-      throw Error('Tên cột đã tồn tại.');
+    if (t.columns.some(c => c.name === req.newName)) throw Error('Tên cột đã tồn tại.');
     const type = col.format || col.data_type;
     if (!type || typeof type !== 'string') throw Error('Không đọc được kiểu dữ liệu của cột.');
     const count = await client.query(
@@ -279,7 +266,7 @@ export function createAdmin(connectionString, poolOverride) {
       ),
       affected = Number(count.rows[0].n);
     const signature = createHash('sha256')
-      .update(JSON.stringify({ table: t, defs, req, affected }))
+      .update(JSON.stringify({ table: t, req, affected }))
       .digest('hex');
     return {
       signature,
@@ -295,18 +282,13 @@ export function createAdmin(connectionString, poolOverride) {
     if (req.action === 'duplicate') return previewDuplicate(req, client);
     const tables = await metadata(client),
       t = getTable(tables, req.table),
-      defs = await definitions(client),
       col = t.columns.find(c => c.name === req.column);
     if (!['add', 'rename', 'type', 'delete', 'settings'].includes(req.action)) throw Error('Thao tác không hợp lệ.');
     if (req.action !== 'add' && !col) throw Error('Không tìm thấy cột.');
     if (req.action === 'add' || req.action === 'rename') {
       if (!validName(req.newName))
         throw Error('Tên cột chỉ gồm chữ, số và dấu gạch dưới, bắt đầu bằng chữ hoặc dấu gạch dưới.');
-      if (
-        t.columns.some(c => c.name === req.newName) ||
-        defs.some(c => c.source_table === req.table && c.label === req.newName)
-      )
-        throw Error('Tên cột đã tồn tại.');
+      if (t.columns.some(c => c.name === req.newName)) throw Error('Tên cột đã tồn tại.');
     }
     if (
       ['add', 'type'].includes(req.action) &&
@@ -477,31 +459,6 @@ export function createAdmin(connectionString, poolOverride) {
           throw Error('Cột đang được lookup sử dụng. Hãy xử lý lookup trước.');
       }
     }
-    if (
-      col &&
-      defs.some(d => {
-        if (d.kind === 'relation') return d.config.targetTable === req.table && d.config.labelField === col.name;
-        if (d.kind !== 'lookup') return false;
-        let target = d.config.legacy?.targetTable;
-        let sourceColumn = d.config.legacy?.sourceColumn;
-        if (d.config.legacy && d.source_table === req.table && sourceColumn === col.name) return true;
-        if (d.config.relationId?.startsWith('legacy:')) {
-          const parent = defs.find(p => p.id === d.config.relationId.slice(7) && p.config.legacy);
-          if (parent) target = parent.config.legacy.targetTable;
-        }
-        const rel = defs.find(r => r.id === d.config.relationId && r.kind === 'relation');
-        if (rel) target = rel.config.targetTable;
-        if (d.config.relationId?.startsWith('native:')) {
-          const sourceTable = tables.find(t => t.name === `public.${d.source_table}`);
-          const fk = sourceTable?.foreign_key_constraints.find(
-            f => f.source_table === sourceTable.name && f.name === d.config.relationId.slice(7),
-          );
-          if (fk) target = fk.target_table.slice(7);
-        }
-        return target === req.table && (d.config.targetField === col.name || d.config.legacy?.targetKey === col.name);
-      })
-    )
-      throw Error('Cột đang được liên kết hoặc lookup sử dụng.');
     let affected = 0;
     if (col) {
       const count = await client.query(
@@ -519,7 +476,7 @@ export function createAdmin(connectionString, poolOverride) {
       }
     }
     const signature = createHash('sha256')
-      .update(JSON.stringify({ table: t, defs, affected, req }))
+      .update(JSON.stringify({ table: t, affected, req }))
       .digest('hex');
     return {
       signature,
@@ -630,7 +587,6 @@ export function createAdmin(connectionString, poolOverride) {
     metadata,
     visibleMetadata,
     enumTypes,
-    definitions,
     preview,
     apply,
     close: () => pool?.end(),

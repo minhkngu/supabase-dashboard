@@ -1,4 +1,0 @@
-const encoder=new TextEncoder();
-export const payload=(method,path,time,nonce,bodyHash)=>encoder.encode([method,path.includes('/api/')?path.slice(path.indexOf('/api/')):path,time,nonce,bodyHash].join('\n'));
-export async function hash(bytes){return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),x=>x.toString(16).padStart(2,'0')).join('')}
-export async function verify(request,body,key){try{const time=request.headers.get('x-siris-time'),nonce=request.headers.get('x-siris-nonce'),signature=request.headers.get('x-siris-signature');if(!time||!/^\d+$/.test(time)||Math.abs(Date.now()-Number(time))>30000||!nonce||!signature)return false;const u=new URL(request.url);return await crypto.subtle.verify('Ed25519',key,Uint8Array.from(atob(signature),c=>c.charCodeAt(0)),payload(request.method,u.pathname+u.search,time,nonce,await hash(body)))}catch{return false}}

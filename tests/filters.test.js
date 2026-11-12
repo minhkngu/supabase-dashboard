@@ -23,6 +23,16 @@ describe('lọc và sắp xếp', () => {
     expect(q.getAll('price')).toEqual(['gte.10', 'lte.20']);
     expect(q.get('order')).toBe('price.desc,id.asc');
   });
+  it('tìm trên một cột văn bản và từ chối cột không phải văn bản', () => {
+    const q = filterQuery(new URLSearchParams({ search: 'Mia', search_column: 'name' }), table);
+    expect(q.get('or')).toBe('(name.ilike.*Mia*)');
+    expect(() => filterQuery(new URLSearchParams({ search: 'Mia', search_column: 'price' }), table)).toThrow(
+      'Cột tìm kiếm không hợp lệ',
+    );
+    expect(() => filterQuery(new URLSearchParams({ search: 'Mia', search_column: 'missing' }), table)).toThrow(
+      'Cột tìm kiếm không hợp lệ',
+    );
+  });
   it('lọc bằng với văn bản dùng eq và từ chối cột lạ', () => {
     const q = filterQuery(
       new URLSearchParams({ filters: JSON.stringify([{ column: 'name', operator: 'eq', value: 'Mia' }]) }),

@@ -9,13 +9,25 @@ import { createTtlCache } from '../server-cache.mjs';
 
 export const LOOKUP_STORE_MISSING = 'Chưa thiết lập nơi lưu lookup trên Supabase.';
 
+// One pool serves metadata, schema changes and lookup configuration. Keeping
+// idle connections alive avoids opening a new pair on every cell edit.
+export function createPool(connectionString) {
+  return connectionString
+    ? new pg.Pool({
+        connectionString,
+        max: 4,
+        connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 300000,
+        keepAlive: true,
+      })
+    : null;
+}
+
 // tables: the saved schema.json metadata, used until live metadata is read.
 export async function createContext(config, tables) {
-  const admin = createAdmin(config.admin.url),
-    lookupPool = config.admin.url
-      ? new pg.Pool({ connectionString: config.admin.url, max: 2, connectionTimeoutMillis: 5000 })
-      : null,
-    lookupStore = createLookupStore(lookupPool),
+  const pool = createPool(config.admin.url),
+    admin = createAdmin(config.admin.url, pool),
+    lookupStore = createLookupStore(pool),
     configCache = createTtlCache();
   const ctx = {
     config,

@@ -6,15 +6,11 @@ import { clearBulk } from './grid/selection.js';
 import { activeLookups } from './lookup.js';
 
 import { $, el, name, state, $$ } from './state.js';
+import { getJSON, setJSON, setText, storageKeys } from './storage.js';
 
-const viewStorageKey = 'siris-views-v1';
 export function restoreViews() {
-  try {
-    const data = JSON.parse(localStorage.getItem(viewStorageKey) || '{}');
-    state.views = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-  } catch {
-    state.views = {};
-  }
+  const data = getJSON(storageKeys.views, {});
+  state.views = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
 }
 export function validFilterRules(rules, table) {
   const columns = new Set(table.columns.map(c => c.name)),
@@ -51,16 +47,14 @@ function currentView() {
 export function persistView() {
   if (!state.table || !state.view) return;
   state.view.search = $('#search').value;
+  state.view.searchColumn = $('#searchColumn')?.value || '';
   state.view.freezeDefaultInitialized = true;
   state.view.page = state.page;
   state.view.collapsed = [...state.collapsed];
   state.views[name(state.table)] = state.view;
-  try {
-    localStorage.setItem(viewStorageKey, JSON.stringify(state.views));
-    localStorage.setItem('siris-current-table', name(state.table));
-  } catch {
-    toast('Không thể lưu cấu hình trên trình duyệt');
-  }
+  const saved = setJSON(storageKeys.views, state.views);
+  setText(storageKeys.currentTable, name(state.table));
+  if (!saved) toast('Không thể lưu cấu hình trên trình duyệt');
 }
 // A uuid primary key named id carries no meaning for people; by default it
 // goes last and is shown narrow.

@@ -1,5 +1,5 @@
 // The request handler shared by the local server (server.mjs) and the
-// Supabase edge function (supabase/functions/siris-manager/backend.mjs).
+// Vercel function (api/handler.mjs → server/vercel.mjs).
 import process from 'node:process';
 import { createContext } from './context.mjs';
 import { rejectRequest, response, sendError } from './http.mjs';

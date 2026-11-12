@@ -40,7 +40,9 @@ export function rejectRequest(req, u, { port, csrf }) {
   ];
   if (req.headers.origin && !allowedOrigins.includes(req.headers.origin)) return [403, 'Nguồn truy cập không hợp lệ'];
   if (req.method !== 'GET' && !req.headers.origin) return [403, 'Thiếu nguồn truy cập'];
-  if (req.method !== 'GET' && req.headers['x-siris-token'] !== csrf) return [403, 'Phiên không hợp lệ'];
+  const expected = typeof csrf === 'function' ? csrf(req) : csrf;
+  if (req.method !== 'GET' && (!expected || req.headers['x-siris-token'] !== expected))
+    return [403, 'Phiên không hợp lệ'];
   return null;
 }
 

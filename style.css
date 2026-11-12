@@ -962,12 +962,12 @@ h1 {
 }
 
 .toolbar-left {
-  flex: 0 1 220px;
-  min-width: 180px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .toolbar-left .search {
-  width: 100%;
+  width: 220px;
 }
 
 .toolbar-right {
@@ -977,6 +977,10 @@ h1 {
 @container (max-width: 690px) {
   .toolbar-left {
     flex-basis: 100%;
+  }
+
+  .toolbar-left .search {
+    width: 100%;
   }
 }
 
@@ -1020,6 +1024,37 @@ h1 {
 
 .search input::placeholder {
   color: var(--text-faint);
+}
+
+#searchColumn {
+  max-width: 170px;
+  min-height: 36px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  padding: 0 8px;
+}
+
+/* The native select is replaced by the shared custom select; keep that
+   control on the same toolbar row as the search box. */
+.toolbar-left .custom-select-wrap {
+  width: 170px;
+  flex: 0 0 auto;
+}
+
+.toolbar-left .custom-select-btn {
+  min-height: 36px;
+}
+
+@media (max-width: 520px) {
+  #searchColumn {
+    max-width: 140px;
+  }
+
+  .toolbar-left .custom-select-wrap {
+    width: 140px;
+  }
 }
 
 /* DROPDOWN & VIEW MENU TRIGGERS (LỌC, NHÓM, SẮP XẾP) */
