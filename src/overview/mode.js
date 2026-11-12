@@ -8,27 +8,20 @@ import { clearBulk } from '../grid/selection.js';
 import { syncChrome } from '../chrome.js';
 import { openEditor } from '../record-editor.js';
 import { $, deletionBusy, state } from '../state.js';
+import { getJSON, getText, setJSON, storageKeys } from '../storage.js';
 import { closeViewMenus } from '../view-menus.js';
 
 let overviewMode = false;
 export function savedOverviewMode(table) {
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
-    return (
-      (saved[table.name] ??
-        (table.name === PROMOTIONS_TABLE ? localStorage.getItem('siris-promotions-display-v1') : null)) === 'dashboard'
-    );
-  } catch {
-    return false;
-  }
+  const saved = getJSON(storageKeys.tableDisplay, {});
+  const legacy = table.name === PROMOTIONS_TABLE ? getText(storageKeys.promotionsDisplay, '') : null;
+  return (saved?.[table.name] ?? legacy) === 'dashboard';
 }
 function saveOverviewMode(mode) {
   overviewMode = mode;
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-display-v1') || '{}');
-    saved[state.table.name] = mode ? 'dashboard' : 'table';
-    localStorage.setItem('siris-table-display-v1', JSON.stringify(saved));
-  } catch {}
+  const saved = getJSON(storageKeys.tableDisplay, {});
+  saved[state.table.name] = mode ? 'dashboard' : 'table';
+  setJSON(storageKeys.tableDisplay, saved);
 }
 export const promotionsOverview = createPromotionsOverview({
   host: $('#promotionsDashboard'),

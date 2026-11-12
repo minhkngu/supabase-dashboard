@@ -7,6 +7,7 @@ import { recordFieldHint } from './record-editor.js';
 import { loadNativeDisplays } from './relation-display.js';
 import { nav, restoreSidebar } from './sidebar.js';
 import { $, deletionBusy, name, state, writable } from './state.js';
+import { getJSON, getText, setJSON, storageKeys } from './storage.js';
 import { restoreViews } from './view-menus.js';
 
 export function syncEditorReadiness() {
@@ -98,21 +99,17 @@ async function initialize() {
   request.catch(() => {});
   restoreLookups();
   restoreViews();
-  let current, cachedLoad;
-  try {
-    current = localStorage.getItem('siris-current-table');
-  } catch {}
+  let cachedLoad;
+  const current = getText(storageKeys.currentTable, '');
   // Draw the sidebar and load a page from the metadata saved by the previous
   // visit, so data appears without waiting for the metadata round trip.
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-metadata-v1') || 'null');
-    if (Array.isArray(saved?.tables) && saved.tables.length) {
-      state.tables = saved.tables;
-      restoreSidebar();
-      nav();
-      cachedLoad = choose(state.tables.find(t => name(t) === current) || state.tables[0]);
-    }
-  } catch {}
+  const saved = getJSON(storageKeys.metadata, null);
+  if (Array.isArray(saved?.tables) && saved.tables.length) {
+    state.tables = saved.tables;
+    restoreSidebar();
+    nav();
+    cachedLoad = choose(state.tables.find(t => name(t) === current) || state.tables[0]);
+  }
   try {
     const apply = async next => {
       const old = state.table,
@@ -124,9 +121,7 @@ async function initialize() {
       state.token = next.token;
       restoreSidebar();
       nav();
-      try {
-        localStorage.setItem('siris-metadata-v1', JSON.stringify({ tables: state.tables }));
-      } catch {}
+      setJSON(storageKeys.metadata, { tables: state.tables });
       const selected = state.tables.find(t => name(t) === (oldName || current)) || state.tables[0];
       if (!selected) {
         state.table = null;

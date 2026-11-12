@@ -1,10 +1,38 @@
 // Vercel entry adapter. Authentication covers HTML, assets and API routes.
-import { createHmac } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { createApp } from './app.mjs';
 import { configFromEnv } from './config.mjs';
 import { response } from './http.mjs';
 import { createSessionAuth, loginPage, loginValues } from './session-auth.mjs';
+
+// In-memory per instance: enough to slow repeated guessing without adding a
+// data store. Each failed attempt is logged without the password.
+export function createLoginThrottle({ limit = 10, windowMs = 15 * 60 * 1000, now = Date.now } = {}) {
+  const failures = new Map();
+  return {
+    blocked(ip) {
+      const entry = failures.get(ip);
+      if (!entry) return false;
+      if (entry.resetAt <= now()) {
+        failures.delete(ip);
+        return false;
+      }
+      return entry.count >= limit;
+    },
+    fail(ip) {
+      const entry = failures.get(ip);
+      if (!entry || entry.resetAt <= now()) failures.set(ip, { count: 1, resetAt: now() + windowMs });
+      else entry.count++;
+    },
+    clear(ip) {
+      failures.delete(ip);
+    },
+  };
+}
+function clientIp(req) {
+  const forwarded = (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.headers['x-real-ip'] || 'unknown';
+}
 
 export async function createVercelHandler(env, tables, root) {
   const user = env.SIRIS_LOGIN_USER;
@@ -12,12 +40,13 @@ export async function createVercelHandler(env, tables, root) {
   const ready = Boolean(user && password && password.length >= 16);
   const local = env.SIRIS_AUTH_LOCAL === '1' && !env.VERCEL;
   const auth = createSessionAuth(user, password, { local });
+  const throttle = createLoginThrottle();
   const port = 4173;
   const localOrigin = `http://127.0.0.1:${port}`;
   const config = configFromEnv(env, {
     root,
     port,
-    csrf: ready ? createHmac('sha256', password).update('siris-vercel-csrf').digest('hex') : 'unconfigured',
+    csrf: ready ? request => auth.csrf(request.headers) : 'unconfigured',
   });
   const app = await createApp(config, tables, { liveMetadataEachRequest: true });
   return async (req, res) => {
@@ -32,11 +61,23 @@ export async function createVercelHandler(env, tables, root) {
       return response(res, 403, { error: 'Nguồn truy cập không hợp lệ' });
     }
     if (path === '/auth/login' && req.method === 'POST') {
+      const ip = clientIp(req);
+      if (throttle.blocked(ip)) {
+        console.warn(JSON.stringify({ event: 'login_blocked', ip, at: new Date().toISOString() }));
+        return loginPage(res, 429, true);
+      }
       try {
-        if (!auth.matches(await loginValues(req))) return loginPage(res, 401, true);
+        if (!auth.matches(await loginValues(req))) {
+          throttle.fail(ip);
+          console.warn(JSON.stringify({ event: 'login_failed', ip, at: new Date().toISOString() }));
+          return loginPage(res, 401, true);
+        }
       } catch {
+        throttle.fail(ip);
+        console.warn(JSON.stringify({ event: 'login_failed', ip, at: new Date().toISOString() }));
         return loginPage(res, 400, true);
       }
+      throttle.clear(ip);
       res.writeHead(303, { Location: '/', 'Set-Cookie': auth.sessionCookie() });
       return res.end();
     }

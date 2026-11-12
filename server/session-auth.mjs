@@ -1,23 +1,33 @@
 // Password-protected personal deployment. The session is shared by all
 // function instances and invalidated when either configured credential changes.
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 const SESSION_MS = 8 * 60 * 60 * 1000;
 const digest = value => createHash('sha256').update(value).digest();
 export function createSessionAuth(user, password, { local = false, now = Date.now } = {}) {
   const cookieName = local ? 'siris_session' : '__Host-siris_session';
   const sign = payload => createHmac('sha256', `${user}:${password}`).update(`siris-session:${payload}`).digest('hex');
   const matches = value => timingSafeEqual(digest(`${user}:${password}`), digest(value));
-  function authenticated(headers) {
-    const cookie = (headers.cookie || '')
+  const cookieToken = headers =>
+    (headers.cookie || '')
       .split(';')
       .map(part => part.trim())
-      .find(part => part.startsWith(cookieName + '='));
-    const token = cookie?.slice(cookieName.length + 1) || '';
-    const match = /^(\d{13})\.([a-f0-9]{64})$/.exec(token);
+      .find(part => part.startsWith(cookieName + '='))
+      ?.slice(cookieName.length + 1) || '';
+  // A write token is derived from the caller's own cookie (or Basic
+  // credential), so two sessions never share the same CSRF value.
+  const csrf = headers => {
+    const credential = cookieToken(headers) || headers.authorization || '';
+    return credential
+      ? createHmac('sha256', `${user}:${password}`).update(`siris-csrf:${credential}`).digest('hex')
+      : '';
+  };
+  function authenticated(headers) {
+    const token = cookieToken(headers);
+    const match = /^(\d{13})\.([a-f0-9]{24})\.([a-f0-9]{64})$/.exec(token);
     if (
       match &&
       Number(match[1]) > now() &&
-      timingSafeEqual(Buffer.from(sign(match[1]), 'hex'), Buffer.from(match[2], 'hex'))
+      timingSafeEqual(Buffer.from(sign(`${match[1]}:${match[2]}`), 'hex'), Buffer.from(match[3], 'hex'))
     )
       return true;
     // Retain authenticated CLI/API access, without browser challenge loops.
@@ -25,10 +35,11 @@ export function createSessionAuth(user, password, { local = false, now = Date.no
     return /^Basic /i.test(basic) && matches(Buffer.from(basic.slice(6), 'base64').toString());
   }
   function sessionCookie() {
-    const expires = String(now() + SESSION_MS);
-    return `${cookieName}=${expires}.${sign(expires)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MS / 1000}${local ? '' : '; Secure'}`;
+    const expires = String(now() + SESSION_MS),
+      nonce = randomBytes(12).toString('hex');
+    return `${cookieName}=${expires}.${nonce}.${sign(`${expires}:${nonce}`)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MS / 1000}${local ? '' : '; Secure'}`;
   }
-  return { authenticated, matches, sessionCookie };
+  return { authenticated, matches, sessionCookie, csrf };
 }
 export async function loginValues(req) {
   let parsed = req.body;

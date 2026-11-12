@@ -3,15 +3,15 @@ import { openPopupMenu } from './grid/column-menu.js';
 import { confirmDialog, promptDialog } from './confirm.js';
 import { choose, prefetchTable } from './grid/render.js';
 import { $, el, name, state } from './state.js';
+import { getJSON, getText, setJSON, setText, storageKeys } from './storage.js';
 
 function persistSidebar() {
-  try {
-    localStorage.setItem('siris-table-order', JSON.stringify(state.tables.map(name)));
-    localStorage.setItem(
-      'siris-table-folders',
-      JSON.stringify({ folders: state.folders, tableFolders: state.tableFolders, labels: state.tableLabels }),
-    );
-  } catch {}
+  setJSON(storageKeys.tableOrder, state.tables.map(name));
+  setJSON(storageKeys.tableFolders, {
+    folders: state.folders,
+    tableFolders: state.tableFolders,
+    labels: state.tableLabels,
+  });
 }
 // A display name chosen for the table, kept in this browser only.
 export function tableLabel(t) {
@@ -34,28 +34,20 @@ export async function renameTableLabel(t) {
   if (state.table === t) $('#title').textContent = tableLabel(t);
 }
 export function restoreSidebar() {
-  try {
-    const saved = JSON.parse(localStorage.getItem('siris-table-order') || '[]');
-    if (Array.isArray(saved)) {
-      const rank = new Map(saved.map((n, i) => [n, i]));
-      state.tables.sort((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
-    }
-  } catch {}
-  try {
-    const data = JSON.parse(localStorage.getItem('siris-table-folders') || '{}');
-    state.folders = Array.isArray(data.folders)
-      ? data.folders.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string')
-      : [];
-    state.tableFolders = data.tableFolders && typeof data.tableFolders === 'object' ? data.tableFolders : {};
-    state.tableLabels =
-      data.labels && typeof data.labels === 'object' && !Array.isArray(data.labels)
-        ? Object.fromEntries(Object.entries(data.labels).filter(([, v]) => typeof v === 'string' && v.trim()))
-        : {};
-  } catch {
-    state.folders = [];
-    state.tableFolders = {};
-    state.tableLabels = {};
+  const saved = getJSON(storageKeys.tableOrder, []);
+  if (Array.isArray(saved)) {
+    const rank = new Map(saved.map((n, i) => [n, i]));
+    state.tables.sort((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
   }
+  const data = getJSON(storageKeys.tableFolders, {});
+  state.folders = Array.isArray(data?.folders)
+    ? data.folders.filter(f => f && typeof f.id === 'string' && typeof f.name === 'string')
+    : [];
+  state.tableFolders = data?.tableFolders && typeof data.tableFolders === 'object' ? data.tableFolders : {};
+  state.tableLabels =
+    data?.labels && typeof data.labels === 'object' && !Array.isArray(data.labels)
+      ? Object.fromEntries(Object.entries(data.labels).filter(([, v]) => typeof v === 'string' && v.trim()))
+      : {};
 }
 function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
   if (!draggedName || draggedName === targetName) return;
@@ -320,9 +312,7 @@ function toggleSidebar() {
   $('#toggleSidebar')?.setAttribute('aria-label', expanded ? 'Thu gọn thanh bên' : 'Mở rộng thanh bên');
   $('#sidebarToggleBtn')?.setAttribute('aria-expanded', String(expanded));
   $('#sidebarToggleBtn')?.setAttribute('title', expanded ? 'Thu gọn thanh bên (⌘B)' : 'Mở rộng thanh bên (⌘B)');
-  try {
-    localStorage.setItem('siris-sidebar-collapsed', String(!expanded));
-  } catch {}
+  setText(storageKeys.sidebarCollapsed, String(!expanded));
 }
 export function initSidebar2() {
   $('#toggleSidebar')?.addEventListener('click', e => {
@@ -346,16 +336,14 @@ export function initSidebar2() {
       toggleSidebar();
     }
   });
-  try {
-    if (localStorage.getItem('siris-sidebar-collapsed') === 'true') {
-      const s = $('#sidebar');
-      s.classList.add('collapsed');
-      $('#toggleSidebar')?.setAttribute('aria-expanded', 'false');
-      $('#toggleSidebar')?.setAttribute('aria-label', 'Mở rộng thanh bên');
-      $('#sidebarToggleBtn')?.setAttribute('aria-expanded', 'false');
-      $('#sidebarToggleBtn')?.setAttribute('title', 'Mở rộng thanh bên (⌘B)');
-    }
-  } catch {}
+  if (getText(storageKeys.sidebarCollapsed) === 'true') {
+    const s = $('#sidebar');
+    s.classList.add('collapsed');
+    $('#toggleSidebar')?.setAttribute('aria-expanded', 'false');
+    $('#toggleSidebar')?.setAttribute('aria-label', 'Mở rộng thanh bên');
+    $('#sidebarToggleBtn')?.setAttribute('aria-expanded', 'false');
+    $('#sidebarToggleBtn')?.setAttribute('title', 'Mở rộng thanh bên (⌘B)');
+  }
   $('#openNav').onclick = () => {
     $('#sidebar').classList.add('open');
     $('#scrim').classList.add('open');

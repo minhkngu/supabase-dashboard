@@ -15,6 +15,7 @@ export async function handleMeta(ctx, req, res, u) {
       adminError = 'Không thể kết nối hoặc đọc cấu trúc database. Kiểm tra SUPABASE_DB_URL và quyền truy cập.';
     }
   } else adminError = ctx.config.admin.error;
-  response(res, 200, { tables: ctx.tables, token: ctx.csrf, adminAvailable, adminError, enumTypes });
+  const token = typeof ctx.csrf === 'function' ? ctx.csrf(req) : ctx.csrf;
+  response(res, 200, { tables: ctx.tables, token, adminAvailable, adminError, enumTypes });
   return true;
 }

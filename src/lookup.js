@@ -3,7 +3,6 @@ import { api, toast } from './api.js';
 import { load, render } from './grid/render.js';
 import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
-const lookupStorageKey = 'siris-lookups-v1';
 
 // Lookup values are stable for a short while; asking again on every page load
 // costs one request per virtual lookup column. Duplicate in-flight values wait
@@ -52,34 +51,14 @@ export async function cachedLookup(table, column, values, fields) {
   if (lookupCache.get(key) !== group) return cachedLookup(table, column, values, fields);
   return unique.flatMap(value => group.values.get(String(value))?.rows || []);
 }
+// Lookup configuration lives in Supabase (`siris_admin.lookup_configs`), never
+// in this browser: a local copy would drift from the server that actually
+// writes the trigger-maintained columns.
 export function restoreLookups() {
-  try {
-    const data = JSON.parse(localStorage.getItem(lookupStorageKey) || '[]');
-    state.lookups = Array.isArray(data)
-      ? data.filter(
-          x =>
-            x &&
-            typeof x.id === 'string' &&
-            typeof x.sourceTable === 'string' &&
-            typeof x.sourceColumn === 'string' &&
-            typeof x.targetTable === 'string' &&
-            typeof x.targetKey === 'string' &&
-            typeof x.targetField === 'string' &&
-            typeof x.label === 'string',
-        )
-      : [];
-  } catch {
-    state.lookups = [];
-  }
+  state.lookups = [];
 }
 export function persistLookups() {
-  if (lookupCloudAvailable) return true;
-  try {
-    localStorage.setItem(lookupStorageKey, JSON.stringify(state.lookups));
-    return true;
-  } catch {
-    return false;
-  }
+  return lookupCloudAvailable;
 }
 export function lookupType(c) {
   if (!c || /json|array|bytea/i.test(c.data_type) || c.data_type.startsWith('_')) return null;

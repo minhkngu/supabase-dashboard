@@ -10,5 +10,7 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:3000', reuseExistingServer: true, timeout: 30000 },
+  // Always start a fresh pair of servers. Reusing a server left behind by an
+  // interrupted run can test stale code or hang on teardown.
+  webServer: { command: 'npm run dev', url: 'http://127.0.0.1:3000', reuseExistingServer: false, timeout: 30000 },
 });
