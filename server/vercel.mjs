@@ -81,7 +81,25 @@ export async function createVercelHandler(env, tables, root) {
       res.writeHead(303, { Location: '/', 'Set-Cookie': auth.sessionCookie() });
       return res.end();
     }
-    const authenticated = auth.authenticated(req.headers);
+    let authenticated = auth.sessionValid(req.headers);
+    const basic = authenticated ? null : auth.basicCredential(req.headers);
+    if (basic !== null) {
+      // Basic is checked on every request, so it shares the login throttle.
+      const ip = clientIp(req);
+      if (throttle.blocked(ip)) {
+        console.warn(JSON.stringify({ event: 'login_blocked', ip, at: new Date().toISOString() }));
+        if (path.startsWith('/api/'))
+          return response(res, 429, { error: 'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau.' });
+        return loginPage(res, 429, true);
+      }
+      if (auth.matches(basic)) {
+        throttle.clear(ip);
+        authenticated = true;
+      } else {
+        throttle.fail(ip);
+        console.warn(JSON.stringify({ event: 'login_failed', ip, at: new Date().toISOString() }));
+      }
+    }
     if (path === '/auth/login' && req.method === 'GET' && !authenticated) return loginPage(res);
     if (!authenticated) {
       if (path.startsWith('/api/'))

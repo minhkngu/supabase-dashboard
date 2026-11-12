@@ -21,25 +21,33 @@ export function createSessionAuth(user, password, { local = false, now = Date.no
       ? createHmac('sha256', `${user}:${password}`).update(`siris-csrf:${credential}`).digest('hex')
       : '';
   };
-  function authenticated(headers) {
+  function sessionValid(headers) {
     const token = cookieToken(headers);
     const match = /^(\d{13})\.([a-f0-9]{24})\.([a-f0-9]{64})$/.exec(token);
-    if (
+    return Boolean(
       match &&
-      Number(match[1]) > now() &&
-      timingSafeEqual(Buffer.from(sign(`${match[1]}:${match[2]}`), 'hex'), Buffer.from(match[3], 'hex'))
-    )
-      return true;
-    // Retain authenticated CLI/API access, without browser challenge loops.
+        Number(match[1]) > now() &&
+        timingSafeEqual(Buffer.from(sign(`${match[1]}:${match[2]}`), 'hex'), Buffer.from(match[3], 'hex')),
+    );
+  }
+  // Retain authenticated CLI/API access, without browser challenge loops.
+  // Returns the decoded "user:password", or null when no Basic header is sent;
+  // the caller counts wrong attempts with the login throttle.
+  function basicCredential(headers) {
     const basic = headers.authorization || '';
-    return /^Basic /i.test(basic) && matches(Buffer.from(basic.slice(6), 'base64').toString());
+    return /^Basic /i.test(basic) ? Buffer.from(basic.slice(6), 'base64').toString() : null;
+  }
+  function authenticated(headers) {
+    if (sessionValid(headers)) return true;
+    const basic = basicCredential(headers);
+    return basic !== null && matches(basic);
   }
   function sessionCookie() {
     const expires = String(now() + SESSION_MS),
       nonce = randomBytes(12).toString('hex');
     return `${cookieName}=${expires}.${nonce}.${sign(`${expires}:${nonce}`)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MS / 1000}${local ? '' : '; Secure'}`;
   }
-  return { authenticated, matches, sessionCookie, csrf };
+  return { authenticated, sessionValid, basicCredential, matches, sessionCookie, csrf };
 }
 export async function loginValues(req) {
   let parsed = req.body;
