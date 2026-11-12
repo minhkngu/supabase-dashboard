@@ -13,6 +13,9 @@ import { chromium } from '@playwright/test';
 const execFile=promisify(execFileCallback);
 const pgBin=process.env.SIRIS_BENCH_PG_BIN||'';
 const executable=name=>pgBin?path.join(pgBin,name):name;
+// macOS PostgreSQL aborts with "postmaster became multithreaded during startup"
+// unless a plain locale is set for the server process.
+const pgEnv={...process.env,LC_ALL:'C',LANG:'C',LC_CTYPE:'C'};
 const work=await mkdtemp(path.join(tmpdir(),'siris-bench-'));
 const dataDir=path.join(work,'postgres');
 const clients=new Set();let postgresStarted=false,backend,apiServer,proxy;
@@ -26,9 +29,13 @@ const apiDelay=Number(process.env.SIRIS_BENCH_API_MS||60),dbDelay=Number(process
 if(!Number.isFinite(apiDelay)||apiDelay<0||apiDelay>1000||!Number.isFinite(dbDelay)||dbDelay<0||dbDelay>1000)throw Error('Độ trễ phải từ 0 đến 1000 ms');
 let dbMessages=0,apiCalls=0;
 try{
- try{await execFile(executable('initdb'),['-D',dataDir,'-U','siris','-A','trust','--no-locale','--encoding=UTF8']);}
+ try{await execFile(executable('initdb'),['-D',dataDir,'-U','siris','-A','trust','--no-locale','--encoding=UTF8'],{env:pgEnv});}
  catch(error){throw Error(`Không thể khởi tạo PostgreSQL. Cài PostgreSQL 16 và đặt SIRIS_BENCH_PG_BIN tới thư mục bin. ${error.message}`)}
- await execFile(executable('pg_ctl'),['-D',dataDir,'-l',path.join(work,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort} -k ${work}`,'-w','start']);postgresStarted=true;
+ // The session temp path is longer than PostgreSQL's 103-byte socket limit;
+ // the benchmark connects over TCP, so it does not need a Unix socket.
+ try{await execFile(executable('pg_ctl'),['-D',dataDir,'-l',path.join(work,'postgres.log'),'-o',`-h 127.0.0.1 -p ${dbPort} -c unix_socket_directories=''`,'-w','start'],{env:pgEnv});}
+ catch(error){let log='';try{log=await readFile(path.join(work,'postgres.log'),'utf8')}catch{}throw Error(`${error.message}\n${log}`)}
+ postgresStarted=true;
  const client=new pg.Client({connectionString:database});await client.connect();
  try{
   await client.query('CREATE ROLE anon');await client.query('CREATE ROLE authenticated');
@@ -117,6 +124,6 @@ try{
 }finally{
  backend?.kill('SIGTERM');for(const socket of clients)socket.destroy();
  if(apiServer)await new Promise(resolve=>apiServer.close(resolve));if(proxy)await new Promise(resolve=>proxy.close(resolve));
- if(postgresStarted)await execFile(executable('pg_ctl'),['-D',dataDir,'-m','immediate','-w','stop']).catch(()=>{});
+ if(postgresStarted)await execFile(executable('pg_ctl'),['-D',dataDir,'-m','immediate','-w','stop'],{env:pgEnv}).catch(()=>{});
  await rm(work,{recursive:true,force:true});
 }

@@ -30,7 +30,7 @@ Kết quả kiểm tra sau merge:
 | `npm run build` | Đạt |
 | `npm test` | 90 đạt; `pretest` tự build giao diện trước khi chạy |
 | `npm run test:e2e` | **108/108 đạt** |
-| `npm run bench` | Chưa chạy được ở môi trường này (thiếu PostgreSQL 16 và không có quyền cài vào Homebrew); `bench.mjs` đã bỏ phần snapshot đĩa và thêm ba phép đo trình duyệt |
+| `npm run bench` | Đạt với PostgreSQL 16.15 và Chromium; số đo ở mục 9.1 |
 
 ---
 
@@ -203,7 +203,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | Merge `main` | Giải quyết 20 file xung đột; lint, typecheck, build, test, e2e 105/105 đạt | **Xong** |
 | A3 | `npm test` tự dựng giao diện | **Xong** (`pretest: vite build`) |
 | P1–P7 | Chuyển phần tốc độ từ `d21eac0` | **Xong**; mỗi mục có test unit/e2e tương ứng |
-| B | Đo (B4 trên Vercel) | **Một phần**: B2 xong; B1/B3 chặn vì máy chưa có PostgreSQL 16 (Homebrew không có quyền ghi); B4 chờ Vercel. **Dừng ở đây để kiểm tra** |
+| B | Đo (B4 trên Vercel) | **B1–B3 xong** trên PostgreSQL 16.15 + Chromium; B4 chờ Vercel. **Dừng ở đây để kiểm tra** |
 | C | Gỡ edge/Sites | Chưa bắt đầu (sau điểm dừng) |
 | D | CI | Chưa bắt đầu |
 | E | Rà soát mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
@@ -261,6 +261,36 @@ Cùng phép giả lập và PostgreSQL 16.15 như bảng số gốc; số đo l�
 
 Lô 50 dòng vẫn gửi 50 yêu cầu tới Data API, tối đa 5 yêu cầu song song; từ trình duyệt chỉ gửi một yêu cầu lô. Các số cho Tổng quan giả định dữ liệu nằm vừa trong một trang 1.000 dòng.
 
+#### Đo lại trên nhánh sau merge (12/11/2026)
+
+Cùng PostgreSQL 16.15 và API giả lập, hai mức trễ 60/40 ms và 150/100 ms. Ba dòng cuối dùng Chromium thật qua Playwright. Đây là một lần chạy, không phải cam kết thời gian trên mạng thật.
+
+| Thao tác | Mạng gần | Mạng xa |
+|---|---:|---:|
+| Metadata lần đầu | 152 ms | 339 ms |
+| Metadata trong cache | 3 ms | 4 ms |
+| Đọc 50 dòng | 81 ms | 165 ms |
+| Lưu một ô | 67 ms | 156 ms |
+| Lưu ô liên tiếp | 64 ms | 154 ms |
+| Metadata sau khi ghi | 1 ms | 1 ms |
+| Sửa ô và tải lại | 127 ms | 307 ms |
+| Lưu ô sau 11 giây | 66 ms | 158 ms |
+| Ghi 50 dòng nối tiếp | 3.175 ms | 7.669 ms |
+| Ghi lô 50 dòng | 630 ms | 1.526 ms |
+| Tổng quan 500 dòng | 64 ms | 154 ms |
+| Mở ứng dụng tới khi thấy dữ liệu (lần đầu) | 202 ms | 386 ms |
+| Mở ứng dụng tới khi thấy dữ liệu (đã lưu cấu trúc) | 146 ms | 243 ms |
+| Quay lại trang đã xem | 73 ms | 82 ms |
+| Yêu cầu lookup sau khi sửa một ô | 0 | 0 |
+
+Nhận xét:
+
+- Mục tiêu đạt: metadata sau khi ghi ~2 ms (đo được 1 ms), ghi lô 50 dòng dưới 1 giây ở mạng gần (630 ms), Tổng quan 500 dòng ~70 ms (64 ms), lưu ô và lưu sau 11 giây ~65 ms (67/66 ms), lookup 0–1 lượt.
+- Chưa đạt: mở ứng dụng tới khi thấy dữ liệu ~80 ms (202 ms lần đầu, 146 ms khi đã lưu cấu trúc). Phần còn lại là metadata lần đầu 152 ms và trang đầu 81 ms; đây là giới hạn của hai lượt mạng chứ không phải phần vẽ.
+- Quay lại trang đã xem hiện từ cache trước khi mạng trả lời, nhưng phép đo `waitFor` ghi 73 ms; con số này không chứng minh "tức thì" mà chỉ cho thấy không còn chờ đủ một lượt tải trang.
+- Ghi 50 dòng nối tiếp vẫn gửi 50 yêu cầu tới Data API nên chưa đạt mục tiêu dưới 1 giây; đường dán/sửa hàng loạt đã dùng lô (630 ms).
+- Bảng bench không cấu hình cột lookup, nên phép đo lookup xác nhận "không phát sinh yêu cầu" chứ chưa đo trường hợp có lookup.
+
 Đo chỉ đọc một lần trên Supabase đã cấu hình: metadata 918 ms; trang đầu của 11 bảng thành công trong khoảng 194–1.069 ms; bảng lớn nhất có 36 dòng. Không ghi dữ liệu thật. Số liệu này không có đường cơ sở thật tương ứng và không đủ để kết luận hiệu quả theo cột hay font.
 
 Bước 3.9 chưa thực hiện vì chưa có số đo chứng minh số cột hoặc font là nút thắt. Bước 3.14 chưa thực hiện vì bảng lớn nhất đo được còn dưới ngưỡng 50.000 dòng.
@@ -297,6 +327,6 @@ Kích thước phản hồi: một trang 50 dòng với đủ 16 cột là kho�
 
 Kết luận: với dữ liệu hiện tại, ưu tiên là bớt lượt gọi và dùng lại dữ liệu đã tải. Phân trang sâu, đếm tổng và tìm kiếm chỉ thành vấn đề từ vài chục nghìn dòng trở lên. Thử với index trigram cho tìm kiếm chưa cho kết quả ổn định nên chưa đưa vào kế hoạch.
 
-Lưu ý: các số "sau" ở 9.1 đo trên mã của PR #3 cũ (`d21eac0`), chưa phải trên nhánh sau merge. Ba dòng mục tiêu chưa có số (mở ứng dụng ~80 ms, quay lại trang tức thì, lookup 0–1 lượt) sẽ được đo ở B2–B3 sau khi xong P1–P7.
+Lưu ý: bảng "Đo lại sau tối ưu" phía trên đo trên mã PR #3 cũ (`d21eac0`). Bảng "Đo lại trên nhánh sau merge" là số hiện tại của nhánh này; các mục tiêu chưa đạt được ghi lý do ngay dưới bảng đó.
 
 Kiến trúc hiện tại của mã (thư mục `server/`, `src/`) xem `ARCHITECTURE.md`.
