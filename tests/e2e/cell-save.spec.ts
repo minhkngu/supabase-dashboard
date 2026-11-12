@@ -135,3 +135,29 @@ test('sửa hàng loạt ô JSON đã có giá trị vẫn lưu được', async
   await expect.poll(() => rows.map(x => x.data)).toEqual([{ b: 2 }, { b: 2 }]);
   expect(sent).toEqual([undefined, undefined]);
 });
+
+test('máy chủ trả trang lỗi HTML thì báo mã lỗi thay vì lỗi đọc JSON', async ({ page }) => {
+  const row = { id: 1, name: 'Mia', qty: 2, total: 4 };
+  await page.route('**/api/**', async route => {
+    const request = route.request(),
+      url = new URL(request.url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 't' } });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (url.pathname === '/api/ui-settings') return route.fulfill({ json: { available: false, items: {} } });
+    if (request.method() === 'PATCH')
+      return route.fulfill({
+        status: 504,
+        contentType: 'text/html',
+        body: '<!doctype html><title>Gateway Timeout</title>',
+      });
+    return route.fulfill({ json: { rows: [row], total: 1 } });
+  });
+  await page.goto('/');
+  await page.locator('td.cell-editable').filter({ hasText: 'Mia' }).click();
+  await page.locator('td.editing input').fill('Lune');
+  await page.locator('td.editing input').press('Enter');
+  await expect(page.getByText('Máy chủ trả về lỗi 504')).toBeVisible();
+  await expect(page.getByText(/JSON/)).toHaveCount(0);
+});
