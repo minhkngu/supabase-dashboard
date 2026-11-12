@@ -345,17 +345,6 @@ export async function pasteFromCell(rowValue, columnName, text) {
     bulkBusy = false;
   }
 }
-// Runs fn over items with at most `limit` calls in flight.
-async function runLimited(items, limit, fn) {
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const index = next++;
-      await fn(items[index], index);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-}
 async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = false } = {}) {
   const table = state.table,
     columns = displayedColumns(),
@@ -418,24 +407,45 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
     Object.assign(change.record, change.values);
   }
   if (changes.length && state.table === table && !state.cellEdit) render();
-  const errors = new Array(changes.length);
-  await runLimited(changes, 5, async (change, index) => {
-    try {
-      const result = await api(`/api/table/${name(table)}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ key: change.key, values: change.values, expected: change.expected }),
+  const errors = new Array(changes.length),
+    settled = new Array(changes.length).fill(false);
+  // The server accepts at most 50 rows per batch and applies up to five writes
+  // at once; larger pastes are split into several batch requests.
+  try {
+    for (let start = 0; start < changes.length; start += 50) {
+      const chunk = changes.slice(start, start + 50);
+      const result = await api(`/api/table/${name(table)}/batch`, {
+        method: 'POST',
+        body: JSON.stringify({
+          changes: chunk.map(({ key, values, expected }) => ({ key, values, expected })),
+        }),
       });
-      if (!result.rows?.length) throw Error('Không tìm thấy bản ghi.');
-      Object.assign(change.record, result.rows[0]);
-      saved++;
-    } catch (error) {
-      Object.assign(change.record, change.expected);
-      errors[index] = `Dòng ${change.row}: ${error.message}`;
-    } finally {
-      pendingRows.delete(change.record);
-      if (state.table === table && !state.cellEdit) render();
+      if (!Array.isArray(result.results) || result.results.length !== chunk.length)
+        throw Error('Không nhận được đầy đủ kết quả; hãy kiểm tra dữ liệu.');
+      for (let i = 0; i < chunk.length; i++) {
+        const index = start + i,
+          change = chunk[i],
+          item = result.results[i];
+        settled[index] = true;
+        if (item?.ok && item.rows?.length) {
+          Object.assign(change.record, item.rows[0]);
+          saved++;
+        } else {
+          Object.assign(change.record, change.expected);
+          errors[index] = `Dòng ${change.row}: ${item?.error || 'Không tìm thấy bản ghi.'}`;
+        }
+      }
     }
-  });
+  } catch (error) {
+    for (let i = 0; i < changes.length; i++) {
+      if (settled[i]) continue;
+      Object.assign(changes[i].record, changes[i].expected);
+      errors[i] = `Dòng ${changes[i].row}: Chưa xác nhận được kết quả; hãy kiểm tra dữ liệu: ${error.message}`;
+    }
+  } finally {
+    for (const change of changes) pendingRows.delete(change.record);
+    if (state.table === table && !state.cellEdit) render();
+  }
   failed.push(...errors.filter(Boolean));
   if (saved) {
     const history = historyFor(table);

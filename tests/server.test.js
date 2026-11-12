@@ -20,7 +20,8 @@ beforeAll(async () => {
   upstream = http.createServer((req, res) => {
     upstreamRequests.push({ url: req.url, authorization: req.headers.authorization, prefer: req.headers.prefer });
     res.setHeader('Content-Type', 'application/json');
-    if (req.method === 'PATCH' && new URL(req.url, 'http://localhost').searchParams.get('name') === 'eq.stale')
+    const query = new URL(req.url, 'http://localhost').searchParams;
+    if (req.method === 'PATCH' && (query.get('name') === 'eq.stale' || query.get('id') === 'eq.stale'))
       return res.end('[]');
     res.setHeader('Content-Range', '0-0/1');
     return res.end(JSON.stringify([{ id: 'one', name: 'A' }]));
@@ -69,6 +70,31 @@ describe('API trên máy cục bộ', () => {
       body: JSON.stringify({ values: { id: 'two', name: 'B' } }),
     });
     expect(create.status).toBe(200);
+  });
+  it('ghi lô báo kết quả theo từng dòng và từ chối lô quá 50 dòng', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const response = await fetch(`${origin}/api/table/branches/batch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        changes: [
+          { key: { id: 'one' }, values: { name: 'A' }, expected: { name: 'old' } },
+          { key: { id: 'stale' }, values: { name: 'B' }, expected: { name: 'old' } },
+        ],
+      }),
+    });
+    expect(response.status).toBe(200);
+    const { results } = await response.json();
+    expect(results[0].ok).toBe(true);
+    expect(results[1].ok).toBe(false);
+    expect(results[1].error).toContain('Không có bản ghi');
+    const tooMany = await fetch(`${origin}/api/table/branches/batch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ changes: Array.from({ length: 51 }, (_, i) => ({ key: { id: i }, values: {} })) }),
+    });
+    expect(tooMany.status).toBe(400);
   });
   it('hiển thị bảng không yêu cầu đăng nhập và chỉ dùng key phía máy chủ', async () => {
     const response = await fetch(`${origin}/api/meta`);
