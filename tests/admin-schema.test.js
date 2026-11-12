@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createAdmin } from '../admin.mjs';
+import { createAdmin, safeError } from '../admin.mjs';
 function fixture({
   dependent = false,
   fail = false,
@@ -267,6 +267,34 @@ describe('biểu thức mặc định', () => {
     expect(calls).toContain(
       'ALTER TABLE public."rooms" ADD COLUMN "created_at" timestamp with time zone DEFAULT now() + interval \'3 days\'',
     );
+  });
+  it('đặt lock_timeout và statement_timeout trước LOCK TABLE với mọi thao tác', async () => {
+    const operations = [
+      { table: 'rooms', action: 'add', newName: 'memo', newType: 'text', options: { nullable: true } },
+      { table: 'rooms', action: 'rename', column: 'note', newName: 'memo' },
+      { table: 'rooms', action: 'type', column: 'id', newType: 'bigint' },
+      { table: 'rooms', action: 'delete', column: 'note' },
+      {
+        table: 'rooms',
+        action: 'settings',
+        column: 'note',
+        options: { nullable: true, unique: false, defaultKind: 'keep', description: '' },
+      },
+    ];
+    for (const operation of operations) {
+      const { admin, calls } = fixture();
+      const preview = await admin.preview(operation);
+      calls.length = 0;
+      await admin.apply(operation, preview.signature);
+      const lock = calls.findIndex(sql => sql.startsWith('LOCK TABLE'));
+      expect(lock, operation.action).toBeGreaterThan(-1);
+      expect(calls.slice(0, lock), operation.action).toEqual(
+        expect.arrayContaining(["SET LOCAL lock_timeout = '5s'", "SET LOCAL statement_timeout = '60s'"]),
+      );
+    }
+  });
+  it('báo bảng đang bận khi hết thời gian chờ khóa', () => {
+    expect(safeError({ code: '55P03' })).toBe('Bảng đang được sử dụng; vui lòng thử lại.');
   });
   it('từ chối SQL ngoài danh sách an toàn', async () => {
     const { admin } = fixture();

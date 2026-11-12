@@ -87,9 +87,13 @@ const safeError = error =>
         ? 'Kết nối database không có đủ quyền.'
         : error?.code === '22P02'
           ? 'Dữ liệu không thể chuyển sang kiểu đã chọn.'
-          : error?.code
-            ? 'Không thể thực hiện thao tác database. Kiểm tra quyền và cấu hình kết nối.'
-            : error?.message || 'Không thể thực hiện thao tác.';
+          : error?.code === '55P03'
+            ? 'Bảng đang được sử dụng; vui lòng thử lại.'
+            : error?.code === '57014'
+              ? 'Thao tác vượt thời gian cho phép; vui lòng thử lại.'
+              : error?.code
+                ? 'Không thể thực hiện thao tác database. Kiểm tra quyền và cấu hình kết nối.'
+                : error?.message || 'Không thể thực hiện thao tác.';
 const METADATA_SQL = [
   `SELECT c.oid::text AS table_oid,c.relname AS table_name,a.attnum AS column_id,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS format,CASE WHEN t.typname='timestamptz' THEN 'timestamp with time zone' WHEN t.typname='timestamp' THEN 'timestamp without time zone' WHEN t.typname='int4' THEN 'integer' WHEN t.typname='int8' THEN 'bigint' WHEN t.typname='int2' THEN 'smallint' WHEN t.typname='float8' THEN 'double precision' WHEN t.typname='float4' THEN 'real' WHEN t.typname='bool' THEN 'boolean' WHEN t.typname='varchar' THEN 'character varying' ELSE t.typname END AS data_type,col_description(c.oid,a.attnum) AS description,a.attnotnull,a.attidentity,a.attgenerated,pg_get_expr(d.adbin,d.adrelid) AS default_value,EXISTS(SELECT 1 FROM pg_constraint k WHERE k.conrelid=c.oid AND k.contype='p' AND a.attnum=ANY(k.conkey)) AS is_primary,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND a.attnum=ANY(i.indkey)) AS has_index,EXISTS(SELECT 1 FROM pg_depend dep WHERE dep.refobjid=c.oid AND dep.refobjsubid=a.attnum AND dep.classid='pg_rewrite'::regclass) AS has_view,EXISTS(SELECT 1 FROM pg_constraint k WHERE (k.conrelid=c.oid AND k.contype<>'p' AND a.attnum=ANY(k.conkey)) OR (k.confrelid=c.oid AND a.attnum=ANY(k.confkey))) AS has_type_constraint,EXISTS(SELECT 1 FROM pg_index i WHERE i.indrelid=c.oid AND NOT i.indisprimary AND a.attnum=ANY(i.indkey)) AS has_type_index FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid LEFT JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum WHERE n.nspname='public' AND c.relkind IN ('r','p') ORDER BY c.relname,a.attnum`,
   `SELECT k.conname,src.relname AS source_table,dst.relname AS target_table,array_agg(sa.attname::text ORDER BY p.n) AS source_columns,array_agg(ta.attname::text ORDER BY p.n) AS target_columns FROM pg_constraint k JOIN pg_class src ON src.oid=k.conrelid JOIN pg_namespace sn ON sn.oid=src.relnamespace JOIN pg_class dst ON dst.oid=k.confrelid JOIN pg_namespace dn ON dn.oid=dst.relnamespace JOIN LATERAL generate_subscripts(k.conkey,1) p(n) ON true JOIN pg_attribute sa ON sa.attrelid=src.oid AND sa.attnum=k.conkey[p.n] JOIN pg_attribute ta ON ta.attrelid=dst.oid AND ta.attnum=k.confkey[p.n] WHERE k.contype='f' AND sn.nspname='public' AND dn.nspname='public' GROUP BY k.oid,src.relname,dst.relname`,
@@ -496,10 +500,10 @@ export function createAdmin(connectionString, poolOverride) {
   }
   async function apply(req, signature) {
     return transaction(async client => {
-      if (req.action === 'duplicate') {
-        await client.query("SET LOCAL lock_timeout = '5s'");
-        await client.query("SET LOCAL statement_timeout = '60s'");
-      }
+      // ACCESS EXCLUSIVE chặn cả lệnh đọc xếp hàng phía sau; không chờ vô hạn
+      // khi bảng đang bận.
+      await client.query("SET LOCAL lock_timeout = '5s'");
+      await client.query("SET LOCAL statement_timeout = '60s'");
       const p = await preview(req, client);
       if (p.signature !== signature) throw Error('Cấu trúc hoặc dữ liệu đã thay đổi. Hãy xem lại trước khi áp dụng.');
       await client.query(`LOCK TABLE ${tableRef(req.table)} IN ACCESS EXCLUSIVE MODE`);
