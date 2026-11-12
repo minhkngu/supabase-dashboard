@@ -1,10 +1,11 @@
 # Kế hoạch triển khai Siris
 
-Cập nhật 12/11/2026. Tài liệu này thay cho bản kế hoạch trước, gom ba đợt rà soát: đánh giá mã và giao diện, kiểm tra nút bấm và Dashboard, đo tốc độ phản hồi dữ liệu.
+Cập nhật 12/11/2026 sau khi đối chiếu PR #3 với kế hoạch này (chạy lại lint, test, build, e2e và đọc mã từng bước). Bản online nay chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
 Mục lục:
 1. Hướng đi
 2. Các quyết định đã chốt
+2b. Đánh giá PR #3 so với kế hoạch
 3. Hiện trạng và số đo
 4. Kiến trúc đích
 5. Quy tắc làm việc
@@ -19,7 +20,7 @@ Mục lục:
 Siris là công cụ quản lý dữ liệu Supabase cho một người dùng, chạy trên máy cá nhân và có thêm một bản online. Năm nguyên tắc dẫn đường:
 
 1. **Supabase là nguồn sự thật duy nhất.** Dữ liệu đi qua Data API với key anon nên luôn chịu RLS. Chỉ thay đổi cấu trúc và cấu hình mới dùng kết nối Postgres trực tiếp.
-2. **Một lõi backend, hai lớp vỏ.** Bản cục bộ (Node) và bản online (edge function) cùng chạy một bộ mã xử lý request. Không còn bản sao sinh ra bằng thay chuỗi.
+2. **Một lõi backend, hai lớp vỏ.** Bản cục bộ (Node, `server.mjs`) và bản online (Vercel function, `api/handler.mjs`) cùng chạy một bộ mã xử lý request. Không còn bản sao sinh ra bằng thay chuỗi.
 3. **JS thuần, chia module, không framework.** Gỡ React, Glide, Tailwind đã cài nhưng không dùng. Giữ nguyên 64 test e2e làm lưới an toàn.
 4. **Giao diện suy ra từ trạng thái.** Nút nào hiện, ẩn, khóa là kết quả của một hàm đọc `state`, không gán rời rạc ở từng tính năng.
 5. **Đo trước, sửa sau.** Mọi thay đổi về tốc độ có số đo trước và sau bằng cùng một script.
@@ -36,9 +37,69 @@ Thứ tự ưu tiên: sửa thứ người dùng đang thấy sai → làm nhanh
 | Dashboard | Thêm và sửa được bản ghi; xóa chỉ ở lưới |
 | Thanh chọn dòng | Nổi ở đáy lưới, không đẩy nội dung |
 | Frontend | JS thuần, tách module |
-| Bản online (edge / Sites) | Giữ, vì đang dùng. Mọi thay đổi phải giữ bản này chạy được |
+| Bản online | **Vercel.** Không dùng `chatgpt-site/`, Sites hay Supabase Edge Function nữa. Mọi thay đổi phải giữ bản Vercel chạy được |
 
-Lưu ý vận hành: thay đổi chỉ lên bản online sau khi chạy lại script chuẩn bị và deploy.
+Lưu ý vận hành: thay đổi chỉ lên bản online sau khi deploy lên Vercel (`vercel deploy --prod`). Cache trong bộ nhớ của server chỉ sống theo từng instance serverless, không được coi là nguồn dữ liệu.
+
+---
+
+## 2b. Đánh giá PR #3 so với kế hoạch
+
+PR #3: 4 commit, 24 file, +1.230 / −96, nhánh `claude/hopeful-gates-00krjq`.
+
+### Kết quả kiểm tra thực tế (chạy lại 12/11/2026)
+
+| Lệnh | Kết quả |
+|---|---|
+| `npm run lint` | Đạt |
+| `npm run typecheck` | Đạt |
+| `npm run build` | Đạt |
+| `npm test` | 72 đạt, 2 bỏ qua. Chạy khi chưa `npm run build` thì `tests/server.test.js` lỗi (`/` trả 404); build xong thì đạt 3/3 lần |
+| `npm run test:e2e` | 77 đạt, **1 lỗi**: `auth.spec.ts:44` `/.env.local` trả 200 thay vì ≥ 400 (dev server trả `index.html`) |
+| `npm run bench` | Không chạy lại được (môi trường không có PostgreSQL 16); các số là số PR tự ghi |
+
+### Giai đoạn 1 — Lưới an toàn
+
+| Bước | Đánh giá |
+|---|---|
+| 1.1 Lưới mặc định | Tốt; e2e Dashboard bấm tab trước khi kiểm tra |
+| 1.2 Ghim cột checkbox | Tốt; có test cuộn ngang (`delete-records.spec.ts`) |
+| 1.3 Lint | Tốt; hết lỗi |
+| 1.4 e2e không treo | Tốt (`timeout: 15_000`, README có `PLAYWRIGHT_CHROMIUM_EXECUTABLE`) |
+| 1.5 Chốt chặn edge | Làm xong nhưng **hết giá trị** vì bản online chuyển sang Vercel |
+| "Xong khi e2e đạt" | **Chưa đủ**: còn 1 lỗi `/.env.local` |
+
+### Giai đoạn 2 — Nút bấm và Dashboard
+
+Tốt, mỗi hành vi có test: cụm chuyển chế độ giữ vị trí, thêm và sửa bản ghi từ Dashboard (PATCH đúng khóa, không có nút xóa), chọn dòng không làm lưới nhảy, ô chọn tất cả thẳng hàng, tiêu đề vừa 390px, ảnh đối chiếu desktop và điện thoại. Điểm yếu: `syncChrome()` (2.2) chưa kiểm chứng là hàm riêng; `app.js` vẫn là file dài, mỗi dòng gom nhiều lệnh, khó đọc và khó review.
+
+### Giai đoạn 3 — Tốc độ dữ liệu
+
+| Bước | Đánh giá |
+|---|---|
+| 3.0 `scripts/bench.mjs` | **Tốt.** PostgreSQL thật, proxy chèn độ trễ, API giả lập, in bảng số, ghi rõ giả định |
+| 3.1 Cache cấu hình ở đường ghi | Tốt; có test hai PATCH liên tiếp giữ cache |
+| 3.2 Xóa cache đúng lúc | Tốt: ghi dữ liệu không xóa; formula, lookup, schema xóa đúng mục. Metadata sau khi ghi 91 → 1 ms |
+| 3.3 Một pool, giữ kết nối | **Một phần**: `server.mjs` đặt `max:4`, giữ rảnh 5 phút, `keepAlive`, nhưng `admin.mjs` vẫn có cấu hình pool `max:4` riêng; chưa xác nhận chỉ còn một pool |
+| 3.4 Không tải lại trang sau khi lưu | Tốt; có e2e. Lưu 1 ô 275 → 65 ms |
+| 3.5 Ghi hàng loạt | Tốt: tối đa 50, 5 lượt song song, lỗi theo dòng, chống trùng khóa, kiểm tra khóa chính và cột bảo vệ. 13,9 s → 0,64 s. Server vẫn gọi 50 lượt tới Data API |
+| 3.6 `limit` ≤ 1.000 | Tốt; có unit test. Tổng quan 658 → 67 ms |
+| 3.7 `count=none` | Tốt; có unit test và e2e "chuyển trang dùng lại tổng" |
+| 3.10 Mở ứng dụng không chờ metadata | **Một phần.** Phía trình duyệt (`localStorage`) tốt, có e2e. Phía server ghi snapshot `.siris-metadata-cache.json` xuống đĩa: tắt trên Deno, **vô ích trên Vercel** (đĩa chỉ đọc, instance không giữ trạng thái), lỗi ghi bị nuốt im lặng. Chưa có số đo cho mục tiêu 428 → ~80 ms |
+| 3.11 Dùng lại trang, tải trước | Tốt về thiết kế (`epoch` bỏ kết quả cũ, cache tối đa 100 mục, tải trước trang kế và bảng khi rê chuột); có e2e. Chưa có số đo |
+| 3.12 Cache lookup 60 giây | Tốt; xóa khi ghi bảng nguồn. Chưa có số đo |
+| 3.13 Tìm kiếm | Tốt: bỏ từ khóa dưới 2 ký tự, đếm sau khi dừng gõ, chọn cột; có e2e |
+| 3.8 Đo lại | **Chưa xong dù bảng trạng thái ghi "xong"**: chỉ 6 dòng trước → sau, thiếu 3.10–3.12; chỉ một lần đọc trên Supabase, không có số gốc; chưa đo trên Vercel |
+
+### Vấn đề chung chưa tốt
+
+1. **Số đo là mô phỏng**, chưa đo trên Vercel (cold start, khoảng cách vùng Vercel ↔ Supabase, pooler). Không dùng số tuyệt đối để quyết định.
+2. **Test cache với PostgreSQL bị bỏ qua mặc định** (`SIRIS_BENCH_PG_BIN`): hồi quy cache không bị bắt.
+3. **`npm test` cần `npm run build` trước**, trái với "đạt trên bản clone mới" ở bước 1.5.
+4. **Mã edge là gánh nặng**: `to-edge-backend.mjs`, `edge-backend.test.js`, sửa `prepare-chatgpt-site.mjs`, `skipIf` ở `sites-bridge.test.js`.
+5. `app.js` tiếp tục phình (thêm prefetch, cache lookup, batch) trong khi giai đoạn 6 định tách file này.
+
+Kết luận: giai đoạn 2 và các bước 3.0–3.2, 3.4–3.7, 3.11–3.13 đạt yêu cầu; 3.3, 3.8, 3.10 chỉ đạt một phần; 1.5 hết giá trị. Việc tiếp theo nằm ở giai đoạn 3b, 4.1 và 5.5.
 
 ---
 
@@ -53,6 +114,8 @@ Lưu ý vận hành: thay đổi chỉ lên bản online sau khi chạy lại sc
 | `npm run lint` | 3 lỗi trong `tests/e2e/table-overview.spec.ts` |
 | `npm test` | 65 đạt, 2 lỗi (`tests/sites-bridge.test.js` cần thư mục `chatgpt-site/` bị `.gitignore`) |
 | `npm run test:e2e` | Phần lớn test cũ timeout vì mọi bảng mở mặc định ở Dashboard |
+
+Đây là đường cơ sở trước giai đoạn 1; kết quả hiện tại ở mục 2b.
 
 ### 3.2 Lỗi giao diện đã xác nhận
 
@@ -155,7 +218,7 @@ Kết luận: với dữ liệu hiện tại, ưu tiên là bớt lượt gọi 
 
 1. Giao diện không có một nguồn sự thật cho trạng thái nút.
 2. Hai kiến trúc frontend cùng tồn tại: JS thuần đang chạy, React + Glide + Tailwind đã cài nhưng bỏ dở.
-3. Bản edge sinh ra bằng chuỗi `String.replace` trên `server.mjs` (`scripts/prepare-chatgpt-site.mjs`); thay không khớp thì im lặng bỏ qua.
+3. Bản edge sinh ra bằng chuỗi `String.replace` trên `server.mjs` (`scripts/prepare-chatgpt-site.mjs`); thay không khớp thì im lặng bỏ qua. (Vấn đề này biến mất khi bỏ bản edge ở bước 4.1.)
 4. `server.mjs` là một hàm xử lý mọi route trên một dòng khoảng 12.000 ký tự; biến `tables` toàn cục bị ghi đè giữa các request; mọi lần ghi xóa hết cache.
 5. `app.js` 153 KB, 131 hàm, khoảng 55 biến trạng thái toàn cục.
 6. Cấu hình rải rác: hai bảng trong `siris_admin`, sáu khóa `localStorage`, một bảng `siris_admin.columns` đã chết.
@@ -174,8 +237,8 @@ Trình duyệt (src/)
    │  fetch cùng origin, JSON, header x-siris-token
    ▼
 Lớp vỏ ──────────────┬──────────────────────────────┐
- server.mjs (Node)   │  supabase/functions/…/index.ts (Deno)
- loopback, CSRF ngẫu │  kiểm tra chữ ký Ed25519
+ server.mjs (Node)   │  api/handler.mjs (Vercel)
+ loopback, CSRF ngẫu │  xác thực phiên đăng nhập
  nhiên, phục vụ dist │
    └─────────┬───────┴──────────────────────────────┘
              ▼
@@ -214,11 +277,9 @@ core/
   db/
     admin.mjs  formula-sync.mjs  formula-parser.mjs
     lookup-sync.mjs  lookup-store.mjs  filters.mjs  materialized-lookup.mjs
-server.mjs              lớp vỏ Node
-supabase/functions/siris-manager/
-  index.ts  auth.mjs    lớp vỏ Deno
-  core/                 bản sao nguyên văn của core/, do script sao chép
-scripts/build-edge.mjs  sao chép core/ và schema.json, không biến đổi nội dung
+server.mjs              lớp vỏ Node (cục bộ)
+api/handler.mjs         lớp vỏ Vercel, gọi createApp từ core/
+vercel.json             build giao diện, chuyển mọi request tới api/handler.mjs
 ```
 
 Dạng request chung giữa hai lớp vỏ:
@@ -322,7 +383,7 @@ scripts/bench.mjs       đo độ trễ theo từng thao tác
 - Không gộp thay đổi hành vi với thay đổi định dạng hay di chuyển file trong cùng một commit.
 - Không sửa test để che lỗi; chỉ sửa test khi hành vi mong muốn thay đổi theo mục 2.
 - Không chạy gì lên Supabase thật khi thử. Kiểm thử ghi dùng API giả lập.
-- Bước nào sửa backend thì chạy thêm test kiểm tra bản edge (bước 1.5) trước khi commit.
+- Bước nào sửa backend thì kiểm tra thêm bản Vercel xem trước (preview deploy) trước khi merge.
 
 ---
 
@@ -351,13 +412,8 @@ Mục tiêu: bốn lệnh kiểm tra đều đạt trước khi đổi bất c�
 - File: `playwright.config.ts`, `README.md`.
 - Việc: timeout 15 giây mỗi test; ghi cách dùng `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
 
-**1.5 Chốt chặn cho bản edge**
-- File: `scripts/prepare-chatgpt-site.mjs`, `tests/unit/edge-backend.test.js` (mới), `tests/sites-bridge.test.js`.
-- Việc:
-  - tách phần biến đổi `server.mjs` thành hàm `toEdgeBackend(source)`; mỗi lần thay chuỗi phải khớp, không khớp thì ném lỗi nêu rõ chỗ nào;
-  - test mới chạy hàm này trên `server.mjs` hiện tại, kiểm tra kết quả có `export const handler` và không còn `http.createServer`, `server.listen`;
-  - `sites-bridge.test.js` chỉ chạy khi có thư mục `chatgpt-site/`.
-- Xong khi: `npm test` đạt trên bản clone mới; trên máy có `chatgpt-site/` thì test bridge vẫn chạy.
+**1.5 ~~Chốt chặn cho bản edge~~ (hủy)**
+- Đã làm (`scripts/to-edge-backend.mjs`, `tests/edge-backend.test.js`) nhưng bản online chuyển sang Vercel nên không còn cần; xóa ở bước 4.1.
 
 ### Giai đoạn 2 — Nút bấm và Dashboard
 
@@ -464,7 +520,7 @@ Mục tiêu theo mức "mạng gần":
 **3.10 Mở ứng dụng không chờ metadata**
 - File: `server.mjs` (`/api/meta`), `app.js` (`initialize`).
 - Việc:
-  - server lưu bản metadata gần nhất xuống đĩa và trả ngay bản đó, đồng thời làm mới ở nền; phản hồi có cờ cho biết đang dùng bản lưu;
+  - ~~server lưu snapshot metadata xuống đĩa~~ — **bỏ** vì Vercel không có đĩa ghi được và instance không giữ trạng thái; gỡ mã đã thêm ở bước 3b.1;
   - giao diện lưu metadata lần trước vào `localStorage`, dựng sidebar và tải bảng ngay từ bản này, rồi đối chiếu khi `/api/meta` trả về; nếu cấu trúc bảng đang mở đã đổi thì vẽ lại.
 - Mục tiêu: thấy dữ liệu sau 1 lượt gọi API (khoảng 70–90 ms ở mạng gần, hiện là 428 ms).
 - Test: mở lần hai, lưới hiện trước khi `/api/meta` trả lời; cột bị xóa ở phía server thì biến mất sau khi đối chiếu.
@@ -499,9 +555,25 @@ Mục tiêu theo mức "mạng gần":
 **3.9 (Sau khi đo trên dữ liệu thật) Chỉ lấy cột đang hiển thị, tự host font**
 - Chỉ làm nếu số đo thật cho thấy bảng nhiều cột hoặc tải font là điểm chậm.
 
+### Giai đoạn 3b — Hoàn tất giai đoạn 3 (sau đánh giá PR #3)
+
+**3b.1** Gỡ snapshot metadata ghi xuống đĩa khỏi `server.mjs` (`snapshotPath`, `saveMetadataSnapshot`, cờ `metadataStale`, `?fresh=1`, mục `.siris-metadata-cache.json*` trong `.gitignore`) và test liên quan; giữ phần `localStorage`.
+**3b.2** Gộp pool của `admin.mjs` vào pool dùng chung (làm xong 3.3 thật sự). Test: một lần khởi động chỉ mở một pool.
+**3b.3** Sửa lỗi e2e `/.env.local`: dev server trả 404 cho đường dẫn bắt đầu bằng dấu chấm.
+**3b.4** Cho `npm test` không phụ thuộc `dist/` (test tự dựng `dist` giả hoặc thêm `pretest`).
+**3b.5** Chạy test cache với PostgreSQL trong CI để hai test bị bỏ qua chạy thật.
+**3b.6** Đo bổ sung bằng `scripts/bench.mjs` cho 3.10–3.12: mở ứng dụng tới lúc thấy dữ liệu, quay lại trang đã xem, tải lại trang có lookup sau khi sửa ô. Điền vào bảng mục 3.3.
+**3b.7** Đo trên bản Vercel đã deploy (không ghi dữ liệu thật): mở lúc nguội và ấm, tải trang, Tổng quan, bằng `SIRIS_PERF_TIMING=1` / `Server-Timing`. Ghi vùng Vercel và vùng Supabase; kiểm `SUPABASE_DB_URL` dùng pooler.
+Xong khi: bốn lệnh kiểm tra đạt trên bản clone mới, bảng đo có cột "sau" cho mọi dòng mục tiêu, và có một bộ số trên Vercel.
+
 ### Giai đoạn 4 — Dọn dẹp
 
-**4.1 Mã chết ở backend**
+**4.1 Gỡ bản edge / Sites**
+- Xóa `supabase/functions/siris-manager/`, `scripts/prepare-chatgpt-site.mjs`, `scripts/check-sites-backend.mjs`, `scripts/to-edge-backend.mjs`, `tests/edge-backend.test.js`, `tests/sites-bridge.test.js`, dòng `chatgpt-site/` trong `.gitignore`.
+- Trước khi xóa: `grep` xác nhận không còn import tới các file này.
+- Xong khi: không còn tham chiếu `chatgpt-site`, `siris-manager`, Edge Function trong mã và tài liệu.
+
+**4.1b Mã chết ở backend**
 - File: `admin.mjs`.
 - Việc: xóa `createDefinition`, `updateDefinition`, `deleteDefinition`, `readLinks`, `readNativeLinks`, `writeLinks`, `importLegacy` và các hàm phụ chỉ chúng dùng. Gộp năm câu SQL metadata viết hai lần (`admin.mjs:18-25`). Xóa `/api/lookup-column/preview` và `buildSyncStatements` nếu xác nhận không dùng.
 
@@ -515,11 +587,11 @@ Mục tiêu theo mức "mạng gần":
 
 **4.4 Tài liệu**
 - File: `README.md`, `ARCHITECTURE.md`.
-- Việc: bỏ câu "API quản trị cấu trúc đang tạm khóa" và tham chiếu file không tồn tại; mô tả kiến trúc theo mục 4; ghi quy trình deploy bản online.
+- Việc: bỏ câu "API quản trị cấu trúc đang tạm khóa" và tham chiếu file không tồn tại; mô tả kiến trúc theo mục 4; ghi quy trình deploy bản online lên Vercel (biến `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL` dùng pooler, `vercel deploy --prod`).
 
 ### Giai đoạn 5 — Tách backend thành lõi và lớp vỏ
 
-Mục tiêu: bỏ việc sinh bản edge bằng thay chuỗi.
+Mục tiêu: một lõi backend dùng chung cho `server.mjs` và `api/handler.mjs`, không sinh mã bằng thay chuỗi.
 
 **5.1 Tạo `core/` và dạng request chung**
 - Việc: thêm `core/http.mjs`, `core/guard.mjs`, `core/router.mjs`, `core/app.mjs` theo mục 4.2. Chưa chuyển route nào.
@@ -536,11 +608,11 @@ Mục tiêu: bỏ việc sinh bản edge bằng thay chuỗi.
 - File: `server.mjs`.
 - Việc: chỉ còn đọc `.env.local`, tạo `trust` với token ngẫu nhiên, gọi `createApp`, phục vụ `dist/`.
 
-**5.5 Lớp vỏ Deno**
-- File: `supabase/functions/siris-manager/index.ts`, `scripts/build-edge.mjs` (thay `prepare-chatgpt-site.mjs`).
-- Việc: `index.ts` kiểm tra chữ ký rồi gọi `createApp` từ bản sao `core/`. Script chỉ sao chép `core/`, `schema.json` và đóng gói tài nguyên giao diện, không sửa nội dung file.
-- Test: bản sao trong thư mục edge giống hệt `core/`; gọi `handle()` qua lớp vỏ giả lập trả đúng `/api/meta`.
-- Xong khi: xóa `toEdgeBackend` và test chốt chặn ở 1.5.
+**5.5 Lớp vỏ Vercel**
+- File: `api/handler.mjs`, `vercel.json`.
+- Việc: `api/handler.mjs` xác thực phiên đăng nhập rồi gọi `createApp` từ `core/`; `vercel.json` build bằng `npm run build` và đưa `dist/`, `schema.json` vào function. Không còn bước sao chép hay biến đổi mã.
+- Test: gọi `handle()` qua lớp vỏ giả lập trả đúng `/api/meta`; ghi dữ liệu cần phiên và token.
+- Xong khi: không còn mã dành riêng cho Deno hay Sites.
 
 **5.6 Định dạng backend**
 - Việc: thêm Prettier, chạy cho `core/`, `server.mjs`, `scripts/`, `tests/unit/`. Một commit riêng.
@@ -612,13 +684,12 @@ Mỗi mục có test e2e riêng.
 
 **8.7 Tổng quan**: bỏ chỉ số trùng; nhóm tính trên toàn bộ dữ liệu.
 
-### Giai đoạn 9 — Bản online an toàn hơn
+### Giai đoạn 9 — Bản Vercel an toàn hơn
 
-**9.1 Chống phát lại chữ ký**: lưu nonce đã dùng trong 60 giây (bảng trong `siris_admin` hoặc bộ nhớ của edge), từ chối nonce lặp.
-
-**9.2 Xem lại quyền thay đổi schema trên bản online**: cần bạn quyết định giữ hay chặn `/api/admin/*` ở bản online khi tới bước này.
-
-**9.3 Token CSRF của bản online**: thay hằng số bằng giá trị sinh theo phiên do lớp vỏ cấp.
+**9.1** Giới hạn số lần đăng nhập sai theo IP; ghi log thử thất bại (không ghi mật khẩu).
+**9.2** Xem lại quyền thay đổi schema trên bản online: cần bạn quyết định giữ hay chặn `/api/admin/*` trên Vercel khi tới bước này. Đề xuất: giữ, bắt buộc xem trước + chữ ký như hiện nay, và ghi log.
+**9.3** Token CSRF là giá trị theo phiên, không phải hằng số.
+(Chống phát lại chữ ký không còn cần vì không còn cầu nối Sites.)
 
 ---
 
@@ -626,11 +697,11 @@ Mỗi mục có test e2e riêng.
 
 | Rủi ro | Cách giảm |
 |---|---|
-| Sửa `server.mjs` làm hỏng bản online mà không biết | Test chốt chặn ở 1.5; sau giai đoạn 5 hai bản dùng chung lõi |
+| Sửa `server.mjs` làm hỏng bản Vercel mà không biết | Chạy preview deploy trước khi merge; sau giai đoạn 5 hai bản dùng chung lõi |
 | Tách module làm đổi hành vi | Mỗi vùng một commit, không đổi logic, e2e chạy sau từng commit |
-| Cache cấu hình cũ khi hai bản cùng chạy | TTL 60 giây; trigger trong database vẫn bảo vệ dữ liệu |
+| Cache cấu hình cũ khi nhiều instance cùng chạy | TTL 60 giây; cache chỉ sống theo instance; trigger trong database vẫn bảo vệ dữ liệu |
 | Ghi hàng loạt thành công một phần | Trả kết quả theo từng dòng, hoàn nguyên dòng lỗi, không tự gửi lại |
-| Số đo giả lập khác thực tế | Bước 3.8 đo lại trên Supabase thật |
+| Số đo giả lập khác thực tế | Bước 3b.7 đo trên Vercel; bảng mục 3.3 chỉ là đường cơ sở |
 | Commit định dạng làm khó đọc lịch sử | Commit riêng, ghi vào `.git-blame-ignore-revs` |
 
 ---
@@ -639,12 +710,13 @@ Mỗi mục có test e2e riêng.
 
 | Giai đoạn | Nội dung | Trạng thái |
 |---|---|---|
-| 1 | Lưới an toàn | Xong |
+| 1 | Lưới an toàn | Xong, trừ 1 lỗi e2e `/.env.local` (3b.3); 1.5 hủy |
 | 2 | Nút bấm và Dashboard | Xong |
-| 3 | Tốc độ dữ liệu | Xong 3.0–3.8 và 3.10–3.13; 3.9 và 3.14 chưa đủ điều kiện |
-| 4 | Dọn dẹp | Chưa bắt đầu |
+| 3 | Tốc độ dữ liệu | Xong 3.0–3.2, 3.4–3.7, 3.11–3.13; **một phần** 3.3, 3.8, 3.10; 3.9 và 3.14 chưa đủ điều kiện |
+| 3b | Hoàn tất giai đoạn 3 | Chưa bắt đầu |
+| 4 | Dọn dẹp (gồm 4.1 gỡ edge / Sites) | Chưa bắt đầu |
 | 5 | Tách backend | Chưa bắt đầu |
 | 6 | Tách frontend | Chưa bắt đầu |
 | 7 | Thao tác nhanh | Chưa bắt đầu |
 | 8 | Giao diện | Chưa bắt đầu |
-| 9 | Bản online an toàn hơn | Chưa bắt đầu; bước 9.2 chờ quyết định |
+| 9 | Bản Vercel an toàn hơn | Chưa bắt đầu; bước 9.2 chờ quyết định |
