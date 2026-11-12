@@ -18,28 +18,17 @@ export function isWritableColumn(table, column, { formulas = [], lookups = [] } 
   if (!table || !column) return false;
   const currentTable = tableName(table);
   if (
-    (formulas || []).some(
-      (rule) =>
-        rule?.enabled &&
-        sameTable(rule.table, currentTable) &&
-        rule.column === column.name,
-    )
+    (formulas || []).some(rule => rule?.enabled && sameTable(rule.table, currentTable) && rule.column === column.name)
   )
     return false;
   if (
     (lookups || []).some(
-      (config) =>
-        sameTable(config?.sourceTable, currentTable) &&
-        config?.sync?.enabled &&
-        config.sync.columnName === column.name,
+      config =>
+        sameTable(config?.sourceTable, currentTable) && config?.sync?.enabled && config.sync.columnName === column.name,
     )
   )
     return false;
   if (optionsOf(column).includes('generated')) return false;
-  if (
-    optionsOf(column).includes('identity') &&
-    column.identity_generation === 'ALWAYS'
-  )
-    return false;
+  if (optionsOf(column).includes('identity') && column.identity_generation === 'ALWAYS') return false;
   return true;
 }

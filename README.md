@@ -1,6 +1,6 @@
 # Siris — Quản lý dữ liệu cục bộ
 
-Ứng dụng đang được chuyển từng phase theo `CODEX_LOCAL_SUPABASE_MANAGER.md`; trạng thái và phạm vi còn thiếu được ghi trong `IMPLEMENTATION_PLAN.md`. Chỉ dùng trên máy cá nhân.
+Ứng dụng quản lý dữ liệu Supabase chạy cục bộ: xem và sửa bảng, thiết lập cột, đồng bộ lookup, formula và dashboard chỉ xem. Chỉ dùng trên máy cá nhân. Các bước cải thiện tiếp theo được ghi trong `IMPLEMENTATION_PLAN.md`.
 
 ## Chạy ứng dụng
 
@@ -15,12 +15,13 @@ cp .env.example .env.local
 
 Chạy `npm run dev` rồi mở http://localhost:3000. Khi dùng `npm start`, chạy `npm run build` trước để máy chủ phục vụ giao diện đã build. Ứng dụng kết nối trực tiếp bằng URL và key đã cấu hình ở máy chủ; quyền truy cập dữ liệu phụ thuộc vào key và các chính sách Supabase tương ứng.
 
-Các API quản trị cấu trúc và quan hệ đang tạm khóa trong khi hoàn thiện kiểm tra quyền. Nếu thiếu kết nối PostgreSQL, metadata dùng bản `schema.json` đã lưu, có thể không phản ánh các thay đổi gần đây.
+Thiết lập cột (thêm, đổi tên, đổi kiểu, xóa, nhân bản), đồng bộ lookup và formula cần `SUPABASE_DB_URL` trỏ đúng dự án Supabase đang dùng. Nếu thiếu kết nối PostgreSQL, các chức năng này bị khóa và metadata dùng bản `schema.json` đã lưu, có thể không phản ánh các thay đổi gần đây.
 
 ## Kiểm tra
 
 ```sh
 npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run build
@@ -28,15 +29,28 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Nếu đã có Chromium hoặc Chrome, có thể dùng trình duyệt đó thay vì tải lại:
+Nếu máy đã có sẵn Chromium, bỏ bước `npx playwright install` và trỏ Playwright tới nó:
 
 ```sh
-PLAYWRIGHT_CHROMIUM_EXECUTABLE="/đường/dẫn/tới/chromium" npm run test:e2e
+PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e
 ```
+
+Mỗi test e2e dừng sau 15 giây để không treo cả bộ test.
 
 Các kiểm thử tự động dùng API giả lập; không thay thế nghiệm thu thực tế RLS, Storage, Realtime hoặc thao tác ghi. Chỉ kiểm tra đọc trên Supabase Cloud hiện tại khi chưa có phê duyệt thay đổi dữ liệu.
 
-## Các tính năng đang chuyển đổi
+## Bản online
+
+Bản online chạy qua edge function `supabase/functions/siris-manager/` và Sites worker trong repo riêng `chatgpt-site/`. Sau khi đổi mã, trên máy có `chatgpt-site/` chạy `npm run build` rồi `node scripts/prepare-chatgpt-site.mjs`, sau đó deploy cả edge function lẫn Sites worker.
+
+## Phím tắt
+
+- Mũi tên: di chuyển giữa các ô; gõ ký tự để sửa ô; F2 hoặc Enter để mở ô.
+- Khi sửa: Enter lưu và xuống dòng dưới, Tab lưu và sang phải (Shift+Tab sang trái), Escape hủy.
+- `/`: vào ô tìm kiếm. Ctrl/⌘+K: chuyển bảng nhanh. Ctrl/⌘+Z, Ctrl/⌘+Shift+Z: hoàn tác, làm lại. Ctrl/⌘+B: thu gọn thanh bên.
+- Bấm tiêu đề cột để sắp xếp, lọc, nhóm, ẩn, ghim hoặc thiết lập cột.
+
+## Sửa nhiều ô
 
 Chọn các ô cùng cột trực tiếp trên bảng bằng Shift và nhấp ô đầu, ô cuối; nhập giá trị rồi bấm **Áp dụng**. Có thể dán dữ liệu vào ô đang được chọn bằng bàn phím. Mỗi dòng được lưu riêng, và lỗi được báo theo dòng. Hoàn tác/làm lại chỉ hỗ trợ sửa từng ô trong phiên. Cấu hình hiển thị được lưu riêng cho từng bảng trên trình duyệt.
 
@@ -49,6 +63,9 @@ Khi lưu, giao diện hiển thị số bản ghi bị ảnh hưởng để xác
 Chức năng dùng kết nối `SUPABASE_DB_URL` và nơi lưu `siris_admin.lookup_configs` hiện có. Không cần Docker hay dịch vụ đồng bộ riêng. SQL chạy với quyền của thao tác đang thay đổi bản ghi; thiếu quyền sẽ báo lỗi. Kiểm thử tự động của luồng này dùng dữ liệu và kết nối giả lập.
 
 ## Nhân bản cột
+
+
+Cột công thức tạo trực tiếp trong Supabase (`GENERATED ALWAYS AS`) có thể xóa trong **Thiết lập cột** nếu không có phụ thuộc. Máy chủ kiểm tra phụ thuộc PostgreSQL, liên kết và lookup trước khi hiện xác nhận, rồi kiểm tra lại trong transaction sau khi khóa bảng. Xác nhận hiển thị công thức và số giá trị bị xóa; thao tác dùng `DROP COLUMN ... RESTRICT`, không xóa dây chuyền. Khóa chính và identity vẫn được bảo vệ. Phụ thuộc trong mã ứng dụng bên ngoài database cần được người quản trị kiểm tra riêng.
 
 Mở **Thiết lập cột → Nhân bản cột**, nhập tên mới rồi bấm **Nhân bản**. Máy chủ tạo cột cùng kiểu PostgreSQL và sao chép toàn bộ giá trị hiện có trong một transaction. Cột mới cho phép trống và sửa tay; không sao chép khóa, unique, identity, giá trị mặc định hoặc cấu hình lookup/formula. Nếu sao chép lỗi, cột mới được rollback và hộp nhập giữ tên để thử lại.
 

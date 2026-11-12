@@ -4,27 +4,213 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
-let upstream,backend,origin,upstreamRequests=[];
-const getPort=async()=>{const server=net.createServer();server.listen(0,'127.0.0.1');await once(server,'listening');const port=server.address().port;await new Promise(resolve=>server.close(resolve));return port};
-beforeAll(async()=>{upstream=http.createServer((req,res)=>{upstreamRequests.push({url:req.url,authorization:req.headers.authorization,prefer:req.headers.prefer});res.setHeader('Content-Type','application/json');if(req.method==='PATCH'&&new URL(req.url,'http://localhost').searchParams.get('name')==='eq.stale')return res.end('[]');res.setHeader('Content-Range','0-0/1');return res.end(JSON.stringify([{id:'one',name:'A'}]))});upstream.listen(0,'127.0.0.1');await once(upstream,'listening');const port=await getPort();origin=`http://127.0.0.1:${port}`;backend=spawn(process.execPath,['server.mjs'],{cwd:process.cwd(),env:{...process.env,PORT:String(port),SUPABASE_URL:`http://127.0.0.1:${upstream.address().port}`,SUPABASE_KEY:'test-publishable',SUPABASE_DB_URL:''},stdio:['ignore','pipe','pipe']});await Promise.race([once(backend.stdout,'data'),once(backend,'exit').then(()=>{throw Error('server stopped')})])});
-afterAll(async()=>{backend?.kill('SIGTERM');await new Promise(resolve=>upstream.close(resolve))});
-describe('API trên máy cục bộ',()=>{
- it('không cho sửa khóa chính, vẫn cho nhập khóa khi thêm',async()=>{const meta=await (await fetch(`${origin}/api/meta`)).json();const headers={origin,'x-siris-token':meta.token,'content-type':'application/json'};const count=upstreamRequests.length;const patch=await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers,body:JSON.stringify({key:{id:'one'},values:{id:'two'}})});expect(patch.status).toBe(400);expect(upstreamRequests.length).toBe(count);const create=await fetch(`${origin}/api/table/branches`,{method:'POST',headers,body:JSON.stringify({values:{id:'two',name:'B'}})});expect(create.status).toBe(200)});
- it('có thể bỏ đếm tổng khi đọc trang',async()=>{const response=await fetch(`${origin}/api/table/branches?page=1&count=none`);const data=await response.json();expect(data.total).toBeNull();expect(upstreamRequests.at(-1).prefer).toBeUndefined();await fetch(`${origin}/api/table/branches`);expect(upstreamRequests.at(-1).prefer).toBe('count=exact')});
- it('giới hạn cỡ trang trong khoảng hỗ trợ',async()=>{await fetch(`${origin}/api/table/branches?page=2&limit=1000`);let q=new URL(upstreamRequests.at(-1).url,'http://localhost').searchParams;expect(q.get('limit')).toBe('1000');expect(q.get('offset')).toBe('2000');await fetch(`${origin}/api/table/branches?limit=5000`);q=new URL(upstreamRequests.at(-1).url,'http://localhost').searchParams;expect(q.get('limit')).toBe('1000');});
- it('hiển thị bảng không yêu cầu đăng nhập và chỉ dùng key phía máy chủ',async()=>{const response=await fetch(`${origin}/api/meta`);expect(response.status).toBe(200);const data=await response.json();expect(JSON.stringify(data)).not.toContain('test-publishable');expect(data.token).toBeTruthy();expect((await fetch(`${origin}/api/table/branches`)).status).toBe(200);expect(upstreamRequests.find(x=>x.url.startsWith('/rest/v1/branches')).authorization).toBe('Bearer test-publishable')});
- it('phục vụ giao diện build và chặn tệp cấu hình',async()=>{const response=await fetch(origin);expect(response.status).toBe(200);const html=await response.text();const asset=html.match(/src="(\/assets\/[^" ]+\.js)"/);expect(asset).not.toBeNull();expect((await fetch(origin+asset[1])).status).toBe(200);expect((await fetch(origin+'/.env.local')).status).toBe(404)});
- it('cập nhật nhiều cột với điều kiện kiểm tra từng giá trị cũ',async()=>{const meta=await (await fetch(`${origin}/api/meta`)).json();const headers={origin,'x-siris-token':meta.token,'content-type':'application/json'};const response=await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers,body:JSON.stringify({key:{id:'one'},values:{name:'B',tag:'new'},expected:{name:'A',tag:'old'}})});expect(response.status).toBe(200);const request=upstreamRequests.find(x=>x.url.includes('tag=eq.old'));expect(request).toBeDefined();const params=new URL(request.url,'http://localhost').searchParams;expect(params.get('name')).toBe('eq.A');expect(params.get('tag')).toBe('eq.old');const invalid=await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers,body:JSON.stringify({key:{id:'one'},values:{name:'B'},expected:{name:'A',tag:'old'}})});expect(invalid.status).toBe(400)});
- it('lookup theo lô dùng Data API và kiểm tra đầu vào',async()=>{const meta=await (await fetch(`${origin}/api/meta`)).json();const headers={origin,'x-siris-token':meta.token,'content-type':'application/json'};const response=await fetch(`${origin}/api/lookup/branches`,{method:'POST',headers,body:JSON.stringify({column:'name',values:['A,B','C"D']})});expect(response.status).toBe(200);const request=upstreamRequests.at(-1);expect(request.authorization).toBe('Bearer test-publishable');expect(new URL(request.url,'http://localhost').searchParams.get('name')).toBe('in.("A,B","C\\"D")');const bad=await fetch(`${origin}/api/lookup/branches`,{method:'POST',headers,body:JSON.stringify({column:'missing',values:['x']})});expect(bad.status).toBe(400);const many=await fetch(`${origin}/api/lookup/branches`,{method:'POST',headers,body:JSON.stringify({column:'name',values:Array(51).fill('x')})});expect(many.status).toBe(400)});
- it('ghi lô tối đa 50 dòng, báo lỗi từng dòng và kiểm tra cột bảo vệ',async()=>{const meta=await (await fetch(`${origin}/api/meta`)).json();const headers={origin,'x-siris-token':meta.token,'content-type':'application/json'};const changes=Array.from({length:50},(_,i)=>({key:{id:String(i)},values:{name:'B'},expected:{name:i===7?'stale':'A'}}));const before=upstreamRequests.length;const response=await fetch(`${origin}/api/table/branches/batch`,{method:'POST',headers,body:JSON.stringify({changes})});const result=await response.json();expect(response.status).toBe(200);expect(result.results).toHaveLength(50);expect(result.results.filter(x=>x.ok)).toHaveLength(49);expect(result.results[7].ok).toBe(false);expect(upstreamRequests.length-before).toBe(50);const invalid=await fetch(`${origin}/api/table/branches/batch`,{method:'POST',headers,body:JSON.stringify({changes:[{key:{id:'1'},values:{id:'2'}}]})});expect((await invalid.json()).results[0].ok).toBe(false);const oversized=await fetch(`${origin}/api/table/branches/batch`,{method:'POST',headers,body:JSON.stringify({changes:[...changes,changes[0]]})});expect(oversized.status).toBe(400)});
- it('kiểm tra origin, token, điều kiện xung đột và khóa API quản trị',async()=>{const meta=await (await fetch(`${origin}/api/meta`)).json();const headers={origin,'x-siris-token':meta.token,'content-type':'application/json'};const patch=await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers,body:JSON.stringify({key:{id:'one'},values:{name:'B'},expected:{name:'A'}})});expect(patch.status).toBe(200);expect(upstreamRequests.find(x=>x.url.includes('name=eq.A'))).toBeDefined();const conflict=await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers,body:JSON.stringify({key:{id:'one'},values:{name:'B'},expected:{name:'stale'}})});expect(conflict.status).toBe(400);expect((await fetch(`${origin}/api/admin/schema/preview`,{method:'POST',headers,body:'{}'})).status).toBe(403);expect((await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers:{...headers,origin:'https://malicious.example'},body:'{}'})).status).toBe(403);expect((await fetch(`${origin}/api/table/branches`,{method:'PATCH',headers:{origin,'content-type':'application/json'},body:'{}'})).status).toBe(403)});
+let upstream,
+  backend,
+  origin,
+  upstreamRequests = [];
+const getPort = async () => {
+  const server = net.createServer();
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const port = /** @type {import('node:net').AddressInfo} */ (server.address()).port;
+  await new Promise(resolve => server.close(resolve));
+  return port;
+};
+beforeAll(async () => {
+  upstream = http.createServer((req, res) => {
+    upstreamRequests.push({ url: req.url, authorization: req.headers.authorization, prefer: req.headers.prefer });
+    res.setHeader('Content-Type', 'application/json');
+    if (req.method === 'PATCH' && new URL(req.url, 'http://localhost').searchParams.get('name') === 'eq.stale')
+      return res.end('[]');
+    res.setHeader('Content-Range', '0-0/1');
+    return res.end(JSON.stringify([{ id: 'one', name: 'A' }]));
+  });
+  upstream.listen(0, '127.0.0.1');
+  await once(upstream, 'listening');
+  const port = await getPort();
+  origin = `http://127.0.0.1:${port}`;
+  backend = spawn(process.execPath, ['server.mjs'], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      PORT: String(port),
+      SUPABASE_URL: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (upstream.address()).port}`,
+      SUPABASE_KEY: 'test-publishable',
+      SUPABASE_DB_URL: '',
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await Promise.race([
+    once(backend.stdout, 'data'),
+    once(backend, 'exit').then(() => {
+      throw Error('server stopped');
+    }),
+  ]);
 });
-
-
-describe.skipIf(!process.env.SIRIS_BENCH_PG_BIN)('cache đường ghi với PostgreSQL giả lập',()=>{
- it('giữ cache cấu hình và metadata sau hai lần PATCH',async()=>{
-  const child=spawn(process.execPath,['scripts/bench.mjs','--verify-cache'],{cwd:process.cwd(),env:process.env,stdio:['ignore','pipe','pipe']});
-  let output='';child.stdout.on('data',chunk=>{output+=chunk});child.stderr.on('data',chunk=>{output+=chunk});
-  const [code]=await once(child,'exit');expect(output).toContain('Kiểm tra cache sau hai lần ghi: đạt');expect(code).toBe(0);
- },20000);
+afterAll(async () => {
+  backend?.kill('SIGTERM');
+  await new Promise(resolve => upstream.close(resolve));
+});
+describe('API trên máy cục bộ', () => {
+  it('không cho sửa khóa chính, vẫn cho nhập khóa khi thêm', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const count = upstreamRequests.length;
+    const patch = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ key: { id: 'one' }, values: { id: 'two' } }),
+    });
+    expect(patch.status).toBe(400);
+    expect(upstreamRequests.length).toBe(count);
+    const create = await fetch(`${origin}/api/table/branches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ values: { id: 'two', name: 'B' } }),
+    });
+    expect(create.status).toBe(200);
+  });
+  it('hiển thị bảng không yêu cầu đăng nhập và chỉ dùng key phía máy chủ', async () => {
+    const response = await fetch(`${origin}/api/meta`);
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(JSON.stringify(data)).not.toContain('test-publishable');
+    expect(data.token).toBeTruthy();
+    expect((await fetch(`${origin}/api/table/branches`)).status).toBe(200);
+    expect(upstreamRequests.find(x => x.url.startsWith('/rest/v1/branches')).authorization).toBe(
+      'Bearer test-publishable',
+    );
+  });
+  it('chỉ đếm tổng khi được yêu cầu', async () => {
+    const counted = await (await fetch(`${origin}/api/table/branches?page=0`)).json();
+    expect(counted.total).toBe(1);
+    expect(upstreamRequests.at(-1).prefer).toBe('count=exact');
+    const skipped = await (await fetch(`${origin}/api/table/branches?page=1&count=0`)).json();
+    expect(skipped.total).toBeNull();
+    expect(skipped.rows).toHaveLength(1);
+    expect(upstreamRequests.at(-1).prefer).toBeUndefined();
+    expect(upstreamRequests.at(-1).url).not.toContain('count');
+    await fetch(`${origin}/api/table/branches?page=2&limit=1000`);
+    expect(upstreamRequests.at(-1).url).toContain('limit=1000&offset=2000');
+    await fetch(`${origin}/api/table/branches?limit=5000`);
+    expect(upstreamRequests.at(-1).url).toContain('limit=1000&offset=0');
+  });
+  it('đếm theo nhóm trên toàn bảng với bộ lọc hiện tại', async () => {
+    const paths = JSON.stringify([[['name', 'A']], [['name', null]]]);
+    const q = new URLSearchParams({ search: '', filters: '[]', paths });
+    const result = await (await fetch(`${origin}/api/table/branches/group-counts?${q}`)).json();
+    expect(result.counts).toEqual([1, 1]);
+    const urls = upstreamRequests.slice(-2).map(x => decodeURIComponent(x.url));
+    expect(urls.some(url => url.includes('name=eq.A'))).toBe(true);
+    expect(urls.some(url => url.includes('name=is.null'))).toBe(true);
+    const bad = await fetch(
+      `${origin}/api/table/branches/group-counts?paths=${encodeURIComponent('[[["missing",1]]]')}`,
+    );
+    expect(bad.status).toBe(400);
+  });
+  it('phục vụ giao diện build và chặn tệp cấu hình', async () => {
+    const response = await fetch(origin);
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    const asset = html.match(/src="(\/assets\/[^" ]+\.js)"/);
+    expect(asset).not.toBeNull();
+    expect((await fetch(origin + asset[1])).status).toBe(200);
+    expect((await fetch(origin + '/.env.local')).status).toBe(404);
+    expect(html).not.toContain('fonts.googleapis.com');
+    expect(response.headers.get('content-security-policy')).toContain("font-src 'self';");
+    const css = html.match(/href="(\/assets\/[^" ]+\.css)"/);
+    const font = (await (await fetch(origin + css[1])).text()).match(/\/assets\/[^)"' ]+\.woff2/);
+    expect(font).not.toBeNull();
+    const fontResponse = await fetch(origin + font[0]);
+    expect(fontResponse.status).toBe(200);
+    expect(fontResponse.headers.get('content-type')).toBe('font/woff2');
+  });
+  it('cập nhật nhiều cột với điều kiện kiểm tra từng giá trị cũ', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const response = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        key: { id: 'one' },
+        values: { name: 'B', tag: 'new' },
+        expected: { name: 'A', tag: 'old' },
+      }),
+    });
+    expect(response.status).toBe(200);
+    const request = upstreamRequests.find(x => x.url.includes('tag=eq.old'));
+    expect(request).toBeDefined();
+    const params = new URL(request.url, 'http://localhost').searchParams;
+    expect(params.get('name')).toBe('eq.A');
+    expect(params.get('tag')).toBe('eq.old');
+    const invalid = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ key: { id: 'one' }, values: { name: 'B' }, expected: { name: 'A', tag: 'old' } }),
+    });
+    expect(invalid.status).toBe(400);
+  });
+  it('lookup theo lô dùng Data API và kiểm tra đầu vào', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const response = await fetch(`${origin}/api/lookup/branches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ column: 'name', values: ['A,B', 'C"D'] }),
+    });
+    expect(response.status).toBe(200);
+    const request = upstreamRequests.at(-1);
+    expect(request.authorization).toBe('Bearer test-publishable');
+    expect(new URL(request.url, 'http://localhost').searchParams.get('name')).toBe('in.("A,B","C\\"D")');
+    const bad = await fetch(`${origin}/api/lookup/branches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ column: 'missing', values: ['x'] }),
+    });
+    expect(bad.status).toBe(400);
+    const many = await fetch(`${origin}/api/lookup/branches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ column: 'name', values: Array(51).fill('x') }),
+    });
+    expect(many.status).toBe(400);
+  });
+  it('kiểm tra origin, token, điều kiện xung đột và khóa API quản trị', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const patch = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ key: { id: 'one' }, values: { name: 'B' }, expected: { name: 'A' } }),
+    });
+    expect(patch.status).toBe(200);
+    expect(upstreamRequests.find(x => x.url.includes('name=eq.A'))).toBeDefined();
+    const conflict = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ key: { id: 'one' }, values: { name: 'B' }, expected: { name: 'stale' } }),
+    });
+    expect(conflict.status).toBe(400);
+    expect((await fetch(`${origin}/api/admin/schema/preview`, { method: 'POST', headers, body: '{}' })).status).toBe(
+      403,
+    );
+    expect(
+      (
+        await fetch(`${origin}/api/table/branches`, {
+          method: 'PATCH',
+          headers: { ...headers, origin: 'https://malicious.example' },
+          body: '{}',
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await fetch(`${origin}/api/table/branches`, {
+          method: 'PATCH',
+          headers: { origin, 'content-type': 'application/json' },
+          body: '{}',
+        })
+      ).status,
+    ).toBe(403);
+  });
 });

@@ -1,0 +1,11 @@
+.env*
+.git
+.agents
+.codex
+chatgpt-site
+node_modules
+dist
+supabase
+test-results
+playwright-report
+coverage

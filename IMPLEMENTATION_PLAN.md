@@ -5,30 +5,32 @@ Cập nhật 12/11/2026, sau khi đánh giá PR #3 (chạy lại lint, typecheck
 Mục lục:
 1. Tình hình hiện tại
 2. Quyết định đã chốt
-3. Đã xong (kết quả đạt được)
-4. Cần sửa (tóm tắt, theo thứ tự)
+3. Hiện trạng chi tiết
+4. Thứ tự công việc
 5. Các bước chi tiết
 6. Quy tắc làm việc
 7. Rủi ro
 8. Bảng trạng thái
-9. Phụ lục: số đo, kiến trúc đích
+9. Phụ lục: số đo tốc độ
 
 ---
 
 ## 1. Tình hình hiện tại
 
-Phần tốc độ dữ liệu của PR #3 hoạt động tốt. Còn thiếu: snapshot metadata ghi xuống đĩa vô ích trên Vercel, một lỗi e2e, chưa đo các mục 3.10–3.12, chưa đo trên Vercel, chưa có CI. Phần edge/Sites không còn dùng và cần gỡ.
+Nhánh `claude/hopeful-gates-00krjq` đã được merge với `main` (cả 20 file xung đột đã giải quyết) để PR #3 là PR duy nhất, trên một nhánh duy nhất. Cách giải quyết: **lấy code và test của `main`** cho mọi file xung đột, vì `main` đã tách `server.mjs` thành `server/` và `app.js` thành `src/`; giữ plan này, `scripts/bench.mjs`, script `bench` và mục README về đo hiệu năng.
 
-Kết quả kiểm tra hiện tại (nhánh `claude/hopeful-gates-00krjq`):
+Hệ quả cần biết: **các thay đổi tốc độ viết trên nền cũ của PR #3 không còn trong code của nhánh.** Chúng vẫn nằm nguyên trong lịch sử, commit `d21eac0`, và được chuyển sang cấu trúc mới ở giai đoạn P bên dưới. PR #3 sau merge khác `main` ở: plan, `scripts/bench.mjs`, script `bench`, mục README.
+
+Kết quả kiểm tra sau merge:
 
 | Lệnh | Kết quả |
 |---|---|
 | `npm run lint` | Đạt |
-| `npm run typecheck` | Đạt |
+| `npm run typecheck` | Đạt (TypeScript và `checkJs`) |
 | `npm run build` | Đạt |
-| `npm test` | 72 đạt, 2 bỏ qua. Lỗi `tests/server.test.js` (404) nếu chưa `npm run build` |
-| `npm run test:e2e` | 77 đạt, 1 lỗi: `auth.spec.ts:44` `/.env.local` trả 200 thay vì ≥ 400 |
-| `npm run bench` | Chưa chạy lại được trong môi trường đánh giá (thiếu PostgreSQL 16); số liệu là số PR tự ghi |
+| `npm test` | 85 đạt, 1 bỏ qua; lỗi 1 test (`tests/server.test.js`, phục vụ giao diện build) nếu chưa `npm run build` |
+| `npm run test:e2e` | **105/105 đạt** |
+| `npm run bench` | Chưa chạy được ở môi trường này (thiếu PostgreSQL 16); chưa kiểm `bench.mjs` còn tương thích với `server.mjs` mới |
 
 ---
 
@@ -37,205 +39,174 @@ Kết quả kiểm tra hiện tại (nhánh `claude/hopeful-gates-00krjq`):
 | Chủ đề | Quyết định |
 |---|---|
 | Chế độ mở mặc định | Lưới dữ liệu cho mọi bảng, kể cả `promotions` |
-| Dashboard | Thêm và sửa được bản ghi; xóa chỉ ở lưới |
-| Thanh chọn dòng | Nổi ở đáy lưới, không đẩy nội dung |
-| Frontend | JS thuần, tách module |
-| Bản online | **Vercel.** Không dùng `chatgpt-site/`, Sites, Edge Function |
-| `/api/admin/*` (đổi schema, formula, lookup) trên Vercel | **Giữ**, bắt buộc xem trước + chữ ký như hiện nay, và ghi log (bước E6) |
-| Cache trong bộ nhớ của server | Chỉ sống theo từng instance serverless; không coi là nguồn dữ liệu |
+| Tổng quan | Thêm và sửa được bản ghi; xóa chỉ ở lưới |
+| Thanh chọn dòng | Nổi ở đáy lưới |
+| Frontend | JS thuần, module trong `src/` |
+| Bản online | **Vercel** (`vercel.json`, `api/handler.mjs`, `server/vercel.mjs`, đăng nhập phiên ký). Không dùng `chatgpt-site/`, Sites, Edge Function |
+| `/api/admin/*` trên Vercel | **Giữ**, bắt buộc xem trước + chữ ký, thêm ghi log (E6) |
+| Cache trong bộ nhớ của server | Chỉ sống theo instance serverless; không coi là nguồn dữ liệu |
+| Một PR, một nhánh | PR #3 trên `claude/hopeful-gates-00krjq`; không mở PR hay nhánh khác |
 
 ---
 
-## 3. Đã xong (kết quả đạt được)
+## 3. Hiện trạng chi tiết
 
-| Hạng mục | Kết quả | Bằng chứng |
-|---|---|---|
-| 1.1 Lưới là chế độ mặc định | Mọi bảng mở ở lưới | e2e đạt |
-| 1.2 Cột checkbox không trôi khi cuộn ngang | Ghim đúng | `delete-records.spec.ts` |
-| 1.3–1.4 Lint, timeout e2e 15 s | `lint` hết lỗi; README có `PLAYWRIGHT_CHROMIUM_EXECUTABLE` | `lint` đạt |
-| 2.1–2.4 Dashboard thêm/sửa, nút không nhảy | PATCH đúng khóa; form không có nút xóa | `table-overview.spec.ts` |
-| 2.5–2.7 Thanh chọn nổi, ô chọn thẳng hàng, 390px | Có test từng hành vi | e2e đạt |
-| 3.0 `scripts/bench.mjs` | Đo lặp lại được (PostgreSQL thật + proxy trễ + API giả lập) | `npm run bench` |
-| 3.1–3.2 Cache cấu hình ở đường ghi, xóa cache đúng lúc | Metadata sau khi ghi 91 → 1 ms | unit test |
-| 3.3 Một pool Postgres dùng chung | `server.mjs:19` tạo một pool `max:4`, giữ rảnh 5 phút, `keepAlive`, truyền cho `createAdmin` và `createLookupStore`. Pool trong `admin.mjs:15` chỉ là dự phòng khi không truyền pool | đọc mã |
-| 3.4 Không tải lại trang sau khi lưu ô | Lưu 1 ô 275 → 65 ms | e2e |
-| 3.5 Ghi hàng loạt 50 dòng | 13,9 s → 0,64 s; lỗi theo dòng, chống trùng khóa | unit test |
-| 3.6–3.7 `limit` ≤ 1.000, `count=none` | Tổng quan 500 dòng 658 → 67 ms | unit test, e2e |
-| 3.10 (phần trình duyệt) Metadata lần trước trong `localStorage` | Dựng sidebar và tải bảng ngay | e2e |
-| 3.11 Dùng lại trang đã tải, tải trước trang kế | Quay lại trang không chờ mạng | e2e |
-| 3.12 Cache lookup 60 giây | Sửa ô không liên quan thì không gọi lookup | e2e |
-| 3.13 Tìm kiếm nhẹ hơn | Từ khóa ≥ 2 ký tự, đếm sau khi dừng gõ, chọn cột | e2e |
+### 3.1 Đã có trên nhánh (từ `main`, e2e đạt)
 
----
+| Hạng mục | Ghi chú |
+|---|---|
+| Nút bấm, Tổng quan thêm/sửa, thanh chọn nổi, 390px | `src/chrome.js` (`syncChrome`), e2e `chrome`, `table-overview`, `delete-records` |
+| Cấu trúc | Backend ở `server/` (`app.mjs`, `routes/*`, `context.mjs`), frontend ở `src/`; đã gỡ React/Glide/Tailwind; Prettier; `checkJs` |
+| Cache server | `server-cache.mjs` (TTL, xóa theo sự kiện); ghi dữ liệu không xóa cache cấu hình |
+| Đọc/ghi | Không tải lại trang sau khi lưu ô (`cell-save.spec`), `limit` ≤ 1.000 cho Tổng quan, `group-counts`, `pageCache`, làm mới nền (`background-refresh.spec`), cỡ trang 50/100/200 (`paging.spec`) |
+| Thao tác | Bàn phím, menu tiêu đề cột, `/` và Ctrl/⌘+K, thẻ bộ lọc, hoàn tác sau lưu |
+| Dev server | Chặn dotfile (`denyDotfiles` trong `vite.config.ts`) |
+| Bản online | `vercel.json`, `api/handler.mjs`, `VERCEL.md`, đăng nhập phiên ký, `tests/vercel.test.js` |
 
-## 4. Cần sửa (tóm tắt, theo thứ tự làm)
+### 3.2 Chưa có trên nhánh — phải chuyển từ `d21eac0` (giai đoạn P)
 
-| # | Việc | Vấn đề | Xong khi |
+Mỗi mục ghi tình trạng thật sự trên `main` (kiểm bằng `grep`) và số đo PR #3 đã ghi:
+
+| Mã | Tính năng | Trên `main` hiện nay | Số đo PR #3 đã ghi (mô phỏng, mạng gần) |
 |---|---|---|---|
-| A1 | Sửa e2e `/.env.local` | Vite dev server không chặn dotfile | e2e 78/78 |
-| A2 | Gỡ snapshot metadata trên đĩa | `server.mjs` ghi `.siris-metadata-cache.json`; vô ích trên Vercel, lỗi ghi bị nuốt | Không còn ghi file |
-| A3 | `npm test` không cần `build` trước | Thiếu `dist/` thì test lỗi 404 | Bản clone mới chạy `npm test` đạt |
-| A4 | Bỏ plugin React/Tailwind khỏi `vite.config.ts` | Còn sót, không dùng | `build` và e2e đạt |
-| B1–B3 | Đo nốt 3.10–3.12 bằng `bench.mjs` | Mục tiêu "mở ứng dụng 428 → ~80 ms", "quay lại trang tức thì", "lookup 0–1 lượt" chưa có số | Bảng đo không còn ô "chưa đo" |
-| B4 | Đo trên Vercel | Mọi số hiện nay là mô phỏng | Có một bộ số thật |
-| **Dừng** | **Dừng sau B4 để bạn kiểm tra** | | Bạn đồng ý mới làm tiếp |
-| C1–C3 | Gỡ bản edge/Sites, sửa tài liệu | Còn file và test thừa | Không còn `chatgpt-site`, `siris-manager` |
-| D1 | Tạo CI | Chưa có `.github/`; 2 test cache với PostgreSQL bị skip | Cả job xanh, 2 test chạy thật |
-| E1–E6 | Dọn mã chết, tách module, thao tác nhanh, giao diện, bảo mật Vercel | Xem mục 5 | Theo từng bước |
+| P1 | Pool Postgres giữ kết nối rảnh 5 phút, `keepAlive` | Chưa (không có `idleTimeoutMillis`/`keepAlive`) | Lưu ô sau 11 giây 383 → 73 ms |
+| P2 | Tham số `count=none`, giao diện dùng lại tổng khi chuyển trang | Chưa | Tải trang bớt một truy vấn đếm |
+| P3 | `POST /api/table/:name/batch` (≤ 50 dòng, 5 lượt song song, lỗi theo dòng, chống trùng khóa) và `pasteCells` gửi một request | Chưa (`selection.js` chỉ có sửa hàng loạt phía trình duyệt) | Ghi 50 dòng 13.863 → 640 ms |
+| P4 | Cache lookup phía trình duyệt 60 giây theo bảng nguồn và giá trị, xóa khi ghi bảng nguồn | Chưa | Chưa đo |
+| P5 | Hiện trang đã tải bất kể tuổi rồi làm mới nền; tải trước trang kế tiếp và bảng khi rê chuột 150 ms | Một phần (`pageCache` 15 giây) | Chưa đo |
+| P6 | Metadata lần trước trong `localStorage` để dựng sidebar và tải bảng ngay | Chưa | Chưa đo |
+| P7 | Tìm kiếm: bỏ từ khóa < 2 ký tự, chọn cột tìm (`searchColumn`), chỉ đếm khi dừng gõ | Chưa | Chưa đo |
+
+Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel), `scripts/to-edge-backend.mjs` và test edge của PR.
+
+### 3.3 Điểm yếu đã biết
+
+1. Mọi số đo là **mô phỏng**; chưa đo trên Vercel.
+2. Hai test cache với PostgreSQL bị bỏ qua mặc định (`SIRIS_BENCH_PG_BIN`); repo chưa có `.github/`, tức chưa có CI.
+3. `npm test` cần `npm run build` trước.
+4. Còn mã edge/Sites cần gỡ (`supabase/functions/siris-manager/`, `server/edge.mjs`, `scripts/prepare-chatgpt-site.mjs`, `scripts/check-sites-backend.mjs`, `scripts/edge-files.mjs`, `tests/sites-bridge.test.js`, `tests/edge-backend.test.js`).
+
+---
+
+## 4. Thứ tự công việc
+
+| # | Việc | Xong khi |
+|---|---|---|
+| A3 | `npm test` không cần `build` trước | `rm -rf dist && npm test` đạt |
+| P1–P7 | Chuyển phần tốc độ từ `d21eac0` sang cấu trúc mới | Mỗi mục có test (lấy lại từ `d21eac0`), e2e đạt |
+| B1–B3 | Chạy `bench` và đo nốt mở ứng dụng, quay lại trang, lookup | Bảng đo không còn ô "chưa đo" |
+| B4 | Đo trên Vercel | Có bộ số thật |
+| **Dừng** | **Dừng sau B4 để bạn kiểm tra** | Bạn đồng ý mới làm tiếp |
+| C1–C3 | Gỡ edge/Sites, sửa tài liệu | Không còn `chatgpt-site`, `siris-manager` |
+| D1 | Tạo CI | Các job xanh, 2 test cache chạy thật |
+| E | Phần còn lại sau rà soát (E1–E3), bảo mật Vercel (E4) | Theo từng bước |
+
+Đã hủy so với bản plan trước, vì `main` đã làm: A1 (dotfile, có `denyDotfiles`), A2 (snapshot đĩa, mã đã không còn), A4 (plugin React/Tailwind đã gỡ), tách backend/frontend thành module, thao tác nhanh và giao diện (giai đoạn 5–8 cũ).
 
 ---
 
 ## 5. Các bước chi tiết
 
-Mỗi bước một commit; sau mỗi bước chạy `npm run lint`, `npm run typecheck`, `npm run build`, `npm test` và e2e.
+Mỗi bước một commit; sau mỗi bước chạy `npm run lint`, `npm run typecheck`, `npm run build`, `npm test` và e2e. Nguồn mã để chuyển: `git show d21eac0:<file>` và `git diff e98c485 d21eac0 -- <file>`.
 
-### Giai đoạn A — Làm xanh và làm sạch nhánh
-
-**A1. Sửa lỗi e2e `/.env.local`**
-- Nguyên nhân: `vite.config.ts` không chặn dotfile, Vite trả `index.html` với mã 200.
-- Việc: trong `vite.config.ts` thêm plugin có `configureServer(server)` đăng ký middleware chạy trước các middleware khác; trả 404 khi đường dẫn có đoạn bắt đầu bằng dấu chấm (`/\/\.[^/]/`), ví dụ `/.env.local`, `/.git/config`.
-- Kiểm: `npx playwright test tests/e2e/auth.spec.ts:44`, rồi toàn bộ e2e. Kỳ vọng 78/78.
-- Commit: "Chặn dotfile ở dev server".
-
-**A2. Gỡ snapshot metadata ghi xuống đĩa**
-- `server.mjs`: xóa `snapshotPath` (dòng 21), `snapshotIdentity` (22), `metadataSnapshot` và `snapshotWrite` (23), `saveMetadataSnapshot` (25) và các chỗ gọi ở dòng 24, 27, 30; ở dòng 53 bỏ nhánh trả snapshot kèm cờ `metadataStale`, `/api/meta` chỉ dùng `cachedMetadata()`.
-- `app.js` (dòng 1076): giữ phần đọc `localStorage` (`siris-metadata-v1`); xóa nhánh `if(data.metadataStale){… '/api/meta?fresh=1' …}`.
-- `.gitignore`: xóa 2 dòng `.siris-metadata-cache.json*`.
-- Test: xóa unit test và e2e chỉ kiểm snapshot trên đĩa; giữ e2e "hiện cấu trúc đã lưu trước metadata" (kiểm `localStorage`).
-- Kiểm: `grep -rn "snapshot\|metadataStale\|fresh=1" server.mjs app.js tests` không còn kết quả; e2e đạt.
-- Commit: "Bỏ snapshot metadata trên đĩa, giữ bản trong localStorage".
-
-**A3. `npm test` không phụ thuộc `build`**
+### A3. `npm test` không phụ thuộc `build`
 - Nguyên nhân: `tests/server.test.js` chạy `server.mjs`, server trả 404 khi thiếu `dist/index.html`.
-- Việc (chọn một, đề xuất cách 1): (1) thêm `"pretest": "vite build"`; hoặc (2) cho `server.mjs` đọc thư mục tĩnh từ biến `SIRIS_DIST_DIR`, test tự tạo thư mục tạm có `index.html` và asset giả.
-- Kiểm: `rm -rf dist && npm test` đạt 72.
+- Việc (đề xuất): thêm `"pretest": "vite build"` vào `package.json`; hoặc cho server đọc thư mục tĩnh từ biến `SIRIS_DIST_DIR` và để test tự tạo thư mục tạm.
+- Kiểm: `rm -rf dist && npm test`.
 - Commit: "npm test tự dựng giao diện".
 
-**A4. Bỏ plugin React và Tailwind khỏi Vite**
-- Việc: bỏ `import react`, `import tailwindcss` và hai plugin khỏi `vite.config.ts`.
-- Kiểm: `npm run build` ra `dist/`; e2e đạt.
-- Commit: "Bỏ plugin React/Tailwind khỏi Vite".
+### Giai đoạn P — Chuyển phần tốc độ sang cấu trúc mới
 
-### Giai đoạn B — Đo cho đủ
+**P1. Pool giữ kết nối**
+- File: `server/context.mjs` (nơi tạo pool). Đặt `idleTimeoutMillis: 300000`, `keepAlive: true`; đảm bảo `createAdmin` và `createLookupStore` dùng chung một pool (như `server.mjs:19` ở `d21eac0`).
+- Test: unit test kiểm cấu hình pool.
 
-**B1. Chuẩn bị môi trường đo**
-- Cài PostgreSQL 16, đặt `SIRIS_BENCH_PG_BIN=/đường/dẫn/postgresql/16/bin`, chạy `npm run bench`; lưu bảng làm số gốc mới (sai khác ±20% so với bảng ở phụ lục là bình thường).
+**P2. `count=none`**
+- File: `server/routes/table.mjs` (đọc `count`; khi `none` không gửi `Prefer: count=exact`, trả `total: null`); `src/grid/render.js` (chỉ yêu cầu đếm khi bảng, bộ lọc hoặc tìm kiếm đổi; dùng lại tổng khi chuyển trang).
+- Test: unit `tests/server.test.js` (lấy từ `d21eac0`); e2e "chuyển trang dùng lại tổng, tìm kiếm đếm lại".
 
-**B2. Thêm 3 phép đo vào `scripts/bench.mjs`** (cần Chromium qua `PLAYWRIGHT_CHROMIUM_EXECUTABLE`)
-1. "Mở ứng dụng tới khi thấy dữ liệu": Playwright mở trang, đo từ `goto` đến khi dòng đầu của lưới xuất hiện; chạy hai lần, lần 1 `localStorage` trống, lần 2 đã có `siris-metadata-v1`.
-2. "Quay lại trang đã xem": chuyển trang 1 → 2 → 1, đo thời gian đến khi lưới trang 1 hiển thị lại.
-3. "Số lượt lookup sau khi sửa 1 ô": đếm request `/api/lookup/*` sau một lần sửa ô trên bảng có cột lookup.
-- Kiểm: bảng in ra có đủ 3 dòng mới ở cả mạng gần và mạng xa.
-- Commit: "Đo mở ứng dụng, quay lại trang và lookup".
+**P3. Ghi hàng loạt**
+- File: `server/routes/table.mjs` thêm `POST /api/table/:name/batch`: tối đa 50 thay đổi `{key, values, expected}`; 5 lượt song song tới Data API; kết quả theo từng dòng; từ chối trùng khóa trong lô; kiểm tra khóa chính và cột bảo vệ như PATCH đơn. `src/grid/selection.js` (`pasteCells`) gửi một request, hoàn nguyên dòng lỗi.
+- Test: unit "ghi lô tối đa 50 dòng, báo lỗi từng dòng" (từ `d21eac0`); e2e dán nhiều dòng giữ nguyên giá trị bigint.
 
-**B3. Cập nhật bảng số trong plan**
-- Ghi "trước → sau" cho 3 dòng mới, so với mục tiêu 428 → ~80 ms, tức thì, 0–1 lượt. Dòng nào không đạt thì ghi lý do và mở bước sửa riêng.
+**P4. Cache lookup**
+- File: `src/lookup.js`. Cache theo (bảng nguồn, cột đối chiếu, giá trị), sống 60 giây; mỗi lần tải chỉ gọi giá trị chưa có; xóa khi ghi bảng nguồn.
+- Test: e2e "sửa một ô không liên quan thì không có request lookup".
 
-**B4. Đo trên Vercel** (cần bạn thao tác hoặc cấp quyền Vercel)
-1. Bật `SIRIS_PERF_TIMING=1` ở bản Preview (header `Server-Timing`).
-2. Đo từ trình duyệt, không ghi dữ liệu thật: mở lúc nguội (đợi vài phút) và lúc ấm; tải trang 50 dòng; Tổng quan; chuyển bảng.
-3. Ghi vùng Vercel Function và vùng project Supabase.
-4. Kiểm `SUPABASE_DB_URL` dùng pooler (xem `VERCEL.md`).
-- Xong khi: có bảng số thật cạnh bảng số mô phỏng.
+**P5. Dùng lại trang và tải trước**
+- File: `src/grid/render.js`, `src/sidebar.js`. Mọi lần tải hiện ngay trang trong cache bất kể tuổi rồi làm mới nền; dùng `epoch` bỏ kết quả cũ; giới hạn cache 100 mục; tải trước trang kế; rê chuột lên tên bảng quá 150 ms thì tải trước trang đầu.
+- Test: e2e "quay lại trang đã xem hiện ngay và cập nhật sau làm mới nền".
 
-> **Điểm dừng.** Sau B4 dừng lại để bạn kiểm tra kết quả. Không làm giai đoạn C trở đi khi bạn chưa đồng ý.
+**P6. Metadata lần trước trong `localStorage`**
+- File: `src/main.js`. Khóa `siris-metadata-v1`; dựng sidebar và tải bảng ngay; đối chiếu khi `/api/meta` trả về, vẽ lại nếu cấu trúc bảng đang mở đổi.
+- Test: e2e "hiện cấu trúc đã lưu trước metadata và cập nhật cột thay đổi".
+
+**P7. Tìm kiếm**
+- File: `src/grid/render.js`, `filters.mjs`. Từ khóa < 2 ký tự không gửi; `searchColumn` tìm trên một cột; chỉ đếm sau khi dừng gõ.
+- Test: unit `tests/filters.test.js`; e2e "tìm từ hai ký tự, đếm sau khi dừng và chọn cột".
+
+Xong giai đoạn P khi: e2e và unit test của từng mục (lấy từ `d21eac0`) đều đạt trên cấu trúc mới.
+
+### Giai đoạn B — Đo
+
+**B1.** Cài PostgreSQL 16, đặt `SIRIS_BENCH_PG_BIN`, chạy `npm run bench`. Nếu `bench.mjs` không khởi động được với `server.mjs` mới (biến môi trường, đăng nhập) thì sửa trước; lưu bảng làm số gốc mới.
+**B2.** Thêm 3 phép đo vào `scripts/bench.mjs` (cần Chromium qua `PLAYWRIGHT_CHROMIUM_EXECUTABLE`): (1) mở ứng dụng tới khi thấy dữ liệu, hai lần (`localStorage` trống và đã có `siris-metadata-v1`); (2) quay lại trang đã xem (1 → 2 → 1); (3) số request `/api/lookup/*` sau khi sửa 1 ô.
+**B3.** Ghi "trước → sau" vào mục 9.1; dòng nào không đạt mục tiêu (428 → ~80 ms, tức thì, 0–1 lượt) thì ghi lý do và mở bước sửa.
+**B4.** Đo trên Vercel (cần bạn thao tác hoặc cấp quyền): bật `SIRIS_PERF_TIMING=1` ở bản Preview; đo mở lúc nguội và ấm, tải trang 50 dòng, Tổng quan, chuyển bảng; ghi vùng Vercel và Supabase; kiểm `SUPABASE_DB_URL` dùng pooler.
+
+> **Điểm dừng.** Sau B4 dừng lại để bạn kiểm tra. Không làm giai đoạn C trở đi khi chưa có đồng ý.
 
 ### Giai đoạn C — Gỡ edge/Sites
 
-**C1. Xác nhận không còn phụ thuộc**
-- `grep -rn "siris-manager\|chatgpt-site\|to-edge-backend\|prepare-chatgpt-site\|check-sites-backend\|auth.mjs"` trên `*.js`, `*.mjs`, `*.ts`, `*.json`, `*.md` (bỏ `node_modules`). Mọi kết quả phải nằm trong danh sách xóa ở C2.
-- Xác nhận bản Vercel đang xác thực bằng đường nào; nếu `api/handler.mjs` import file trong danh sách thì dừng và hỏi.
-
-**C2. Xóa**
-- `supabase/functions/siris-manager/`, `scripts/prepare-chatgpt-site.mjs`, `scripts/check-sites-backend.mjs`, `scripts/to-edge-backend.mjs`, `tests/edge-backend.test.js`, `tests/sites-bridge.test.js`, dòng `chatgpt-site/` trong `.gitignore`.
-- Kiểm: `npm run lint && npm test && npm run build`, rồi e2e.
-- Commit: "Gỡ bản edge/Sites".
-
-**C3. Sửa tài liệu**
-- `README.md`, `ARCHITECTURE.md`: bỏ mọi chỗ nhắc edge, Sites, script chuẩn bị; ghi quy trình deploy `npm run build` rồi `vercel deploy --prod` với `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`.
-- Kiểm: `grep -ri "chatgpt-site\|siris-manager\|Edge Function"` trả về rỗng.
+**C1.** `grep -rn "siris-manager\|chatgpt-site\|prepare-chatgpt-site\|check-sites-backend\|edge-files\|server/edge\|sites-bridge"` ngoài `node_modules`; mọi kết quả phải nằm trong danh sách xóa. Xác nhận `api/handler.mjs` và `server/vercel.mjs` không import file nào trong danh sách; `server/session-auth.mjs` là đường đăng nhập của Vercel, giữ.
+**C2.** Xóa: `supabase/functions/siris-manager/`, `server/edge.mjs`, `scripts/prepare-chatgpt-site.mjs`, `scripts/check-sites-backend.mjs`, `scripts/edge-files.mjs`, `tests/sites-bridge.test.js`, `tests/edge-backend.test.js`, dòng `chatgpt-site/` trong `.gitignore`. Kiểm lint, test, build, e2e, `tests/vercel.test.js`.
+**C3.** Sửa `README.md`, `ARCHITECTURE.md`, `VERCEL.md`: bỏ mọi chỗ nhắc edge, Sites; một quy trình deploy `vercel deploy --prod`. Kiểm: `grep -ri "chatgpt-site\|siris-manager\|Edge Function"` rỗng.
 
 ### Giai đoạn D — CI
 
-**D1. Tạo `.github/workflows/ci.yml`**
-- Job 1 (không cần PostgreSQL): `npm ci`, `lint`, `typecheck`, `build`, `test`.
-- Job 2 (có PostgreSQL 16): cài `postgresql-16`, đặt `SIRIS_BENCH_PG_BIN=/usr/lib/postgresql/16/bin`, chạy `npm test`; hai test đang bị skip sẽ chạy thật.
-- Job 3: `npx playwright install chromium` và `npm run test:e2e`.
-- Kiểm: đẩy nhánh, cả 3 job xanh.
-- Commit: "Thêm CI cho lint, test và e2e".
+**D1.** Tạo `.github/workflows/ci.yml`: job 1 `npm ci`, `lint`, `typecheck`, `build`, `test`; job 2 có PostgreSQL 16 và `SIRIS_BENCH_PG_BIN=/usr/lib/postgresql/16/bin` để hai test cache chạy thật; job 3 `npx playwright install chromium` và `npm run test:e2e`.
 
-### Giai đoạn E — Việc kế tiếp theo kế hoạch cũ
+### Giai đoạn E — Phần còn lại
 
-**E1. Dọn mã chết**
-1. Backend `admin.mjs`: xóa `createDefinition`, `updateDefinition`, `deleteDefinition`, `readLinks`, `readNativeLinks`, `writeLinks`, `importLegacy` và hàm phụ chỉ chúng dùng; gộp 5 câu SQL metadata viết hai lần. Trước mỗi lần xóa `grep` tên hàm trong `server.mjs`, `app.js`, `tests/`; chạy `npm test` sau từng hàm.
-2. Frontend: xóa luồng "managed column", `#relationPicker`, các lời gọi `/api/admin/definition/*` và `/api/admin/links/*`, 25 class CSS không dùng (liệt kê bằng script rồi rà tay); chạy e2e sau từng nhóm.
-3. `package.json`: gỡ các gói thừa (`react`, `react-dom`, `@glideapps/glide-data-grid`, `@tanstack/react-query`, `@radix-ui/react-slot`, `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `@supabase/supabase-js`, `tailwindcss`, `@tailwindcss/vite`, `@vitejs/plugin-react`, `@types/react`, `@types/react-dom`).
-4. Tài liệu: bỏ câu "API quản trị cấu trúc đang tạm khóa" và tham chiếu file không tồn tại.
+**E1. Rà soát mã chết** (nhiều thứ đã xong ở `main`: không còn `managedColumns`, `createDefinition`, `relationPicker`, 15 dependency đã gỡ). Việc còn: xác nhận không còn code đọc bảng `siris_admin.columns`; `grep` các class CSS không dùng; bỏ câu lỗi thời trong README.
+**E2. `storage` cho `localStorage`:** gom mọi khóa (kể cả `siris-metadata-v1` và khóa cache) vào một module có phiên bản, đọc/ghi an toàn; bỏ đường lưu lookup trên trình duyệt.
+**E3. Tách `tests/e2e/auth.spec.ts`** theo tính năng; gom giả lập API vào `tests/e2e/helpers/mock-api.ts`.
+**E4. Vercel an toàn hơn:** giới hạn đăng nhập sai theo IP và ghi log lần thất bại (không ghi mật khẩu); token CSRF theo phiên; `/api/admin/*` giữ, bắt buộc xem trước và chữ ký, ghi log mỗi lần áp dụng thay đổi schema.
 
-**E2. Tách backend** (kiến trúc ở phụ lục)
-1. Tạo `core/http.mjs`, `guard.mjs`, `router.mjs`, `app.mjs`, chưa chuyển route nào.
-2. Chuyển từng nhóm route theo thứ tự `meta` → `table` → `lookup` → `formula` → `lookup-config` → `schema`; mỗi nhóm một commit, không đổi hành vi.
-3. Chuyển `services/` (`data-api`, `cache`, `metadata`, `pool`) và 7 file `.mjs` ở gốc vào `core/db/`; bỏ biến `tables` toàn cục; dùng `safeError` cho mọi lỗi Postgres.
-4. Thu gọn `server.mjs` thành lớp vỏ Node; `api/handler.mjs` là lớp vỏ Vercel dùng chung `createApp`.
-5. Prettier cho backend, một commit riêng.
-
-**E3. Tách frontend**
-1. Prettier cho `app.js`, `index.html`, `style.css`, `tests/e2e/`, một commit riêng, ghi vào `.git-blame-ignore-revs`.
-2. Tạo `src/state.js`, `api.js`, `storage.js`, `format.js`, `schema-utils.js`, `components/toast.js`; gom các khóa `localStorage` vào `storage.js`.
-3. Tách theo vùng, mỗi vùng một commit: `custom-select`, `sidebar`, `chrome` (gồm `syncChrome`), `view/`, `grid/render`, `grid/selection` + `clipboard`, `grid/cell-edit` + `history`, `records/`, `columns/`, `lookup/`, `overview/`, rồi `main.js` thay `app.js`.
-4. Gom hằng số và nghiệp vụ theo bảng vào `domain/tables.config.js`; đổi `promotionsMode` thành `overviewMode`.
-5. Tách `style.css`; tách `auth.spec.ts` theo tính năng kèm `helpers/mock-api.ts`.
-6. Bật `checkJs` cho JS.
-
-**E4. Thao tác nhanh** (mỗi mục một test e2e)
-1. Mũi tên di chuyển ô; gõ ký tự là vào sửa; Enter lưu và xuống dòng; Tab lưu và sang phải; Escape hủy.
-2. Bấm ô khác khi đang sửa thì lưu ô cũ và chọn ô mới trong một lần bấm.
-3. Menu trên tiêu đề cột (sắp xếp, lọc, nhóm, ẩn, ghim).
-4. Phím tắt `/` và Ctrl/⌘+K.
-5. Cỡ trang 50/100/200 theo bảng (dùng `limit` đã có).
-6. Lưu nhiều thay đổi cột một lần.
-
-**E5. Giao diện**
-- Hiện tên thay mã cho khóa ngoại; form bản ghi gọn; thẻ bộ lọc; trạng thái lưu từng ô kèm Hoàn tác; thay hộp thoại gốc; bộ icon SVG; đổi "Dashboard" thành "Tổng quan"; bỏ chỉ số trùng.
-
-**E6. Bản Vercel an toàn hơn**
-1. Giới hạn đăng nhập sai theo IP; ghi log lần thất bại (không ghi mật khẩu).
-2. Token CSRF theo phiên, không phải hằng số.
-3. `/api/admin/*`: giữ, bắt buộc xem trước và chữ ký như hiện nay, thêm ghi log mỗi lần áp dụng thay đổi schema.
-
-Chỉ làm khi có số đo chứng minh cần: phân trang theo khóa (bảng > 50.000 dòng), chỉ lấy cột đang hiển thị, tự host font, ghi một lượt cho lô lớn hơn 50.
+Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.000 dòng), chỉ lấy cột đang hiển thị, ghi một lượt cho lô lớn hơn 50.
 
 ---
 
 ## 6. Quy tắc làm việc
 
-- Nhánh `claude/hopeful-gates-00krjq`; mỗi bước một commit.
+- Một PR (#3), một nhánh `claude/hopeful-gates-00krjq`; mỗi bước một commit.
 - Không gộp thay đổi hành vi với thay đổi định dạng hay di chuyển file trong cùng một commit.
 - Không sửa test để che lỗi.
-- Không chạy ghi lên Supabase thật khi thử; kiểm thử ghi dùng API giả lập.
+- Không chạy ghi lên Supabase thật khi thử.
 - Dừng ở B4 để người dùng kiểm tra trước khi làm tiếp.
 
 ## 7. Rủi ro
 
 | Rủi ro | Cách giảm |
 |---|---|
-| Số đo giả lập khác thực tế | B4 đo trên Vercel; bảng ở phụ lục chỉ là đường cơ sở |
+| Chuyển P1–P7 làm đổi hành vi | Mỗi mục một commit, mang theo test từ `d21eac0`, e2e sau mỗi commit |
+| Số đo giả lập khác thực tế | B4 đo trên Vercel |
 | Cache trong bộ nhớ lệch giữa các instance serverless | TTL 60 giây; trigger trong database vẫn bảo vệ dữ liệu |
-| Xóa phần edge làm hỏng bản Vercel | C1 kiểm bằng `grep`; chạy preview deploy trước khi merge |
-| Cache trình duyệt hiển thị cấu trúc cũ | Đối chiếu khi `/api/meta` trả về, vẽ lại nếu cấu trúc bảng đang mở đổi |
+| Xóa phần edge làm hỏng bản Vercel | C1 kiểm `grep`; chạy `tests/vercel.test.js` và preview deploy |
 | Ghi hàng loạt thành công một phần | Kết quả theo từng dòng, hoàn nguyên dòng lỗi, không tự gửi lại |
-| Tách module làm đổi hành vi | Mỗi vùng một commit, e2e chạy sau từng commit |
+| `bench.mjs` viết cho `server.mjs` cũ | B1 kiểm trước khi tin số đo |
 
 ## 8. Bảng trạng thái
 
 | Giai đoạn | Nội dung | Trạng thái |
 |---|---|---|
-| Đã xong | Mục 3 (1.1–1.4, 2.1–2.7, 3.0–3.7, 3.10 phần trình duyệt, 3.11–3.13) | Xong |
-| A | Làm xanh và làm sạch nhánh | Chưa bắt đầu |
-| B | Đo (B1–B3 mô phỏng, B4 trên Vercel) | Chưa bắt đầu; **dừng sau B4 để kiểm tra** |
+| Merge `main` | Giải quyết 20 file xung đột; lint, typecheck, build, test, e2e 105/105 đạt | **Xong** |
+| A3 | `npm test` tự dựng giao diện | Chưa bắt đầu |
+| P1–P7 | Chuyển phần tốc độ từ `d21eac0` | Chưa bắt đầu |
+| B | Đo (B4 trên Vercel) | Chưa bắt đầu; **dừng sau B4 để kiểm tra** |
 | C | Gỡ edge/Sites | Chưa bắt đầu (sau điểm dừng) |
 | D | CI | Chưa bắt đầu |
-| E | Dọn mã chết, tách module, thao tác nhanh, giao diện, bảo mật Vercel | Chưa bắt đầu; `/api/admin/*` đã chốt giữ |
+| E | Rà soát mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
 
 ---
 
@@ -326,144 +297,6 @@ Kích thước phản hồi: một trang 50 dòng với đủ 16 cột là kho�
 
 Kết luận: với dữ liệu hiện tại, ưu tiên là bớt lượt gọi và dùng lại dữ liệu đã tải. Phân trang sâu, đếm tổng và tìm kiếm chỉ thành vấn đề từ vài chục nghìn dòng trở lên. Thử với index trigram cho tìm kiếm chưa cho kết quả ổn định nên chưa đưa vào kế hoạch.
 
-Bổ sung mục 9.1: ba dòng mục tiêu chưa có số (mở ứng dụng ~80 ms, quay lại trang tức thì, lookup 0–1 lượt) sẽ được đo ở B2–B3.
+Lưu ý: các số "sau" ở 9.1 đo trên mã của PR #3 cũ (`d21eac0`), chưa phải trên nhánh sau merge. Ba dòng mục tiêu chưa có số (mở ứng dụng ~80 ms, quay lại trang tức thì, lookup 0–1 lượt) sẽ được đo ở B2–B3 sau khi xong P1–P7.
 
-### 9.3 Kiến trúc đích
-
-#### 9.3.1 Tổng thể
-
-```
-Trình duyệt (src/)
-   │  fetch cùng origin, JSON, header x-siris-token
-   ▼
-Lớp vỏ ──────────────┬──────────────────────────────┐
- server.mjs (Node)   │  api/handler.mjs (Vercel)
- loopback, CSRF ngẫu │  xác thực phiên đăng nhập
- nhiên, phục vụ dist │
-   └─────────┬───────┴──────────────────────────────┘
-             ▼
-        core/app.mjs  →  router  →  routes/*
-             │                         │
-             ├── services/data-api ────┼──► Supabase Data API (key anon, chịu RLS)
-             ├── services/cache        │
-             └── db/* ─────────────────┴──► Postgres trực tiếp (metadata, DDL, cấu hình, trigger)
-```
-
-Quy tắc phân vai:
-- **Đọc và ghi dữ liệu bảng**: chỉ qua Data API.
-- **Metadata, thay đổi schema, cấu hình formula/lookup, trigger**: chỉ qua Postgres trực tiếp, luôn trong transaction có khóa và chữ ký xem trước.
-- **Lớp vỏ** chỉ lo: đọc môi trường, xác thực nguồn gọi, chuyển request thành dạng chung, phục vụ file tĩnh.
-
-#### 9.3.2 Backend
-
-```
-core/
-  app.mjs               createApp({ env, schema, trust }) → handle(request)
-  router.mjs            bảng định tuyến: method + đường dẫn → hàm xử lý
-  http.mjs              đọc body (giới hạn 1 MB), tạo phản hồi JSON, chuẩn hóa lỗi
-  guard.mjs             kiểm tra Host, Origin, token theo cấu hình trust
-  routes/
-    meta.mjs            GET /api/meta
-    table.mjs           GET/POST/PATCH/DELETE /api/table/:name, POST /api/table/:name/batch
-    lookup.mjs          POST /api/lookup/:name
-    formula.mjs         GET/POST /api/formula-config
-    lookup-config.mjs   /api/lookup-config, /api/lookup-sync/*
-    schema.mjs          /api/admin/schema/preview, /apply
-  services/
-    data-api.mjs        gọi Data API (hàm upstream hiện tại)
-    cache.mjs           cache có TTL, xóa theo tên: metadata | formula | lookup
-    metadata.mjs        đọc và cache cấu trúc bảng
-    pool.mjs            một pool Postgres dùng chung
-  db/
-    admin.mjs  formula-sync.mjs  formula-parser.mjs
-    lookup-sync.mjs  lookup-store.mjs  filters.mjs  materialized-lookup.mjs
-server.mjs              lớp vỏ Node (cục bộ)
-api/handler.mjs         lớp vỏ Vercel, gọi createApp từ core/
-vercel.json             build giao diện, chuyển mọi request tới api/handler.mjs
-```
-
-Dạng request chung giữa hai lớp vỏ:
-
-```
-request  = { method, path, query, headers, readJson() }
-response = { status, headers, body }
-trust    = { csrfToken, allowedHosts, allowedOrigins }
-```
-
-Quy tắc cache:
-
-| Sự kiện | Xóa cache |
-|---|---|
-| Ghi dữ liệu bảng (POST/PATCH/DELETE/batch) | Không xóa gì |
-| Lưu formula | `formula` |
-| Lưu, xóa, đổi tên lookup | `lookup` |
-| Áp dụng thay đổi schema, đổi tên cột | `metadata`, `formula`, `lookup` |
-| Hết 60 giây | Mục tương ứng |
-
-Vì bản cục bộ và bản online có thể cùng chạy, cấu hình trong cache có thể cũ tối đa 60 giây. Điều này an toàn: trigger trong database vẫn tính lại cột formula và cột lookup khi có ghi, nên giá trị sai không lọt vào dữ liệu.
-
-Pool Postgres: một pool duy nhất (tối đa 4 kết nối), giữ kết nối rảnh 5 phút, bật keep-alive.
-
-#### 9.3.3 Frontend
-
-```
-index.html
-src/
-  main.js               khởi động
-  state.js              một đối tượng state, hàm update(), các selector
-  api.js                fetch, token, cache trang
-  storage.js            mọi khóa localStorage, có phiên bản, đọc/ghi an toàn
-  chrome.js             syncChrome(): tiêu đề, thanh công cụ, thanh chọn dòng
-  format.js             định dạng số, chuyển giá trị nhập theo kiểu cột
-  schema-utils.js       kiểu số, biểu tượng kiểu, cột ghi được
-  sidebar.js
-  grid/
-    render.js  sync.js  frozen.js  selection.js
-    cell-edit.js  clipboard.js  keyboard.js
-  view/
-    menus.js  rules.js  columns.js
-  components/
-    custom-select.js  dialog.js  toast.js  icons.js
-  records/
-    editor.js  deletion.js  history.js
-  columns/
-    dialog.js  formula.js  lookup-sync.js  duplicate.js
-  lookup/
-    dialog.js  loader.js  link-picker.js
-  overview/
-    table.js  promotions.js  read-all.js
-  domain/
-    tables.config.js    nhãn, trường tổng quan, gợi ý nhập của từng bảng
-styles/
-  tokens.css  base.css  layout.css  sidebar.css  grid.css
-  menus.css  dialogs.css  overview.css  responsive.css
-```
-
-Luồng dữ liệu trong giao diện:
-
-```
-sự kiện người dùng → hành động (hàm trong module) → update(state)
-                                                    → render lưới / syncChrome() / render menu
-```
-
-Quy tắc:
-- Một module chỉ đụng DOM của vùng mình quản lý.
-- Không module nào tự gán `hidden` hay `disabled` cho nút ở thanh tiêu đề, thanh công cụ, thanh chọn dòng; chỉ `chrome.js` làm việc đó.
-- Selector trong `state.js` trả lời các câu hỏi dùng chung: đang ở Dashboard không, có được ghi không, có được thêm không, đang bận gì.
-- Mọi truy cập `localStorage` đi qua `storage.js`.
-- Nghiệp vụ riêng của bảng chỉ nằm trong `domain/tables.config.js`.
-
-#### 9.3.4 Kiểm thử
-
-```
-tests/
-  unit/                 logic thuần và API (Vitest)
-  e2e/
-    helpers/mock-api.ts một hàm giả lập API dùng chung
-    grid.spec.ts  selection.spec.ts  chrome.spec.ts  cell-edit.spec.ts
-    view-menus.spec.ts  columns.spec.ts  lookup.spec.ts  formula.spec.ts
-    overview.spec.ts  promotions.spec.ts  deletion.spec.ts  startup.spec.ts
-scripts/bench.mjs       đo độ trễ theo từng thao tác
-```
-
----
+Kiến trúc hiện tại của mã (thư mục `server/`, `src/`) xem `ARCHITECTURE.md`.
