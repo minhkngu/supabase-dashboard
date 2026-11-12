@@ -228,7 +228,7 @@ Làm sau cùng, khi F, C, D, E, H đã xong, CI xanh và đã push. Người dù
 1. Clone sạch nhánh vào thư mục riêng, `npx vercel link --project siris-supabase-manager --scope lucas-projects-5f5d0170`.
 2. Thêm 6 biến Preview: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_DB_URL`, `SIRIS_LOGIN_USER`, `SIRIS_LOGIN_PASSWORD` (giá trị giống production) và `SIRIS_PERF_TIMING=1`; `npx vercel deploy` (không `--prod`).
 3. Đăng nhập cả bản production cũ (`a189b16`) và Preview mới, chờ ≥ 15 phút để nguội.
-4. Chạy script đo ở tab Console của từng bản (`/api/meta`, trang 1, `count=none`, trang 2, `limit=1000`, mỗi phép 5 lần; ghi cả `Server-Timing`) và hai lần tải lại để đo "mở ứng dụng" (xóa và giữ `siris-metadata-v1`).
+4. Chạy `scripts/measure-console.js` (đổi `TABLE`) ở tab Console của từng bản (`/api/meta`, trang 1, `count=none`, trang 2, `limit=1000`, mỗi phép 5 lần; ghi cả `Server-Timing`) và hai lần tải lại để đo "mở ứng dụng" (xóa và giữ `siris-metadata-v1`).
 5. Ghi vùng Vercel (`iad1`) và vùng Supabase; kiểm `SUPABASE_DB_URL` dùng pooler.
 6. Dán kết quả vào mục 9.1; dọn biến Preview.
 Xong khi: có bảng số thật cho cả hai bản cạnh bảng mô phỏng.
