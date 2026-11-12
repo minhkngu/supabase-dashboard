@@ -70,7 +70,7 @@ Chọn các ô cùng cột bằng Shift và nhấp ô đầu, ô cuối; nhập 
 
 ### Lưu cấu hình giao diện lên Supabase
 
-View, thư mục, thứ tự bảng và tên hiển thị được lưu trong `localStorage` và đồng bộ lên `siris_admin.ui_settings`, nên theo bạn sang Vercel hoặc máy khác. Khi khởi động, bản nào mới hơn thắng; máy chủ trống thì bản trên trình duyệt được đẩy lên. Mỗi khóa được ghi đè nguyên khối, nên hai trình duyệt cùng sửa một lúc thì bản sau thắng. Cấu hình là chung cho mọi người dùng app. Chưa chạy `ui-settings.sql` thì app vẫn chạy và báo "Cấu hình chỉ lưu trên trình duyệt này".
+View, thư mục, thứ tự bảng và tên hiển thị được lưu trong `localStorage` và đồng bộ lên `siris_admin.ui_settings`, nên theo bạn sang Vercel hoặc máy khác. Khi khởi động, bản nào mới hơn thắng; máy chủ trống thì bản trên trình duyệt được đẩy lên. Mỗi khóa được ghi đè nguyên khối, nên hai trình duyệt cùng sửa một lúc thì bản sau thắng. Thời điểm sửa trên trình duyệt (đồng hồ máy người dùng) được so trực tiếp với `updated_at` của máy chủ, nên đồng hồ máy lệch nhiều có thể khiến bản cũ thắng khi khởi động. Cấu hình là chung cho mọi người dùng app. Chưa chạy `ui-settings.sql` thì app vẫn chạy và báo "Cấu hình chỉ lưu trên trình duyệt này".
 
 ### Thiết lập cột
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createUiSettingsStore, UI_SETTING_MAX_BYTES } from '../ui-settings-store.mjs';
+import { createUiSettingsStore, UI_SETTING_KEYS, UI_SETTING_MAX_BYTES } from '../ui-settings-store.mjs';
+import { syncedKeys } from '../src/storage.js';
 import { handleUiSettings } from '../server/routes/ui-settings.mjs';
 
 const pool = (present, rows = []) => {
@@ -71,5 +72,11 @@ describe('route /api/ui-settings', () => {
   it('POST lưu khóa', async () => {
     const ctx = { uiSettingsStore: { save: async () => ({ updatedAt: 5 }) } };
     expect(await run(ctx, 'POST')).toEqual({ ok: true, updatedAt: 5 });
+  });
+});
+
+describe('danh sách khóa đồng bộ', () => {
+  it('máy chủ và trình duyệt dùng cùng một danh sách khóa', () => {
+    expect([...UI_SETTING_KEYS].sort()).toEqual(Object.keys(syncedKeys).sort());
   });
 });
