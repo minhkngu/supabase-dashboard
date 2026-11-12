@@ -3,7 +3,8 @@
 (async () => {
   const TABLE = 'ĐỔI_TÊN_BẢNG';
   const t = async (label, url) => {
-    const ms = [], srv = [];
+    const ms = [],
+      srv = [];
     for (let i = 0; i < 5; i++) {
       const s = performance.now();
       const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
