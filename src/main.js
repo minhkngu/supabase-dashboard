@@ -4,10 +4,11 @@ import { choose, load, render } from './grid/render.js';
 import { updateHistoryButtons } from './history.js';
 import { loadLookups, restoreLookups, setLookupCloudAvailable } from './lookup.js';
 import { recordFieldHint } from './record-editor.js';
-import { loadNativeDisplays } from './relation-display.js';
+import { loadNativeDisplays, reloadRelationDisplay } from './relation-display.js';
 import { nav, restoreSidebar } from './sidebar.js';
 import { $, deletionBusy, name, state, writable } from './state.js';
 import { getJSON, getText, setJSON, storageKeys } from './storage.js';
+import { applyRemoteSettings, beginUiSync, startUiSyncFlush } from './ui-sync.js';
 import { restoreViews } from './view-menus.js';
 
 export function syncEditorReadiness() {
@@ -94,9 +95,26 @@ export async function initMain() {
   await initialize();
 }
 
+// Settings saved from another browser replace the local copy; redraw with them.
+async function applyUiSettings(remote) {
+  if (!remote) return;
+  const changed = applyRemoteSettings(remote);
+  if (!changed.length) return;
+  restoreViews();
+  reloadRelationDisplay();
+  if (changed.some(k => ['tableFolders', 'tableOrder'].includes(k))) {
+    restoreSidebar();
+    nav();
+  }
+  if (state.table && changed.some(k => ['views', 'tableDisplay', 'relationDisplay'].includes(k))) choose(state.table);
+}
+
 async function initialize() {
   const request = Promise.all([api('/api/formula-config'), api('/api/lookup-config')]);
   request.catch(() => {});
+  beginUiSync();
+  startUiSyncFlush();
+  const uiRequest = api('/api/ui-settings').catch(() => null);
   restoreLookups();
   restoreViews();
   let cachedLoad;
@@ -136,6 +154,7 @@ async function initialize() {
       }
     };
     await apply(await api('/api/meta'));
+    await applyUiSettings(await uiRequest);
     await loadConfigs(request);
   } catch (e) {
     if (!state.table) {

@@ -54,6 +54,10 @@ Bản online chạy trên Vercel: `vercel.json` build giao diện rồi chuyển
 
 Chọn các ô cùng cột trực tiếp trên bảng bằng Shift và nhấp ô đầu, ô cuối; nhập giá trị rồi bấm **Áp dụng**. Có thể dán dữ liệu vào ô đang được chọn bằng bàn phím. Mỗi dòng được lưu riêng, và lỗi được báo theo dòng. Hoàn tác/làm lại chỉ hỗ trợ sửa từng ô trong phiên. Cấu hình hiển thị được lưu riêng cho từng bảng trên trình duyệt.
 
+## Lưu cấu hình giao diện lên Supabase
+
+Để view, thư mục, thứ tự bảng và tên hiển thị theo bạn sang Vercel hoặc máy khác, chạy một lần `ui-settings.sql` trong SQL editor của Supabase (tạo bảng `siris_admin.ui_settings`, thu hồi quyền của `anon` và `authenticated`). Chưa chạy thì app vẫn hoạt động bằng `localStorage` và báo "Cấu hình chỉ lưu trên trình duyệt này" khi bạn đổi cấu hình. Lần mở đầu tiên sau khi tạo bảng, cấu hình đang có trên trình duyệt được đẩy lên tự động. Cấu hình là chung cho mọi người dùng app (một phiên đăng nhập chung).
+
 ## Đồng bộ lookup vào cột có sẵn
 
 Trong **Thiết lập cột** của cột Supabase có sẵn, bật **Đồng bộ từ lookup** rồi cấu hình bảng nguồn, trường cần lấy và các điều kiện ngay bên trong. Cấu hình gắn trực tiếp với cột này, không tạo cột lookup trung gian. Cột cần cho phép trống và có kiểu PostgreSQL giống trường được lấy (bao gồm độ chính xác, mảng và enum); chế độ đếm trả về `bigint`. Cột khóa chính, tự sinh hoặc có phụ thuộc không được chọn.

@@ -18,5 +18,9 @@ export async function answerConfig(route: Route): Promise<boolean> {
     await route.fulfill({ json: { available: false, items: [] } });
     return true;
   }
+  if (path === '/api/ui-settings') {
+    await route.fulfill({ json: { available: false, items: {} } });
+    return true;
+  }
   return false;
 }

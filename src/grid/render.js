@@ -1,4 +1,5 @@
 import { syncChrome } from '../chrome.js';
+import { autoScrollWhileDragging } from '../dnd.js';
 import { columnKind, icon } from '../icons.js';
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { restoreCellFocus } from './keyboard.js';
@@ -116,9 +117,7 @@ export function choose(t) {
   const searchColumn = $('#searchColumn');
   searchColumn.replaceChildren(
     new Option('Mọi cột văn bản', ''),
-    ...t.columns
-      .filter(c => ['text', 'character varying'].includes(c.data_type))
-      .map(c => new Option(c.name, c.name)),
+    ...t.columns.filter(c => ['text', 'character varying'].includes(c.data_type)).map(c => new Option(c.name, c.name)),
   );
   searchColumn.value = state.view.searchColumn;
   state.view.searchColumn = searchColumn.value;
@@ -385,42 +384,69 @@ function columnHeader(spec) {
     };
     th.append(label, display, pin, edit);
   } else th.append(label, pin, edit);
+  for (const button of th.querySelectorAll('button')) button.draggable = false;
   th.ondragstart = e => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('application/x-siris-column', spec.id);
+    draggedColumn = spec.id;
     th.classList.add('column-dragging');
   };
   th.ondragend = () => {
+    draggedColumn = null;
     th.classList.remove('column-dragging');
-    document.querySelectorAll('.column-drop').forEach(n => n.classList.remove('column-drop'));
+    clearColumnDrop();
   };
   th.ondragover = e => {
-    if (!e.dataTransfer.types.includes('application/x-siris-column')) return;
+    if (!draggedColumn) return;
+    autoScrollWhileDragging(th.closest('.table-scroll'), e, 'x');
+    const target = columnDropTarget(spec.id, th, e);
+    if (!target) {
+      // Crossing between pinned and unpinned columns is not allowed.
+      e.dataTransfer.dropEffect = 'none';
+      clearColumnDrop();
+      return;
+    }
     e.preventDefault();
-    th.classList.add('column-drop');
+    e.dataTransfer.dropEffect = 'move';
+    if (!th.classList.contains(`column-drop-${target.side}`)) {
+      clearColumnDrop();
+      th.classList.add(`column-drop-${target.side}`);
+    }
   };
-  th.ondragleave = () => th.classList.remove('column-drop');
+  th.ondragleave = e => {
+    if (!th.contains(e.relatedTarget)) th.classList.remove('column-drop-before', 'column-drop-after');
+  };
   th.ondrop = e => {
     e.preventDefault();
     e.stopPropagation();
-    const from = e.dataTransfer.getData('application/x-siris-column'),
-      to = spec.id;
-    if (!from || from === to) return;
-    const all = displayedColumns().map(c => c.id),
-      frozen = state.view.frozen;
-    if (frozen.includes(from) !== frozen.includes(to)) {
-      toast('Ghim hoặc bỏ ghim cột trước khi chuyển vị trí này');
-      return;
-    }
+    const from = draggedColumn || e.dataTransfer.getData('application/x-siris-column'),
+      target = columnDropTarget(spec.id, th, e);
+    clearColumnDrop();
+    if (!from || from === spec.id || !target) return;
+    const all = displayedColumns().map(c => c.id);
     all.splice(all.indexOf(from), 1);
-    let index = all.indexOf(to);
-    if (e.clientX > th.getBoundingClientRect().left + th.offsetWidth / 2) index++;
+    let index = all.indexOf(spec.id);
+    if (target.side === 'after') index++;
     all.splice(index, 0, from);
     setVisibleOrder(all);
     persistView();
     setTimeout(render, 0);
   };
   return th;
+}
+let draggedColumn = null;
+function clearColumnDrop() {
+  document
+    .querySelectorAll('.column-drop-before,.column-drop-after')
+    .forEach(n => n.classList.remove('column-drop-before', 'column-drop-after'));
+}
+// Where a dragged column would land relative to header th, or null when the
+// move would cross the pinned boundary.
+function columnDropTarget(toId, th, e) {
+  const frozen = state.view.frozen;
+  if (!draggedColumn || frozen.includes(draggedColumn) !== frozen.includes(toId)) return null;
+  const rect = th.getBoundingClientRect();
+  return { side: e.clientX > rect.left + rect.width / 2 ? 'after' : 'before' };
 }
 function updateFrozen() {
   const grid = $('#grid');
@@ -618,7 +644,7 @@ export function render() {
           e.preventDefault();
           e.stopPropagation();
           setDragSelection(null);
-          td.focus();
+          td.focus({ preventScroll: true });
           return;
         }
         if (e.shiftKey) {
@@ -634,7 +660,7 @@ export function render() {
                 ])
               : [[td]],
           );
-          td.focus();
+          td.focus({ preventScroll: true });
         } else {
           clearBulk();
           ordinaryClick(e);

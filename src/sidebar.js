@@ -1,10 +1,13 @@
 import { toast } from './api.js';
+import { autoScrollWhileDragging } from './dnd.js';
 import { openPopupMenu } from './grid/column-menu.js';
 import { confirmDialog, promptDialog } from './confirm.js';
 import { choose, prefetchTable } from './grid/render.js';
 import { $, el, name, state } from './state.js';
 import { getJSON, getText, setJSON, setText, storageKeys } from './storage.js';
 
+/** @type {any} */
+let openTimer = 0;
 function persistSidebar() {
   setJSON(storageKeys.tableOrder, state.tables.map(name));
   setJSON(storageKeys.tableFolders, {
@@ -165,9 +168,13 @@ function tableNode(t, list) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', n);
     b.classList.add('dragging');
+    // Deferred so the browser takes the drag image before the list changes.
+    setTimeout(() => list.classList.add('sidebar-dragging'), 0);
   };
   b.ondragend = () => {
     b.classList.remove('dragging');
+    list.classList.remove('sidebar-dragging');
+    clearTimeout(openTimer);
     list
       .querySelectorAll('.drop-before,.drop-after,.drop-target')
       .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
@@ -176,6 +183,7 @@ function tableNode(t, list) {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
+    autoScrollWhileDragging(list, e, 'y');
     list
       .querySelectorAll('.drop-before,.drop-after,.drop-target')
       .forEach(x => x.classList.remove('drop-before', 'drop-after', 'drop-target'));
@@ -199,13 +207,30 @@ export function nav() {
     node.ondragover = e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
+      autoScrollWhileDragging(list, e, 'y');
       node.classList.add('drop-target');
+      const folder = folderId && state.folders.find(f => f.id === folderId);
+      if (folder?.collapsed && !query && !openTimer) {
+        // Hovering a collapsed folder for a moment opens it.
+        openTimer = setTimeout(() => {
+          openTimer = 0;
+          folder.collapsed = false;
+          persistSidebar();
+          nav();
+          list.classList.add('sidebar-dragging');
+        }, 600);
+      }
     };
     node.ondragleave = e => {
-      if (!node.contains(e.relatedTarget)) node.classList.remove('drop-target');
+      if (node.contains(e.relatedTarget)) return;
+      node.classList.remove('drop-target');
+      clearTimeout(openTimer);
+      openTimer = 0;
     };
     node.ondrop = e => {
       e.preventDefault();
+      clearTimeout(openTimer);
+      openTimer = 0;
       node.classList.remove('drop-target');
       reorderTable(e.dataTransfer.getData('text/plain'), null, false, folderId);
     };
@@ -255,7 +280,7 @@ export function nav() {
     t => !state.tableFolders[name(t)] || !state.folders.some(f => f.id === state.tableFolders[name(t)]),
   );
   const looseShown = loose.filter(visible);
-  if (looseShown.length || !state.folders.length) {
+  if (looseShown.length || !state.folders.length || !query) {
     const section = el('section', 'folder unfiled');
     const content = el('div', 'folder-content');
     for (const t of looseShown) content.append(tableNode(t, list));
@@ -275,6 +300,15 @@ export function nav() {
   };
 }
 export function initSidebar() {
+  // The dragged row may be rebuilt (a folder opened mid-drag), so its own
+  // dragend cannot be relied on to clean up.
+  const endDrag = () => {
+    $('#tables').classList.remove('sidebar-dragging');
+    clearTimeout(openTimer);
+    openTimer = 0;
+  };
+  document.addEventListener('dragend', endDrag);
+  document.addEventListener('drop', endDrag);
   $('#renameTable').onclick = () => state.table && void renameTableLabel(state.table);
   $('#addFolder').onclick = () => {
     const form = $('#createFolderForm'),

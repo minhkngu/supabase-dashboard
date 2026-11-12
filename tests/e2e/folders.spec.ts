@@ -80,3 +80,59 @@ test('đặt tên hiển thị cho bảng, giữ sau khi tải lại và trả v
   await page.keyboard.press('Enter');
   await expect(page.locator('#title')).toHaveText('rooms');
 });
+
+test('khi mọi bảng đã vào thư mục vẫn có vùng thả ra ngoài, và kéo ra được', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'siris-table-folders',
+      JSON.stringify({ folders: [{ id: 'f1', name: 'Phòng' }], tableFolders: { rooms: 'f1' }, labels: {} }),
+    );
+  });
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/meta') return route.fulfill({ json: { tables: [table('rooms')], token: 't' } });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    return route.fulfill({ json: { rows: [], total: 0 } });
+  });
+  await page.goto('/');
+  await expect(page.locator('.folder.unfiled')).toHaveCount(1);
+  await page.evaluate(() => {
+    const item = document.querySelector('.nav-item')!,
+      data = new DataTransfer();
+    item.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }));
+  });
+  await expect(page.locator('#tables')).toHaveClass(/sidebar-dragging/);
+  await page.evaluate(() => {
+    const target = document.querySelector('.folder.unfiled')!,
+      data = new DataTransfer();
+    data.setData('text/plain', 'rooms');
+    target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+  });
+  await expect(page.locator('.folder.unfiled .nav-item')).toHaveCount(1);
+  await expect(page.locator('.folder:not(.unfiled) .nav-item')).toHaveCount(0);
+});
+
+test('rê bảng qua thư mục đang thu gọn thì thư mục tự mở', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'siris-table-folders',
+      JSON.stringify({ folders: [{ id: 'f1', name: 'Phòng', collapsed: true }], tableFolders: {}, labels: {} }),
+    );
+  });
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/meta') return route.fulfill({ json: { tables: [table('rooms')], token: 't' } });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    return route.fulfill({ json: { rows: [], total: 0 } });
+  });
+  await page.goto('/');
+  await expect(page.locator('.folder:not(.unfiled)')).toHaveClass(/collapsed/);
+  await page.evaluate(() => {
+    document
+      .querySelector('.folder:not(.unfiled)')!
+      .dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }));
+  });
+  await expect(page.locator('.folder:not(.unfiled)')).not.toHaveClass(/collapsed/, { timeout: 3000 });
+});
