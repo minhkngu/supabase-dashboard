@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { createAdmin } from '../admin.mjs';
 import { createLookupStore } from '../lookup-store.mjs';
+import { createUiSettingsStore } from '../ui-settings-store.mjs';
 import { parseFormula } from '../formula-parser.mjs';
 import { createTtlCache } from '../server-cache.mjs';
 
@@ -28,11 +29,13 @@ export async function createContext(config, tables) {
   const pool = createPool(config.admin.url),
     admin = createAdmin(config.admin.url, pool),
     lookupStore = createLookupStore(pool),
+    uiSettingsStore = createUiSettingsStore(pool),
     configCache = createTtlCache();
   const ctx = {
     config,
     admin,
     lookupStore,
+    uiSettingsStore,
     csrf: config.csrf || randomBytes(24).toString('hex'),
     tables: structuredClone(tables),
     cachedConfig: (key, read) => configCache.get(key, read),

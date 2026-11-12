@@ -17,6 +17,21 @@ export const storageKeys = {
   sidebarCollapsed: 'siris-sidebar-collapsed',
 };
 
+// Keys shared through the server (see ui-sync.js). Writes to them notify the
+// listener so they can be sent to Supabase; other keys stay in this browser.
+export const syncedKeys = {
+  views: storageKeys.views,
+  namedViews: storageKeys.namedViews,
+  tableFolders: storageKeys.tableFolders,
+  tableOrder: storageKeys.tableOrder,
+  relationDisplay: storageKeys.relationDisplay,
+  tableDisplay: storageKeys.tableDisplay,
+};
+let syncListener = null;
+export function setSyncListener(fn) {
+  syncListener = fn;
+}
+
 export function getJSON(key, fallback = null) {
   try {
     const raw = localStorage.getItem(key);
@@ -29,10 +44,11 @@ export function getJSON(key, fallback = null) {
 export function setJSON(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    return true;
   } catch {
     return false;
   }
+  syncListener?.(key, value);
+  return true;
 }
 
 export function getText(key, fallback = '') {

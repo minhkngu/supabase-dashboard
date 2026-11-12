@@ -16,6 +16,7 @@ async function mock(page: Page, formulas: unknown[]) {
       return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 't' } });
     if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: formulas } });
     if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (url.pathname === '/api/ui-settings') return route.fulfill({ json: { available: false, items: {} } });
     if (request.method() === 'PATCH') {
       counts.patches++;
       row = { ...row, ...request.postDataJSON().values };

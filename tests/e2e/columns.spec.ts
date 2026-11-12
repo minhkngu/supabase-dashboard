@@ -495,3 +495,56 @@ test('formula lưu nền, bảo vệ ô và giữ giá trị khi tắt', async (
   await expect(page.locator('#columnError')).toContainText('Công thức không hợp lệ');
   await expect(page.locator('#columnFormulaExpression')).toHaveValue('[price] / 0');
 });
+
+test('kéo cột: vạch báo đúng mép sẽ chèn và chặn kéo qua ranh giới ghim', async ({ page }) => {
+  await page.route('**/api/**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({
+        json: {
+          tables: [
+            {
+              name: 'public.demo',
+              columns: ['id', 'name', 'note'].map(n => ({ name: n, data_type: 'text', options: ['updatable'] })),
+              primary_keys: ['id'],
+            },
+          ],
+          token: 'csrf',
+        },
+      });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    return route.fulfill({ json: { rows: [], total: 0 } });
+  });
+  await page.goto('/');
+  const header = (n: string) => page.locator(`th[data-column-id="col:${n}"]`);
+  await expect(header('note')).toBeVisible();
+  const drag = (from: string, to: string, ratio: number, type: 'dragover' | 'drop') =>
+    page.evaluate(
+      ([f, t, r, ty]) => {
+        const source = document.querySelector(`th[data-column-id="col:${f}"]`)!,
+          target = document.querySelector(`th[data-column-id="col:${t}"]`)!,
+          rect = target.getBoundingClientRect(),
+          data = new DataTransfer();
+        source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: data }));
+        target.dispatchEvent(
+          new DragEvent(ty as string, {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer: data,
+            clientX: rect.left + rect.width * (r as number),
+            clientY: rect.top + 5,
+          }),
+        );
+        if (ty === 'dragover') return target.className;
+        return '';
+      },
+      [from, to, ratio, type] as const,
+    );
+  expect(await drag('id', 'note', 0.25, 'dragover')).toContain('column-drop-before');
+  expect(await drag('id', 'note', 0.75, 'dragover')).toContain('column-drop-after');
+  await drag('id', 'note', 0.75, 'drop');
+  await expect(page.locator('th[data-column-id]').last()).toHaveAttribute('data-column-id', 'col:id');
+  // "name" is pinned by default; dragging an unpinned column over it is refused.
+  expect(await drag('note', 'name', 0.75, 'dragover')).not.toContain('column-drop');
+});

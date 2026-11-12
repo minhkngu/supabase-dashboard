@@ -1,3 +1,4 @@
+import { autoScrollWhileDragging } from '../dnd.js';
 import { api, toast } from '../api.js';
 import { historyFor, updateHistoryButtons } from '../history.js';
 import { valueFor } from '../record-editor.js';
@@ -60,7 +61,7 @@ export function syncGrid(live, next) {
           copySelection = copySelection.map(row => row.map(item => (item === old ? cell : item)));
           if (virtualAnchor === old) virtualAnchor = cell;
           old.replaceWith(cell);
-          if (focused) cell.focus();
+          if (focused) cell.focus({ preventScroll: true });
         }
     } else current = fresh;
     if (current !== position) body.insertBefore(current, position);
@@ -157,7 +158,7 @@ export function initSelection() {
       if (dragSelection?.moved) {
         event.preventDefault();
         event.stopImmediatePropagation();
-        cell.focus();
+        cell.focus({ preventScroll: true });
         return;
       }
       if (event.shiftKey) {
@@ -173,13 +174,13 @@ export function initSelection() {
           selectRectangle(anchor, cell);
           virtualAnchor = anchor;
         }
-        cell.focus();
+        cell.focus({ preventScroll: true });
       } else if (!event.target.closest('button')) {
         clearBulk();
         virtualAnchor = cell;
         cell.classList.add('bulk-selected');
         copySelection = [[cell]];
-        cell.focus();
+        cell.focus({ preventScroll: true });
       }
     },
     true,
@@ -207,11 +208,17 @@ export function initSelection() {
     dragSelection.last = cell;
     selectRectangle(dragSelection.first, cell, true);
   });
+  document.addEventListener('mousemove', event => {
+    if (!dragSelection || !(event.buttons & 1)) return;
+    const scroller = gridSelection.closest('.table-scroll');
+    autoScrollWhileDragging(scroller, event, 'x');
+    autoScrollWhileDragging(scroller, event, 'y');
+  });
   document.addEventListener('mouseup', () => {
     if (dragSelection?.moved) {
       const cell = dragSelection.last;
       selectRectangle(dragSelection.first, cell);
-      cell.focus();
+      cell.focus({ preventScroll: true });
       setTimeout(() => {
         dragSelection = null;
       }, 0);

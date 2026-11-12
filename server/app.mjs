@@ -9,9 +9,10 @@ import { handleFormula } from './routes/formula.mjs';
 import { handleLookup } from './routes/lookup.mjs';
 import { handleSchema } from './routes/schema.mjs';
 import { handleTable } from './routes/table.mjs';
+import { handleUiSettings } from './routes/ui-settings.mjs';
 import { invalidatesCaches } from '../server-cache.mjs';
 
-const routes = [handleMeta, handleFormula, handleLookup, handleSchema, handleTable];
+const routes = [handleMeta, handleFormula, handleLookup, handleUiSettings, handleSchema, handleTable];
 
 /**
  * @param {ReturnType<typeof import('./config.mjs').configFromEnv>} config

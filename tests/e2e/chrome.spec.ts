@@ -159,3 +159,46 @@ test('khung 390px: nút Thêm bản ghi nằm trọn trong màn hình, nút menu
   await expect(page.locator('#toggleSidebar')).toBeHidden();
   await expect(page.locator('#sidebarToggleBtn')).toBeHidden();
 });
+
+test('khung 1440px: nhóm nút xem thẳng mép phải với Thêm bản ghi, Tải lại đứng cuối', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mock(page);
+  const add = (await page.locator('#add').boundingBox())!,
+    refresh = (await page.locator('#refresh').boundingBox())!,
+    sort = (await page.locator('#sortButton').boundingBox())!;
+  expect(Math.abs(add.x + add.width - (refresh.x + refresh.width))).toBeLessThanOrEqual(2);
+  expect(refresh.x).toBeGreaterThan(sort.x + sort.width);
+});
+
+test('khung 1024px: thanh công cụ không gãy quá hai dòng và nút xem chỉ còn biểu tượng', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await mock(page);
+  const toolbar = (await page.locator('.toolbar').boundingBox())!;
+  expect(toolbar.height).toBeLessThanOrEqual(100);
+  await expect(page.locator('#filterButton')).toHaveAccessibleName(/Lọc|điều kiện|Bộ lọc/);
+});
+
+test('khung 390px: phần đầu trang gọn, tới lưới trong 270px', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mock(page);
+  const shell = (await page.locator('.grid-shell').boundingBox())!;
+  expect(shell.y).toBeLessThanOrEqual(270);
+});
+
+test('kéo chọn nhiều ô không làm lưới xê dịch', async ({ page }) => {
+  await mock(page, 5);
+  const before = (await page.locator('.grid-shell').boundingBox())!;
+  const cells = page.locator('#grid td[data-bulk-column="address"]');
+  const a = (await cells.nth(0).boundingBox())!,
+    b = (await cells.nth(1).boundingBox())!;
+  await page.mouse.move(a.x + 10, a.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 10, b.y + 10, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.locator('#bulkBar')).toBeVisible();
+  const after = (await page.locator('.grid-shell').boundingBox())!;
+  expect(after.y).toBe(before.y);
+  expect(after.height).toBe(before.height);
+  await page.locator('#bulkCancel').click();
+  expect((await page.locator('.grid-shell').boundingBox())!.y).toBe(before.y);
+});

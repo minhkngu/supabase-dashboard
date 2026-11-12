@@ -47,7 +47,7 @@ export function restoreCellFocus() {
   pendingFocus = null;
   const cell = cellAt(target.row, target.column);
   if (!cell) return;
-  cell.focus();
+  cell.focus({ preventScroll: true });
   if (target.activate) cell.click();
 }
 
@@ -61,7 +61,9 @@ export function initKeyboard() {
     const arrow = ARROWS[event.key];
     if (arrow && !event.shiftKey) {
       event.preventDefault();
-      neighbourCell(td, arrow[0], arrow[1])?.focus();
+      const next = neighbourCell(td, arrow[0], arrow[1]);
+      next?.focus({ preventScroll: true });
+      next?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
       return;
     }
     if (event.key === 'F2') {

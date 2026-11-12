@@ -20,9 +20,12 @@ export function nativeRelations(table = state.table) {
     }));
 }
 export let relationDisplaySettings = {};
-export function initRelationDisplay() {
+export function reloadRelationDisplay() {
   const saved = getJSON(storageKeys.relationDisplay, {});
   if (saved && typeof saved === 'object' && !Array.isArray(saved)) relationDisplaySettings = saved;
+}
+export function initRelationDisplay() {
+  reloadRelationDisplay();
   $('#closeRelationDisplay').onclick = $('#cancelRelationDisplay').onclick = () => $('#relationDisplayDialog').close();
   $('#relationDisplayForm').onsubmit = e => {
     e.preventDefault();
@@ -119,10 +122,7 @@ export async function loadNativeDisplays() {
           relationDisplayField(relation),
         ]);
         if (version === nativeDisplayVersion)
-          nativeDisplayRows.set(
-            relation.id,
-            new Map(result.map(row => [String(row[relation.config.targetKey]), row])),
-          );
+          nativeDisplayRows.set(relation.id, new Map(result.map(row => [String(row[relation.config.targetKey]), row])));
       } catch {
         if (version === nativeDisplayVersion) nativeDisplayRows.set(relation.id, null);
       }

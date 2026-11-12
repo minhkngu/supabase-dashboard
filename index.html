@@ -543,12 +543,6 @@
             aria-label="Bộ lọc, nhóm và sắp xếp đang bật"
             hidden
           ></div>
-          <form id="bulkBar" class="bulk-bar" hidden>
-            <label id="bulkLabel" for="bulkValue"></label><span id="bulkField"></span
-            ><button type="submit" id="bulkApply" class="secondary">Áp dụng</button
-            ><button type="button" id="bulkCancel" class="secondary">Hủy</button
-            ><span id="bulkError" role="status"></span>
-          </form>
           <div id="configStatus" class="config-status" role="status" hidden>
             <span id="configStatusText"></span>
             <button id="retryConfig" type="button" class="secondary" hidden>Thử lại</button>
@@ -563,6 +557,12 @@
           <section class="grid-shell" aria-label="Dữ liệu bảng">
             <div id="message" class="grid-message">Đang kết nối…</div>
             <div class="table-scroll"><table id="grid"></table></div>
+            <form id="bulkBar" class="bulk-bar" hidden>
+              <label id="bulkLabel" for="bulkValue"></label><span id="bulkField"></span
+              ><button type="submit" id="bulkApply" class="secondary">Áp dụng</button
+              ><button type="button" id="bulkCancel" class="secondary">Hủy</button
+              ><span id="bulkError" role="status"></span>
+            </form>
             <section id="rowSelectionBar" class="row-selection-bar" aria-label="Thao tác dòng đã chọn" hidden>
               <span id="rowSelectionSummary" role="status"></span>
               <div class="row-selection-actions">
