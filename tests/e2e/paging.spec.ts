@@ -24,10 +24,11 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
   });
   await page.goto('/');
   await expect(page.locator('#count')).toHaveText('120 bản ghi');
-  expect(requests.at(-1)?.get('count')).toBeNull();
+  // The prefetch of page 2 also runs, so look at the page-1 request itself.
+  expect(requests.find(q => q.get('page') === '0')?.get('count')).toBeNull();
   await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
   await expect(page.locator('#page')).toHaveText('Trang 2');
-  expect(requests.at(-1)?.get('count')).toBe('none');
+  expect(requests.find(q => q.get('page') === '1')?.get('count')).toBe('none');
   await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
   await expect(page.locator('#page')).toHaveText('Trang 3');
   await expect(page.locator('#grid tbody tr')).toHaveCount(20);
@@ -35,7 +36,7 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
   await expect(page.getByRole('button', { name: 'Trang sau', exact: true })).toBeDisabled();
   await page.locator('#search').fill('lune');
   await expect(page.locator('#count')).toHaveText('60 bản ghi');
-  expect(requests.at(-1)?.get('count')).toBeNull();
+  expect(requests.filter(q => q.get('search') === 'lune' && q.get('page') === '0').at(-1)?.get('count')).toBeNull();
 });
 
 test('chọn cỡ trang ở chân lưới và nhớ theo bảng', async ({ page }) => {

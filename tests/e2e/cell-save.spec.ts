@@ -51,10 +51,9 @@ test('lưu ô ở bảng có formula tải lại để lấy giá trị tự tí
   await expect.poll(() => counts.reads).toBe(2);
 });
 
-test('sửa hàng loạt gửi tối đa 5 yêu cầu cùng lúc và báo lỗi theo dòng', async ({ page }) => {
+test('sửa hàng loạt gửi một yêu cầu lô và báo lỗi theo dòng', async ({ page }) => {
   const rows = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: `R${i + 1}`, qty: 1, total: 1 }));
-  let active = 0,
-    peak = 0;
+  let batches = 0;
   await page.route('**/api/**', async route => {
     const request = route.request(),
       url = new URL(request.url());
@@ -62,16 +61,16 @@ test('sửa hàng loạt gửi tối đa 5 yêu cầu cùng lúc và báo lỗi 
       return route.fulfill({ json: { tables: [{ name: 'public.demo', columns, primary_keys: ['id'] }], token: 't' } });
     if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
     if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
-    if (request.method() === 'PATCH') {
-      const body = request.postDataJSON();
-      active++;
-      peak = Math.max(peak, active);
-      await new Promise(resolve => setTimeout(resolve, 150));
-      active--;
-      if (body.key.id === 3) return route.fulfill({ status: 409, json: { error: 'Xung đột' } });
-      const row = rows.find(x => x.id === body.key.id)!;
-      Object.assign(row, body.values);
-      return route.fulfill({ json: { rows: [row] } });
+    if (request.method() === 'POST' && url.pathname.endsWith('/batch')) {
+      batches++;
+      const { changes } = request.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        if (change.key.id === 3) return { ok: false, error: 'Xung đột' };
+        const row = rows.find(x => x.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      return route.fulfill({ json: { results } });
     }
     return route.fulfill({ json: { rows, total: rows.length } });
   });
@@ -84,7 +83,6 @@ test('sửa hàng loạt gửi tối đa 5 yêu cầu cùng lúc và báo lỗi 
   await page.locator('#bulkValue').fill('Mới');
   await page.locator('#bulkApply').click();
   await expect(page.locator('#bulkError')).toContainText('Đã lưu 7/8 dòng. Dòng 3: Xung đột');
-  expect(peak).toBeGreaterThan(1);
-  expect(peak).toBeLessThanOrEqual(5);
+  expect(batches).toBe(1);
   expect(rows.filter(x => x.name === 'Mới')).toHaveLength(7);
 });

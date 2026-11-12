@@ -172,6 +172,17 @@ test('sửa nhiều ô trực tiếp trên bảng đang nhóm, báo lỗi từng
       });
       return;
     }
+    if (req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/batch')) {
+      const { changes } = req.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        if (change.key.id === 2) return { ok: false, error: 'Xung đột' };
+        const row = rows.find(x => x.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      await route.fulfill({ json: { results } });
+      return;
+    }
     if (req.method() === 'PATCH') {
       const body = req.postDataJSON();
       if (body.key.id === 2) {
@@ -235,6 +246,16 @@ test('dán dữ liệu trực tiếp vào bảng', async ({ page }) => {
       });
       return;
     }
+    if (req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/batch')) {
+      const { changes } = req.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        const row = rows.find(x => x.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      await route.fulfill({ json: { results } });
+      return;
+    }
     if (req.method() === 'PATCH') {
       const body = req.postDataJSON();
       const row = rows.find(x => x.id === body.key.id)!;
@@ -289,6 +310,15 @@ test('sửa hàng loạt số thập phân không làm tròn giá trị nhập',
           token: 'csrf',
         },
       });
+      return;
+    }
+    if (req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/batch')) {
+      const { changes } = req.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        values.push(change.values.price as string);
+        return { ok: true, rows: [{ ...rows[change.key.id - 1], ...change.values }] };
+      });
+      await route.fulfill({ json: { results } });
       return;
     }
     if (req.method() === 'PATCH') {
@@ -1388,6 +1418,16 @@ test('Delete xóa giá trị vùng chọn, chặn cột bắt buộc và không 
           token: 'csrf',
         },
       });
+    if (request.method() === 'POST' && path.endsWith('/batch')) {
+      const { changes } = request.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        writes.push(change);
+        const row = rows.find(item => item.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      return route.fulfill({ json: { results } });
+    }
     if (request.method() === 'PATCH') {
       const body = request.postDataJSON();
       writes.push(body);
@@ -1460,6 +1500,16 @@ test('dán nhiều dòng vào ô đang sửa và giữ cách dán văn bản th�
           token: 'csrf',
         },
       });
+    if (req.method() === 'POST' && path.endsWith('/batch')) {
+      const { changes } = req.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        writes.push(change);
+        const row = rows.find(item => item.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      return route.fulfill({ json: { results } });
+    }
     if (req.method() === 'PATCH') {
       const body = req.postDataJSON();
       writes.push(body);
@@ -1821,6 +1871,15 @@ test('dán nhiều dòng vào cột bigint giữ nguyên giá trị lớn', asyn
           token: 'csrf',
         },
       });
+    if (req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/batch')) {
+      const { changes } = req.postDataJSON();
+      const results = changes.map((change: { key: { id: number }; values: Record<string, unknown> }) => {
+        const row = rows.find(x => x.id === change.key.id)!;
+        Object.assign(row, change.values);
+        return { ok: true, rows: [row] };
+      });
+      return route.fulfill({ json: { results } });
+    }
     if (req.method() === 'PATCH') {
       const body = req.postDataJSON(),
         row = rows.find(x => x.id === body.key.id)!;
