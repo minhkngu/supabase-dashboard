@@ -1,4 +1,6 @@
-# Sửa lỗi sau đánh giá 13/11/2026
+# Sửa lỗi ô JSON, giới hạn đăng nhập Basic và khóa bảng khi đổi cột
+
+Nguồn: đánh giá toàn dự án ngày 13/11/2026.
 
 **Trạng thái:** chưa làm.
 

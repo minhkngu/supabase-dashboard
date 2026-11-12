@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Siris
 
-Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (chờ quyết định). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-sau-danh-gia.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
+Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (chờ quyết định). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
 Mục lục:
 1. Tình hình hiện tại

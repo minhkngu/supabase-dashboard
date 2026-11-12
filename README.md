@@ -181,6 +181,6 @@ Deploy không tự thay đổi dữ liệu Supabase.
 
 | File | Nội dung | Trạng thái |
 | --- | --- | --- |
-| [`plan/sua-loi-sau-danh-gia.md`](plan/sua-loi-sau-danh-gia.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Chưa làm |
+| [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Chưa làm |
 | [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Còn đo trên Vercel (G), H4 chờ quyết định |
 | [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong (PR #4) |
