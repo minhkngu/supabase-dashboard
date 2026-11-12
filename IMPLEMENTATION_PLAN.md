@@ -28,7 +28,7 @@ Kết quả kiểm tra sau merge:
 | `npm run lint` | Đạt |
 | `npm run typecheck` | Đạt (TypeScript và `checkJs`) |
 | `npm run build` | Đạt |
-| `npm test` | 90 đạt; `pretest` tự build giao diện trước khi chạy |
+| `npm test` | 90 đạt, 1 bỏ qua (test benchmark cần `SIRIS_BENCH_PG_BIN`); `pretest` tự build giao diện trước khi chạy |
 | `npm run test:e2e` | **108/108 đạt** |
 | `npm run bench` | Đạt với PostgreSQL 16.15 và Chromium; số đo ở mục 9.1 |
 
@@ -159,7 +159,7 @@ Xong giai đoạn P khi: e2e và unit test của từng mục (lấy từ `d21ea
 **F1.** `scripts/bench.mjs`: đo "quay lại trang đã xem" bằng số request mạng phải chờ và thời điểm lưới hiển thị đo trong trang (`performance.now()`), thay cho `waitFor`.
 **F2.** Test cache PostgreSQL: thêm `tests/bench-cache.test.js` gọi `node scripts/bench.mjs --verify-cache`, `describe.skipIf(!process.env.SIRIS_BENCH_PG_BIN)`.
 **F3.** Mục tiêu "mở ứng dụng": ghi lại thành "≈ một lượt API + tải trang" (đo được 146 ms đã lưu cấu trúc, 202 ms lần đầu), vì số 428 ms cũ là đo phía server, không so trực tiếp với đo bằng trình duyệt.
-**F4.** Sửa số test trong plan (89 đạt + 1 bỏ qua).
+**F4.** Sửa số test trong plan thành 90 đạt + 1 bỏ qua (test benchmark), hoặc 91 đạt khi chạy với `SIRIS_BENCH_PG_BIN`.
 
 ### Giai đoạn C — Gỡ edge/Sites
 
@@ -221,7 +221,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | A3 | `npm test` tự dựng giao diện | **Xong** (`pretest: vite build`) |
 | P1–P7 | Chuyển phần tốc độ từ `d21eac0` | **Xong**; mỗi mục có test unit/e2e tương ứng |
 | B1–B3 | Đo mô phỏng (PostgreSQL 16.15, Chromium) | **Xong** |
-| F | Sửa điểm yếu của phép đo, test cache PostgreSQL | Đang làm |
+| F | Sửa điểm yếu của phép đo, test cache PostgreSQL | **Xong** (F1–F4) |
 | C | Gỡ edge/Sites | Chưa bắt đầu |
 | D | CI | Chưa bắt đầu |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | Chưa bắt đầu |
@@ -299,14 +299,14 @@ Cùng PostgreSQL 16.15 và API giả lập, hai mức trễ 60/40 ms và 150/100
 | Tổng quan 500 dòng | 64 ms | 154 ms |
 | Mở ứng dụng tới khi thấy dữ liệu (lần đầu) | 202 ms | 386 ms |
 | Mở ứng dụng tới khi thấy dữ liệu (đã lưu cấu trúc) | 146 ms | 243 ms |
-| Quay lại trang đã xem | 73 ms | 82 ms |
+| Quay lại trang đã xem | 5 ms | 6 ms |
 | Yêu cầu lookup sau khi sửa một ô | 0 | 0 |
 
 Nhận xét:
 
 - Mục tiêu đạt: metadata sau khi ghi ~2 ms (đo được 1 ms), ghi lô 50 dòng dưới 1 giây ở mạng gần (630 ms), Tổng quan 500 dòng ~70 ms (64 ms), lưu ô và lưu sau 11 giây ~65 ms (67/66 ms), lookup 0–1 lượt.
-- Chưa đạt: mở ứng dụng tới khi thấy dữ liệu ~80 ms (202 ms lần đầu, 146 ms khi đã lưu cấu trúc). Phần còn lại là metadata lần đầu 152 ms và trang đầu 81 ms; đây là giới hạn của hai lượt mạng chứ không phải phần vẽ.
-- Quay lại trang đã xem hiện từ cache trước khi mạng trả lời, nhưng phép đo `waitFor` ghi 73 ms; con số này không chứng minh "tức thì" mà chỉ cho thấy không còn chờ đủ một lượt tải trang.
+- Mục tiêu "mở ứng dụng" ghi lại thành "≈ một lượt API + tải trang": đo được 149 ms khi đã lưu cấu trúc và 223 ms lần đầu (mạng gần). Số 428 ms cũ đo phía server, không so trực tiếp với phép đo bằng trình duyệt. Phần còn lại là metadata lần đầu ~153 ms và trang đầu ~82 ms.
+- Quay lại trang đã xem: lưới vẽ lại sau 5 ms (gần) và 6 ms (xa); **0 request mạng hoàn tất trước khi vẽ**, 1 request làm mới nền vẫn chạy. Phép đo cũ dùng `waitFor` nên ghi 73/82 ms và không chứng minh được điều này.
 - Ghi 50 dòng nối tiếp vẫn gửi 50 yêu cầu tới Data API nên chưa đạt mục tiêu dưới 1 giây; đường dán/sửa hàng loạt đã dùng lô (630 ms).
 - Bảng bench không cấu hình cột lookup, nên phép đo lookup xác nhận "không phát sinh yêu cầu" chứ chưa đo trường hợp có lookup.
 

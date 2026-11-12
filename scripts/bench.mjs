@@ -112,8 +112,16 @@ try{
    start=performance.now();await page.reload();await visible();
    results.push({thao_tac:'Mở ứng dụng tới khi thấy dữ liệu (đã lưu cấu trúc)',ms:Math.round(performance.now()-start),api:'',goi_tin_db:''});
    await page.locator('#next').click();await page.waitForFunction(()=>document.querySelector('#page')?.textContent==='Trang 2');
-   start=performance.now();await page.locator('#prev').click();await page.waitForFunction(()=>document.querySelector('#page')?.textContent==='Trang 1');await visible();
-   results.push({thao_tac:'Quay lại trang đã xem',ms:Math.round(performance.now()-start),api:'',goi_tin_db:''});
+   // A cached page paints before its background refresh returns. Measure the
+   // paint inside the page and count requests that had completed by then.
+   await page.evaluate(()=>{window.__sirisBench={started:0,completed:0};const original=window.fetch;window.fetch=function(...args){window.__sirisBench.started++;return original.apply(this,args).finally(()=>{window.__sirisBench.completed++})}});
+   const revisit=await page.evaluate(async()=>{
+    const start=performance.now(),cell=()=>document.querySelector('td[data-bulk-column="name"]');
+    document.querySelector('#prev').click();
+    await new Promise(resolve=>{const check=()=>{if(cell()?.textContent?.includes('Chi nhánh 1'))resolve();else requestAnimationFrame(check)};check()});
+    return {ms:Math.round(performance.now()-start),completed:window.__sirisBench.completed,started:window.__sirisBench.started};
+   });
+   results.push({thao_tac:'Quay lại trang đã xem',ms:revisit.ms,api:`${revisit.completed}/${revisit.started}`,goi_tin_db:''});
    lookupCalls=0;await page.locator('td[data-bulk-column="name"]').first().click();
    await page.locator('td.editing input').fill('Đã sửa');await page.locator('td.editing input').press('Enter');
    await delay(300);
