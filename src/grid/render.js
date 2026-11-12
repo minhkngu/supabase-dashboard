@@ -250,7 +250,7 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
     persistView();
   }
   const search = $('#search').value,
-    filters = JSON.stringify(state.view?.filters || []),
+    filters = state.view?.filters || [],
     orders = serverOrder(),
     searchColumn = $('#searchColumn')?.value || '',
     limit = pageSize(),
