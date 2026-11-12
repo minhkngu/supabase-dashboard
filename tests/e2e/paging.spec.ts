@@ -19,7 +19,7 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
     const search = url.searchParams.get('search') || '',
       matches = rows.filter(row => row.name.toLowerCase().includes(search.toLowerCase())),
       p = Number(url.searchParams.get('page') || 0);
-    const total = url.searchParams.get('count') === '0' ? null : matches.length;
+    const total = url.searchParams.get('count') === 'none' ? null : matches.length;
     return route.fulfill({ json: { rows: matches.slice(p * 50, p * 50 + 50), total } });
   });
   await page.goto('/');
@@ -27,7 +27,7 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
   expect(requests.at(-1)?.get('count')).toBeNull();
   await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
   await expect(page.locator('#page')).toHaveText('Trang 2');
-  expect(requests.at(-1)?.get('count')).toBe('0');
+  expect(requests.at(-1)?.get('count')).toBe('none');
   await page.getByRole('button', { name: 'Trang sau', exact: true }).click();
   await expect(page.locator('#page')).toHaveText('Trang 3');
   await expect(page.locator('#grid tbody tr')).toHaveCount(20);

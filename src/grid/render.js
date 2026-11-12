@@ -190,7 +190,7 @@ export async function load({ silent = false } = {}) {
     orders: JSON.stringify(serverOrder()),
     filters,
   });
-  if (!needsCount) q.set('count', '0');
+  if (!needsCount) q.set('count', 'none');
   if (pageSize() !== PAGE_SIZE) q.set('limit', String(pageSize()));
   const cacheKey = `/api/table/${name(table)}?${q}`;
   const cached = pageCache.get(cacheKey);

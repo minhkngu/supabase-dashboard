@@ -85,7 +85,7 @@ describe('API trên máy cục bộ', () => {
     const counted = await (await fetch(`${origin}/api/table/branches?page=0`)).json();
     expect(counted.total).toBe(1);
     expect(upstreamRequests.at(-1).prefer).toBe('count=exact');
-    const skipped = await (await fetch(`${origin}/api/table/branches?page=1&count=0`)).json();
+    const skipped = await (await fetch(`${origin}/api/table/branches?page=1&count=none`)).json();
     expect(skipped.total).toBeNull();
     expect(skipped.rows).toHaveLength(1);
     expect(upstreamRequests.at(-1).prefer).toBeUndefined();

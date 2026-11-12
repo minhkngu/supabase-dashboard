@@ -77,8 +77,8 @@ export async function handleTable(ctx, req, res, u) {
     q.set('select', t.columns.map(c => '"' + c.name.replaceAll('"', '\\"') + '"').join(','));
     q.set('limit', String(limit));
     q.set('offset', String(page * limit));
-    // count=0 skips the exact count when the client already knows the total.
-    const withCount = u.searchParams.get('count') !== '0';
+    // count=none skips the exact count when the client already knows the total.
+    const withCount = !['none', '0'].includes(u.searchParams.get('count'));
     const { data, range } = await ctx.upstream(`${name}?${q}`, withCount ? { headers: { Prefer: 'count=exact' } } : {});
     const total = withCount ? Number(range?.split('/')[1]) || 0 : null;
     response(res, 200, { rows: data, total, page, limit });
