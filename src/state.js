@@ -63,6 +63,15 @@ export function el(tag, cls, text) {
   return x;
 }
 export const pageCache = new Map();
+// Lookup results by (source table, key column, fields, value), kept for 60s.
+export const lookupCache = new Map();
+export function invalidateLookupCache(table) {
+  if (!table) {
+    lookupCache.clear();
+    return;
+  }
+  for (const [key, group] of lookupCache) if (group.table === table) lookupCache.delete(key);
+}
 // Key (table, search, filters) whose total row count is already known; page
 // changes within it skip the count query. Any write clears it with the cache.
 export let countedKey = null;

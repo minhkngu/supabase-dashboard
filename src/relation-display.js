@@ -1,6 +1,6 @@
-import { api, toast } from './api.js';
+import { toast } from './api.js';
 import { load, render } from './grid/render.js';
-import { fillOptions, lookupTable } from './lookup.js';
+import { cachedLookup, fillOptions, lookupTable } from './lookup.js';
 import { $, name, state } from './state.js';
 
 export function nativeRelations(table = state.table) {
@@ -119,18 +119,13 @@ export async function loadNativeDisplays() {
       ];
       if (!values.length) return;
       try {
-        const result = await api(`/api/lookup/${relation.config.targetTable}`, {
-          method: 'POST',
-          body: JSON.stringify({
-            column: relation.config.targetKey,
-            values,
-            fields: [relationDisplayField(relation)],
-          }),
-        });
+        const result = await cachedLookup(relation.config.targetTable, relation.config.targetKey, values, [
+          relationDisplayField(relation),
+        ]);
         if (version === nativeDisplayVersion)
           nativeDisplayRows.set(
             relation.id,
-            new Map(result.rows.map(row => [String(row[relation.config.targetKey]), row])),
+            new Map(result.map(row => [String(row[relation.config.targetKey]), row])),
           );
       } catch {
         if (version === nativeDisplayVersion) nativeDisplayRows.set(relation.id, null);
