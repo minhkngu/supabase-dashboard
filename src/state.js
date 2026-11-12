@@ -63,6 +63,10 @@ export function el(tag, cls, text) {
   return x;
 }
 export const pageCache = new Map();
+export const prefetching = new Set();
+// Bumped whenever a write clears the page cache; a prefetch started before the
+// write must not put stale rows back.
+export let cacheEpoch = 0;
 // Lookup results by (source table, key column, fields, value), kept for 60s.
 export const lookupCache = new Map();
 export function invalidateLookupCache(table) {
@@ -77,7 +81,9 @@ export function invalidateLookupCache(table) {
 export let countedKey = null;
 export function clearPageCache() {
   pageCache.clear();
+  prefetching.clear();
   countedKey = null;
+  cacheEpoch++;
 }
 export let loadController = null;
 export function setDeletionNotice(value) {

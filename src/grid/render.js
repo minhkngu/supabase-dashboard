@@ -31,6 +31,7 @@ import { closeNav, nav, tableLabel } from '../sidebar.js';
 import {
   $,
   $$,
+  cacheEpoch,
   countedKey,
   deletionBusy,
   deletionTable,
@@ -40,6 +41,7 @@ import {
   PAGE_SIZE,
   PAGE_SIZES,
   pageCache,
+  prefetching,
   pageSize,
   pendingRows,
   savingCells,
@@ -135,6 +137,63 @@ function serverOrder() {
     }
   return result;
 }
+function pageQuery(table, page, search, filters, orders, searchColumn = '', limit = PAGE_SIZE) {
+  return `/api/table/${name(table)}?${new URLSearchParams({
+    page: String(page),
+    search,
+    ...(searchColumn ? { search_column: searchColumn } : {}),
+    orders: JSON.stringify(orders),
+    filters: JSON.stringify(filters),
+    ...(limit !== PAGE_SIZE ? { limit: String(limit) } : {}),
+  })}`;
+}
+function putPage(key, data) {
+  pageCache.set(key, { time: Date.now(), data: structuredClone(data) });
+  if (pageCache.size > 100) pageCache.delete(pageCache.keys().next().value);
+}
+// Loads a page the user is likely to open next; failures stay silent.
+export async function prefetchPage(table, page, search, filters, orders, total, searchColumn = '', limit = PAGE_SIZE) {
+  const key = pageQuery(table, page, search, filters, orders, searchColumn, limit);
+  if (pageCache.has(key) || prefetching.has(key)) return;
+  prefetching.add(key);
+  const epoch = cacheEpoch;
+  try {
+    const data = await api(key + (Number.isSafeInteger(total) ? '&count=none' : ''));
+    if (epoch !== cacheEpoch) return;
+    if (data.total === null) data.total = total;
+    if (!Array.isArray(data.rows) || !Number.isSafeInteger(data.total) || data.total < 0) return;
+    putPage(key, data);
+  } catch {
+    // A prefetch that fails simply leaves the page to load normally.
+  } finally {
+    prefetching.delete(key);
+  }
+}
+export function prefetchTable(table) {
+  if (state.table?.name === table.name) return;
+  const view = state.views[name(table)] || {},
+    filters = validFilterRules(view.filters, table),
+    groups = validRules(view.groups, table),
+    sorts = validRules(view.sorts, table),
+    seen = new Set(),
+    orders = [...groups, ...sorts].filter(x => !seen.has(x.column) && seen.add(x.column));
+  const searchColumn =
+    view.searchColumn &&
+    table.columns.some(c => c.name === view.searchColumn && ['text', 'character varying'].includes(c.data_type))
+      ? view.searchColumn
+      : '';
+  const limit = PAGE_SIZES.includes(view.pageSize) ? view.pageSize : PAGE_SIZE;
+  void prefetchPage(
+    table,
+    0,
+    typeof view.search === 'string' && view.search.trim().length >= 2 ? view.search : '',
+    filters,
+    orders,
+    undefined,
+    searchColumn,
+    limit,
+  );
+}
 // Fetches whole-table counts for the groups visible on this page.
 async function loadGroupCounts(table, version) {
   const groups = state.view.groups;
@@ -174,51 +233,52 @@ export async function load({ silent = false } = {}) {
   const controller = new AbortController();
   setLoadController(controller);
   const version = ++state.loadVersion,
+    epoch = cacheEpoch,
     table = state.table;
   if (!silent) {
     if (!bulkBusy) clearBulk();
     persistView();
-    message('Đang tải dữ liệu…');
-    $('#grid').replaceChildren();
   }
-  const filters = JSON.stringify(state.view?.filters || []),
-    countKey = JSON.stringify([table.name, $('#search').value, filters]),
-    needsCount = countedKey !== countKey;
-  const q = new URLSearchParams({
-    page: String(state.page),
-    search: $('#search').value,
-    orders: JSON.stringify(serverOrder()),
-    filters,
-  });
-  if (!needsCount) q.set('count', 'none');
-  if (pageSize() !== PAGE_SIZE) q.set('limit', String(pageSize()));
-  const cacheKey = `/api/table/${name(table)}?${q}`;
-  const cached = pageCache.get(cacheKey);
-  if (!silent && cached && Date.now() - cached.time < 15000) {
+  const search = $('#search').value,
+    filters = JSON.stringify(state.view?.filters || []),
+    orders = serverOrder(),
+    searchColumn = '',
+    limit = pageSize(),
+    countKey = JSON.stringify([table.name, search, filters, searchColumn]),
+    needsCount = countedKey !== countKey,
+    cacheKey = pageQuery(table, state.page, search, filters, orders, searchColumn, limit),
+    cached = pageCache.get(cacheKey),
+    canShowCached = cached && !state.cellEdit && !state.rows.some(row => pendingRows.has(row));
+  // A cached page appears immediately, even after its 60-second freshness
+  // window; the network request below refreshes it in the background.
+  if (canShowCached) {
     state.rows = structuredClone(cached.data.rows);
     if (cached.data.total != null) state.total = cached.data.total;
     render();
     loadLookups();
     loadNativeDisplays();
     message(state.rows.length ? '' : 'Không tìm thấy bản ghi nào.');
+  } else if (!silent) {
+    message('Đang tải dữ liệu…');
+    $('#grid').replaceChildren();
   }
   try {
-    const d = await api(cacheKey, { signal: controller.signal });
-    pageCache.set(cacheKey, { time: Date.now(), data: structuredClone(d) });
-    if (pageCache.size > 100) pageCache.delete(pageCache.keys().next().value);
+    const d = await api(cacheKey + (needsCount ? '' : '&count=none'), { signal: controller.signal });
     if (
       version !== state.loadVersion ||
+      epoch !== cacheEpoch ||
       table !== state.table ||
       (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row))))
     )
       return;
+    putPage(cacheKey, d);
     if (d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;
-    if (state.page > 0 && state.page * pageSize() >= total) {
-      state.page = total ? Math.floor((total - 1) / pageSize()) : 0;
+    if (state.page > 0 && state.page * limit >= total) {
+      state.page = total ? Math.floor((total - 1) / limit) : 0;
       return load({ silent });
     }
-    if (silent && table.primary_keys?.length) {
+    if ((silent || canShowCached) && table.primary_keys?.length) {
       const key = row => JSON.stringify(table.primary_keys.map(k => row[k])),
         existing = new Map(state.rows.map(row => [key(row), row]));
       state.rows = d.rows.map(row => {
@@ -235,6 +295,8 @@ export async function load({ silent = false } = {}) {
     loadLookups();
     loadNativeDisplays();
     message(d.rows.length ? '' : 'Không tìm thấy bản ghi nào.');
+    if ((state.page + 1) * limit < total)
+      void prefetchPage(table, state.page + 1, search, state.view?.filters || [], orders, total, searchColumn, limit);
   } catch (e) {
     if (e.name === 'AbortError' || version !== state.loadVersion || table !== state.table) return;
     if (silent || cached) toast('Không thể làm mới dữ liệu: ' + e.message);

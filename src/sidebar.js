@@ -1,7 +1,7 @@
 import { toast } from './api.js';
 import { openPopupMenu } from './grid/column-menu.js';
 import { confirmDialog, promptDialog } from './confirm.js';
-import { choose } from './grid/render.js';
+import { choose, prefetchTable } from './grid/render.js';
 import { $, el, name, state } from './state.js';
 
 function persistSidebar() {
@@ -163,6 +163,11 @@ function tableNode(t, list) {
   avatar.title = n;
   const label = el('span', 'table-name-text', shown);
   b.append(avatar, label);
+  let hoverTimer;
+  b.onmouseenter = () => {
+    hoverTimer = setTimeout(() => prefetchTable(t), 150);
+  };
+  b.onmouseleave = () => clearTimeout(hoverTimer);
   b.onclick = () => choose(t);
   b.ondragstart = e => {
     e.dataTransfer.effectAllowed = 'move';
