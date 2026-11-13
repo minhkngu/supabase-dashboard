@@ -9,11 +9,11 @@ import { isPromotionsOverview, promotionsOverview, tableOverview } from '../over
 import { loadNativeDisplays } from '../relation-display.js';
 import {
   $,
-  cacheEpoch,
-  countedKey,
-  deletionBusy,
-  deletionTable,
-  loadController,
+  getCacheEpoch,
+  getCountedKey,
+  getDeletionBusy,
+  getDeletionTable,
+  getLoadController,
   name,
   pageCache,
   pageSize,
@@ -64,17 +64,17 @@ async function loadGroupCounts(table, version) {
 }
 export async function load({ silent = false, skipCount = false, forceCount = false } = {}) {
   if (!state.table) return;
-  if (deletionBusy && deletionTable?.name === state.table.name) return;
+  if (getDeletionBusy() && getDeletionTable()?.name === state.table.name) return;
   if (isPromotionsOverview()) {
-    loadController?.abort();
+    getLoadController()?.abort();
     state.loadVersion++;
     return state.table.name === PROMOTIONS_TABLE ? promotionsOverview.load() : tableOverview.load(state.table);
   }
-  loadController?.abort();
+  getLoadController()?.abort();
   const controller = new AbortController();
   setLoadController(controller);
   const version = ++state.loadVersion,
-    epoch = cacheEpoch,
+    epoch = getCacheEpoch(),
     table = state.table;
   if (!silent) {
     if (!bulkBusy) clearBulk();
@@ -86,7 +86,7 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
     searchColumn = $('#searchColumn')?.value || '',
     limit = pageSize(),
     countKey = JSON.stringify([table.name, search, filters, searchColumn]),
-    needsCount = forceCount || (!skipCount && countedKey !== countKey),
+    needsCount = forceCount || (!skipCount && getCountedKey() !== countKey),
     cacheKey = pageQuery(table, state.page, search, filters, orders, searchColumn, limit),
     cached = pageCache.get(cacheKey),
     canShowCached = cached && !state.cellEdit && !state.rows.some(row => pendingRows.has(row));
@@ -108,7 +108,7 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
     if (version !== state.loadVersion || table !== state.table) return;
     // Một lần ghi xóa cache trong lúc chờ: kết quả này có thể đã cũ, nên tải
     // lại thay vì bỏ im lặng và để nguyên "Đang tải dữ liệu…".
-    if (epoch !== cacheEpoch) return load({ silent, skipCount, forceCount });
+    if (epoch !== getCacheEpoch()) return load({ silent, skipCount, forceCount });
     if (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row)))) return;
     if (!skipCount) putPage(cacheKey, d);
     if (!skipCount && d.total != null) setCountedKey(countKey);

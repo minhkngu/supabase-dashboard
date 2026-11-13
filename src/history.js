@@ -2,15 +2,15 @@ import { historyForName, recordChange, transferChange, setHistoryBusy } from './
 import { writeApi } from './write-api.js';
 import { toast } from './api.js';
 import { gridAction } from './events.js';
-import { $, deletionBusy, name, state } from './state.js';
+import { $, getDeletionBusy, name, state } from './state.js';
 
 export function historyFor(table) {
   return historyForName(name(table));
 }
 export function updateHistoryButtons() {
   const history = state.table && historyFor(state.table);
-  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
-  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
+  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || getDeletionBusy();
+  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || getDeletionBusy();
 }
 // Điều kiện chống ghi đè: máy chủ so từng cột bằng `eq.` nên chỉ nhận giá trị đơn.
 // Bỏ cột JSON, mảng và mọi giá trị object; trả undefined khi không còn cột nào.
@@ -56,7 +56,7 @@ export function undoLatest(table, entry) {
   void changeHistory('undo');
 }
 export async function changeHistory(direction) {
-  if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
+  if (getDeletionBusy() || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
   const table = state.table,
     history = historyFor(table),
     from = history[direction],

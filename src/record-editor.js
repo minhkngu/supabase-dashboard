@@ -9,7 +9,7 @@ import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
 import { gridAction } from './events.js';
-import { $, $$, PAGE_SIZES, deletionBusy, el, loadController, name, pageSize, state, writable } from './state.js';
+import { $, $$, PAGE_SIZES, getDeletionBusy, el, getLoadController, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
 export function recordFieldHint(column, row = null) {
@@ -40,8 +40,8 @@ export function openEditor(row) {
   $('#save').textContent = row ? 'Lưu thay đổi' : 'Thêm bản ghi';
   // Deleting stays in the grid, where rows are selected deliberately.
   $('#delete').hidden = !row || isPromotionsOverview();
-  $('#delete').disabled = deletionBusy || !state.configReady || !state.table.primary_keys?.length;
-  $('#save').disabled = deletionBusy || !state.configReady;
+  $('#delete').disabled = getDeletionBusy() || !state.configReady || !state.table.primary_keys?.length;
+  $('#save').disabled = getDeletionBusy() || !state.configReady;
   $('#formError').textContent = '';
   const fields = $('#formFields');
   fields.replaceChildren();
@@ -246,7 +246,7 @@ export function valueFor(c, raw) {
 export function initRecordEditor() {
   $('#form').onsubmit = async e => {
     e.preventDefault();
-    if (deletionBusy || !state.configReady) return;
+    if (getDeletionBusy() || !state.configReady) return;
     $('#formError').textContent = '';
     try {
       const values = {};
@@ -313,7 +313,7 @@ export function initRecordEditor() {
     clearTimeout(previewTimer);
     const value = $('#search').value.trim();
     if (value && value.length < 2) {
-      loadController?.abort();
+      getLoadController()?.abort();
       state.loadVersion++;
       message('Nhập ít nhất 2 ký tự để tìm kiếm.');
       return;

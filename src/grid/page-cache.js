@@ -1,5 +1,5 @@
 import { api } from '../api.js';
-import { cacheEpoch, name, PAGE_SIZE, PAGE_SIZES, pageCache, prefetching, state } from '../state.js';
+import { getCacheEpoch, name, PAGE_SIZE, PAGE_SIZES, pageCache, prefetching, state } from '../state.js';
 import { validFilterRules, validRules } from '../view-menus.js';
 
 export function pageQuery(table, page, search, filters, orders, searchColumn = '', limit = PAGE_SIZE) {
@@ -21,10 +21,10 @@ export async function prefetchPage(table, page, search, filters, orders, total, 
   const key = pageQuery(table, page, search, filters, orders, searchColumn, limit);
   if (pageCache.has(key) || prefetching.has(key)) return;
   prefetching.add(key);
-  const epoch = cacheEpoch;
+  const epoch = getCacheEpoch();
   try {
     const data = await api(key + (Number.isSafeInteger(total) ? '&count=none' : ''));
-    if (epoch !== cacheEpoch) return;
+    if (epoch !== getCacheEpoch()) return;
     if (data.total === null) data.total = total;
     if (!Array.isArray(data.rows) || !Number.isSafeInteger(data.total) || data.total < 0) return;
     putPage(key, data);

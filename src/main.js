@@ -8,7 +8,7 @@ import { loadLookups, restoreLookups, setLookupCloudAvailable } from './lookup.j
 import { recordFieldHint } from './record-editor.js';
 import { loadNativeDisplays, reloadRelationDisplay } from './relation-display.js';
 import { nav, restoreSidebar } from './sidebar.js';
-import { $, deletionBusy, name, state, writable } from './state.js';
+import { $, getDeletionBusy, name, state, writable } from './state.js';
 import { getJSON, getText, setJSON, storageKeys } from './storage.js';
 import { applyRemoteSettings, beginUiSync, startUiSyncFlush } from './ui-sync.js';
 import { restoreViews } from './view-menus.js';
@@ -27,8 +27,8 @@ export function syncEditorReadiness() {
     const hint = input.closest('.field')?.querySelector('.field-hint');
     if (hint) hint.textContent = recordFieldHint(c);
   }
-  $('#save').disabled = deletionBusy || !state.configReady || !hasKey;
-  $('#delete').disabled = deletionBusy || !state.configReady || !hasKey;
+  $('#save').disabled = getDeletionBusy() || !state.configReady || !hasKey;
+  $('#delete').disabled = getDeletionBusy() || !state.configReady || !hasKey;
 }
 function showConfigStatus(text, retry = false) {
   const box = $('#configStatus');

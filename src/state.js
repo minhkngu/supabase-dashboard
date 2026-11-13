@@ -2,7 +2,7 @@ import { getRows, getPage, getTotal, getView } from './grid/grid-state.js';
 import { historyBusy } from './history-state.js';
 import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
-import { deletionBusy } from './deletion-state.js';
+import { getDeletionBusy } from './deletion-state.js';
 export * from './deletion-state.js';
 export * from './grid/cache-state.js';
 import { isWritableColumn } from '../writable-column.mjs';
@@ -78,7 +78,7 @@ export const state = {
 };
 export const name = t => t.name.replace(/^public\./, '');
 export const writable = c =>
-  !deletionBusy &&
+  !getDeletionBusy() &&
   state.configReady &&
   isWritableColumn(state.table, c, { formulas: state.formulas, lookups: state.lookups });
 export function el(tag, cls, text) {

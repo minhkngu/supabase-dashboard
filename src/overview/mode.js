@@ -7,7 +7,7 @@ import { load } from '../grid/render.js';
 import { clearBulk } from '../grid/selection.js';
 import { syncChrome } from '../chrome.js';
 import { openEditor } from '../record-editor.js';
-import { $, deletionBusy, state } from '../state.js';
+import { $, getDeletionBusy, state } from '../state.js';
 import { getJSON, getText, setJSON, storageKeys } from '../storage.js';
 import { closeViewMenus } from '../view-menus.js';
 
@@ -40,7 +40,7 @@ export const tableOverview = createTableOverview({
   canEdit,
 });
 function canEdit() {
-  return state.configReady && !deletionBusy && !!state.table?.primary_keys?.length;
+  return state.configReady && !getDeletionBusy() && !!state.table?.primary_keys?.length;
 }
 export function isPromotionsOverview() {
   return !!state.table && overviewMode;

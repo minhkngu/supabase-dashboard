@@ -1,4 +1,4 @@
-export let deletionBusy = false,
+let deletionBusy = false,
   deletionTable = null,
   deletionProgress = '',
   deletionNotice = '';
@@ -17,3 +17,8 @@ export function setDeletionTable(value) {
 export function setDeletionProgress(value) {
   return (deletionProgress = value);
 }
+
+export const getDeletionBusy = () => deletionBusy;
+export const getDeletionTable = () => deletionTable;
+export const getDeletionProgress = () => deletionProgress;
+export const getDeletionNotice = () => deletionNotice;
