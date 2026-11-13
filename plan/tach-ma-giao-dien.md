@@ -1,6 +1,6 @@
 # Tách dần mã giao diện
 
-**Trạng thái:** đã hoàn thành bước 1, 2 và 4; bước 5 đã tách tải lưới, tiêu đề cột, lookup, formula và CSS. Bước 3 mới tách trạng thái cache và xóa; còn gom trạng thái lưới, cấu hình, metadata và lịch sử theo module sở hữu. Số cặp import vòng hiện là 11.
+**Trạng thái:** đã hoàn thành bước 1, 2 và 4; bước 5 đã tách tải lưới, tiêu đề cột, lookup, formula và CSS. Bước 3 đã tách metadata, cấu hình, lịch sử, dữ liệu và phân trang lưới, cache và xóa; còn chuyển trạng thái view và các biến export let sang giao diện do module sở hữu. Số cặp import vòng hiện là 11.
 
 Nguồn: đánh giá ngày 13/11/2026 trên `main` (`49031bd`).
 
