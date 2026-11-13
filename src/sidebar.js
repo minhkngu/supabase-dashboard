@@ -2,7 +2,8 @@ import { toast } from './api.js';
 import { autoScrollWhileDragging } from './dnd.js';
 import { openPopupMenu } from './grid/column-menu.js';
 import { confirmDialog, promptDialog } from './confirm.js';
-import { choose, prefetchTable } from './grid/render.js';
+import { choose } from './grid/render.js';
+import { prefetchTable } from './grid/page-cache.js';
 import { $, el, name, state } from './state.js';
 import { getJSON, getText, setJSON, setText, storageKeys } from './storage.js';
 
