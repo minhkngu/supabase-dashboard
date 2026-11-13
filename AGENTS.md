@@ -46,9 +46,22 @@ npx playwright test -g "tên test"
 
 ## Kiểm thử
 
+- **Unit test đi cùng thay đổi.** Thêm hoặc đổi hành vi một hàm trong module máy chủ (gốc repo, `server/`, `api/`) thì viết hoặc cập nhật test trong `tests/<tên module>.test.js` ngay trong bước đó, cùng commit. Sửa lỗi thì viết test tái hiện lỗi trước. Chỉ đổi tên, di chuyển hay định dạng thì không cần test mới.
+- Sau mỗi lần sửa một hàm, chạy lại unit test liên quan: `npx vitest related <file> --run` (khoảng 2 giây). Không chạy cả bộ sau từng lần sửa.
+- `src/` không có unit test (mã gắn với DOM): hành vi giao diện kiểm bằng spec e2e. Logic thuần cần dùng ở trình duyệt thì tách thành module `.mjs` ở gốc repo như `writable-column.mjs` để Vitest phủ được.
 - E2E không có backend thật: mỗi spec chặn `/api/*` bằng `page.route`; `tests/e2e/helpers/mock-api.ts` trả sẵn `formula-config`, `lookup-config`, `ui-settings` và token CSRF giả.
 - Không chạy thao tác ghi lên Supabase thật khi thử; kết quả mock không phải nghiệm thu RLS.
 - Không sửa test để che lỗi. Mỗi bước một commit; không gộp thay đổi hành vi với định dạng hay di chuyển file.
+
+## Tiết kiệm token
+
+- **Kiểm tra hẹp trước.** Sau mỗi lần sửa chỉ chạy thứ gần chỗ sửa nhất; đủ bộ (`lint`, `format:check`, `typecheck`, `npm test`, `test:e2e`) chỉ một lần trước khi commit. Chỉ sửa `*.md`, `plan/`, `.claude/` thì không chạy test.
+- **E2E**: thử một thay đổi bằng `npx playwright test tests/e2e/<tên>.spec.ts` hoặc `-g "tên test"` (khoảng 7 giây; cả bộ gần 1 phút). Tên spec là tên tính năng; không chắc thì Grep id hoặc aria-label trong `tests/e2e/`. Thêm `--reporter=dot` nếu agent không phải Claude Code.
+- Test e2e đỏ: chạy `npx playwright test --last-failed` một lần trước khi tìm lỗi; qua thì đó là nhiễu do máy bận. Đọc thông báo lỗi trước; chỉ mở `error-context.md` hay ảnh trong `test-results/` khi chưa đủ.
+- E2E giả lập toàn bộ `/api/*`: thay đổi chỉ ở máy chủ không cần e2e, trừ `login.spec.ts` và `security.spec.ts`.
+- Thiếu trình duyệt của Playwright thì đặt `PLAYWRIGHT_CHROMIUM_EXECUTABLE`, không chạy `npx playwright install`.
+- **Đọc file**: Grep trước rồi Read có `offset`/`limit`; không đọc nguyên file trên 20 KB. Không đọc `.agents/`, `.taste-skill/`, `package-lock.json`, `dist/`, `screenshots/`. Chỉ mở `README.md` hoặc `plan/` khi việc đang làm liên quan trực tiếp.
+- Hook của Claude Code nằm ở `.claude/settings.json` và `.claude/hooks/`: chặn Read nguyên file lớn; sau mỗi lần sửa tự chạy Prettier và unit test liên quan (im lặng khi qua).
 
 ## Kế hoạch
 
