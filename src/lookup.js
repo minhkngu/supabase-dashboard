@@ -1,3 +1,4 @@
+import { setLookups } from './config-state.js';
 import { writeApi } from './write-api.js';
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
@@ -57,7 +58,7 @@ export async function cachedLookup(table, column, values, fields) {
 // in this browser: a local copy would drift from the server that actually
 // writes the trigger-maintained columns.
 export function restoreLookups() {
-  state.lookups = [];
+  setLookups([]);
 }
 export function persistLookups() {
   return lookupCloudAvailable;
@@ -232,9 +233,9 @@ function showLookupList() {
         }
       }
       const old = state.lookups;
-      state.lookups = state.lookups.filter(y => y.id !== x.id);
+      setLookups(state.lookups.filter(y => y.id !== x.id));
       if (!persistLookups()) {
-        state.lookups = old;
+        setLookups(old);
         $('#lookupError').textContent = 'Không thể lưu cấu hình trên trình duyệt.';
         return;
       }
@@ -335,11 +336,9 @@ export function initLookup() {
         saved = result.config || x;
       }
       const old = state.lookups;
-      state.lookups = state.lookupEditing
-        ? state.lookups.map(y => (y.id === x.id ? saved : y))
-        : [...state.lookups, saved];
+      setLookups(state.lookupEditing ? state.lookups.map(y => (y.id === x.id ? saved : y)) : [...state.lookups, saved]);
       if (!persistLookups()) {
-        state.lookups = old;
+        setLookups(old);
         throw Error('Không thể lưu cấu hình trên trình duyệt.');
       }
       resetLookupForm();

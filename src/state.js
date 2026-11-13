@@ -1,3 +1,4 @@
+import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
 import { deletionBusy } from './deletion-state.js';
 export * from './deletion-state.js';
@@ -38,7 +39,12 @@ export const state = {
   tableFolders: {},
   tableLabels: {},
   groupCounts: null,
-  lookups: [],
+  get lookups() {
+    return getLookups();
+  },
+  get formulas() {
+    return getFormulas();
+  },
   lookupResults: new Map(),
   lookupVersion: 0,
   lookupEditing: null,
@@ -49,7 +55,9 @@ export const state = {
   get enumTypes() {
     return getEnumTypes();
   },
-  configReady: false,
+  get configReady() {
+    return getConfigReady();
+  },
   configAttempt: 0,
   initialRowsReady: false,
   cleanupPending: false,

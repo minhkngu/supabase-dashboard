@@ -1,3 +1,4 @@
+import { setConfigReady, setFormulas, setLookups } from './config-state.js';
 import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { syncChrome } from './chrome.js';
 import { api, message, toast } from './api.js';
@@ -41,7 +42,7 @@ export function scheduleLookupCleanup() {
   setTimeout(async () => {
     try {
       await api('/api/lookup-config/cleanup-disabled', { method: 'POST', body: '{}' });
-      state.lookups = state.lookups.filter(x => !(x.columnBound === true && x.sync?.enabled === false));
+      setLookups(state.lookups.filter(x => !(x.columnBound === true && x.sync?.enabled === false)));
     } catch (error) {
       toast('Không thể xóa lookup đã tắt: ' + error.message);
     }
@@ -49,7 +50,7 @@ export function scheduleLookupCleanup() {
 }
 async function loadConfigs(request) {
   const attempt = ++state.configAttempt;
-  state.configReady = false;
+  setConfigReady(false);
   showConfigStatus('Đang tải cấu hình cột…');
   syncChrome();
   updateHistoryButtons();
@@ -62,11 +63,11 @@ async function loadConfigs(request) {
       (cloud.available && !Array.isArray(cloud.items))
     )
       throw Error('Cấu hình nhận được không hợp lệ.');
-    state.formulas = formula.items;
+    setFormulas(formula.items);
     setLookupCloudAvailable(cloud.available);
-    if (cloud.available) state.lookups = cloud.items;
+    if (cloud.available) setLookups(cloud.items);
     state.cleanupPending = state.lookups.some(x => x.columnBound === true && x.sync?.enabled === false);
-    state.configReady = true;
+    setConfigReady(true);
     showConfigStatus('');
     syncEditorReadiness();
     if (state.table) {
@@ -79,7 +80,7 @@ async function loadConfigs(request) {
     scheduleLookupCleanup();
   } catch {
     if (attempt !== state.configAttempt) return;
-    state.configReady = false;
+    setConfigReady(false);
     syncEditorReadiness();
     showConfigStatus('Không thể tải cấu hình cột. Bảng đang ở chế độ chỉ đọc.', true);
     if (state.table) {

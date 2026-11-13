@@ -1,3 +1,4 @@
+import { addFormula, setFormulas, setLookups } from './config-state.js';
 import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { initColumnSync, setupColumnSync, columnSyncConfig, columnSyncSettingsSnapshot } from './column-sync.js';
 import { initColumnFormula, setupColumnFormula } from './column-formula.js';
@@ -354,7 +355,7 @@ function columnSteps(spec, table, ctx) {
             method: 'POST',
             body: JSON.stringify({ table, column: c.name, newName: label, id: lookup.id }),
           });
-          state.lookups = state.lookups.map(x => (x.id === lookup.id ? result.config : x));
+          setLookups(state.lookups.map(x => (x.id === lookup.id ? result.config : x)));
         } else await schemaOperation({ table, action: 'rename', column: c.name, newName: label });
         if (name(state.table) === table) migrateViewColumn(c.name, label);
         ctx.column = label;
@@ -405,10 +406,12 @@ function formulaStep(ctx) {
     async run() {
       const config = { table: initial.table, column: ctx.column, expression, enabled },
         result = await writeApi('/api/formula-config', { method: 'POST', body: JSON.stringify(config) });
-      state.formulas = (state.formulas || []).filter(
-        f => f.table !== config.table || ![initial.column, config.column].includes(f.column),
+      setFormulas(
+        (state.formulas || []).filter(
+          f => f.table !== config.table || ![initial.column, config.column].includes(f.column),
+        ),
       );
-      if (result.config?.enabled) state.formulas.push(result.config);
+      if (result.config?.enabled) addFormula(result.config);
       Object.assign(initial, { enabled, expression, column: config.column });
     },
   };
@@ -428,11 +431,13 @@ function syncStep(ctx) {
           body: JSON.stringify({ action: 'save', config, signature: preview.signature }),
         }),
         saved = result.config || config;
-      state.lookups = !enabled
-        ? state.lookups.filter(x => x.id !== config.id)
-        : state.lookups.some(x => x.id === config.id)
-          ? state.lookups.map(x => (x.id === config.id ? saved : x))
-          : [...state.lookups, saved];
+      setLookups(
+        !enabled
+          ? state.lookups.filter(x => x.id !== config.id)
+          : state.lookups.some(x => x.id === config.id)
+            ? state.lookups.map(x => (x.id === config.id ? saved : x))
+            : [...state.lookups, saved],
+      );
       persistLookups();
       Object.assign(initial, { enabled, previous: saved, draft: columnSyncSettingsSnapshot() });
     },
