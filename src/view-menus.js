@@ -1,4 +1,13 @@
-import { setPage, patchView, patchRule, addRule, removeRule, moveRule } from './grid/grid-state.js';
+import {
+  setPage,
+  patchView,
+  patchRule,
+  addRule,
+  removeRule,
+  moveRule,
+  setViews,
+  saveCurrentView,
+} from './grid/grid-state.js';
 import { columnKind, icon } from './icons.js';
 import { toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
@@ -11,7 +20,7 @@ import { getJSON, setJSON, setText, storageKeys } from './storage.js';
 
 export function restoreViews() {
   const data = getJSON(storageKeys.views, {});
-  state.views = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
+  setViews(data && typeof data === 'object' && !Array.isArray(data) ? data : {});
 }
 export function validFilterRules(rules, table) {
   const columns = new Set(table.columns.map(c => c.name)),
@@ -54,7 +63,7 @@ export function persistView() {
     page: state.page,
     collapsed: [...state.collapsed],
   });
-  state.views[name(state.table)] = state.view;
+  saveCurrentView(name(state.table));
   const saved = setJSON(storageKeys.views, state.views);
   setText(storageKeys.currentTable, name(state.table));
   if (!saved) toast('Không thể lưu cấu hình trên trình duyệt');

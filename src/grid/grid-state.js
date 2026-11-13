@@ -59,3 +59,19 @@ export function patchRow(row, values) {
 export function setRowValue(row, column, value) {
   row[column] = value;
 }
+
+let views = {};
+export const getViews = () => views;
+export function setViews(value) {
+  views = value;
+}
+export function saveCurrentView(table) {
+  views[table] = grid.view;
+}
+export function prepareSavedView(table, hasName) {
+  const saved = views[table] || {};
+  if (!saved.freezeDefaultInitialized && hasName && (!Array.isArray(saved.frozen) || saved.frozen.length === 0))
+    saved.frozen = ['col:name'];
+  saved.freezeDefaultInitialized = true;
+  return saved;
+}

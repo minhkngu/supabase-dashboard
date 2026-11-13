@@ -1,4 +1,4 @@
-import { getRows, getPage, getTotal, getView } from './grid/grid-state.js';
+import { getRows, getPage, getTotal, getView, getViews } from './grid/grid-state.js';
 import { historyBusy } from './history-state.js';
 import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
@@ -70,7 +70,9 @@ export const state = {
   configAttempt: 0,
   initialRowsReady: false,
   cleanupPending: false,
-  views: {},
+  get views() {
+    return getViews();
+  },
   get view() {
     return getView();
   },

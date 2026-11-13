@@ -1,4 +1,4 @@
-import { setPage, setRows, setView, patchView } from './grid-state.js';
+import { setPage, setRows, setView, patchView, prepareSavedView } from './grid-state.js';
 import { setTable } from '../metadata-state.js';
 import { columnHeader, updateFrozen } from './column-header.js';
 import { load } from './load.js';
@@ -67,14 +67,10 @@ export function choose(t) {
   state.lookupVersion++;
   setTable(t);
   clearBulk();
-  const saved = state.views[name(t)] || {};
-  if (
-    !saved.freezeDefaultInitialized &&
-    t.columns.some(c => c.name === 'name') &&
-    (!Array.isArray(saved.frozen) || saved.frozen.length === 0)
-  )
-    saved.frozen = ['col:name'];
-  saved.freezeDefaultInitialized = true;
+  const saved = prepareSavedView(
+    name(t),
+    t.columns.some(c => c.name === 'name'),
+  );
   setView({
     filters: validFilterRules(saved.filters, t),
     groups: validRules(saved.groups, t),
