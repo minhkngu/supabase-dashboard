@@ -30,11 +30,18 @@
       if (!response.ok && url !== '/api/khong-co') throw Error(`${label}: HTTP ${response.status}`);
     }
     times.sort((a, b) => a - b);
+    const appTimes = timings
+      .map(value => Number(value.match(/(?:^|,\s*)app;dur=([\d.]+)/)?.[1]))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    const appMedian = appTimes.length === 5 ? Math.round(appTimes[2]) : null;
     results.push({
       phép: label,
       'trung vị ms': times[2],
       'min–max ms': `${times[0]}–${times[4]}`,
       ngưỡng: limit && times[2] > limit ? `Vượt ${limit} ms` : limit || '—',
+      'app trung vị ms': appMedian ?? '—',
+      'ngưỡng app': url.startsWith('/api/table/') && appMedian !== null && appMedian > 150 ? 'Vượt 150 ms' : '—',
       'Server-Timing': timings.join(' | '),
       vùng: [...regions].join(', '),
     });
