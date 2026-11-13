@@ -45,7 +45,10 @@ test('đổi cấu hình, xóa localStorage, tải lại thì cấu hình về l
   await page.locator('#columnsButton').click();
   await page.locator('#columnVisibility label').filter({ hasText: 'name' }).click();
   await expect(page.locator('thead')).not.toContainText('name');
-  await expect.poll(() => writes).toContain('views');
+  // The first visit also pushes the default view, so wait for the push that carries the hidden column.
+  await expect
+    .poll(() => (store.views?.value as Record<string, { hidden: string[] }> | undefined)?.demo?.hidden)
+    .toEqual(['col:name']);
   await page.evaluate(() => localStorage.clear());
   // Stop the page from writing its current state back during unload.
   await page.goto('about:blank');

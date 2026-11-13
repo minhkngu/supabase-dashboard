@@ -131,6 +131,8 @@ test('ô chọn tất cả thẳng hàng với ô chọn của các dòng', asyn
 test('cuộn ngang 600px giữ nguyên ô chọn của dòng đầu', async ({ page }) => {
   await page.setViewportSize({ width: 700, height: 800 });
   await mock(page);
+  // Pinning is applied one frame after the rows are drawn.
+  await expect(page.locator('#grid tbody td.frozen-number').first()).toBeVisible();
   const box = page.locator('#grid input[data-row-select]').first(),
     x = (await box.boundingBox())!.x;
   await page.locator('.table-scroll').evaluate(node => {
