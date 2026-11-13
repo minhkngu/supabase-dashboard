@@ -3,7 +3,7 @@ import { confirmDialog } from './confirm.js';
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
 import { api, toast } from './api.js';
-import { load, render } from './grid/render.js';
+import { gridAction } from './events.js';
 import { bulkBusy, clearBulk } from './grid/selection.js';
 import { updateHistoryButtons } from './history.js';
 import { syncEditorReadiness } from './main.js';
@@ -130,7 +130,7 @@ export async function refreshAfterWrite(table = state.table) {
   const scroller = $('.table-scroll'),
     top = scroller?.scrollTop || 0,
     left = scroller?.scrollLeft || 0;
-  await load({ silent: true });
+  await gridAction('load', { silent: true });
   if (state.table?.name === table.name && scroller?.isConnected) {
     scroller.scrollTop = top;
     scroller.scrollLeft = left;
@@ -172,7 +172,7 @@ export async function deleteRecords(rows) {
   syncChrome();
   updateHistoryButtons();
   syncEditorReadiness();
-  render();
+  gridAction('render');
   updateRowSelection();
   let result;
   try {
@@ -206,7 +206,7 @@ export async function deleteRecords(rows) {
           state.edit = null;
         }
         if (table.name === PROMOTIONS_TABLE) promotionsOverview.removeRecord(entry.row);
-        render();
+        gridAction('render');
         updateRowSelection();
       },
     });
@@ -242,7 +242,7 @@ export async function deleteRecords(rows) {
     syncChrome();
     updateHistoryButtons();
     syncEditorReadiness();
-    render();
+    gridAction('render');
     updateRowSelection();
   }
   if (state.table?.name === table.name) {

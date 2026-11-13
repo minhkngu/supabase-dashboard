@@ -1,6 +1,6 @@
 import { confirmDialog } from './confirm.js';
 import { api, message, toast } from './api.js';
-import { choose, load, render } from './grid/render.js';
+import { gridAction } from './events.js';
 import {
   activeLookups,
   checkLookupSync,
@@ -33,11 +33,11 @@ async function refreshMetadata() {
     state.view.filters = validFilterRules(state.view.filters, selected);
     state.view.groups = validRules(state.view.groups, selected);
     state.view.sorts = validRules(state.view.sorts, selected);
-    render();
+    gridAction('render');
     persistView();
     nav();
-    await load({ silent: true });
-  } else if (state.tables.length) choose(state.tables[0]);
+    await gridAction('load', { silent: true });
+  } else if (state.tables.length) gridAction('choose', state.tables[0]);
   else {
     state.table = null;
     message('Không có bảng nào để hiển thị.');
@@ -247,7 +247,7 @@ export function initColumnDialog() {
         if (current >= 0) order.splice(current, 1);
         order.splice(Math.max(0, order.indexOf(original) + 1), 0, copy);
         persistView();
-        render();
+        gridAction('render');
       }
       toast('Đã nhân bản cột ' + source.column);
     } catch (error) {
@@ -764,8 +764,8 @@ async function saveColumnSteps(spec, table) {
   if (stale) await refreshMetadata();
   syncDialogAfterSteps(spec, ctx, done);
   if (state.table && name(state.table) === table) {
-    render();
-    await load({ silent: true });
+    gridAction('render');
+    await gridAction('load', { silent: true });
   }
   if (!failure) {
     toast(steps.length === 1 ? `Đã lưu: ${done[0]}` : `Đã lưu ${steps.length} thay đổi: ${done.join(', ')}`);

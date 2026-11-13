@@ -1,7 +1,7 @@
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
 import { expectedValues } from './history.js';
-import { load, render } from './grid/render.js';
+import { gridAction } from './events.js';
 import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
 // Lookup values are stable for a short while; asking again on every page load
@@ -340,7 +340,7 @@ export function initLookup() {
       }
       resetLookupForm();
       showLookupList();
-      if (syncChange) await load({ silent: true });
+      if (syncChange) await gridAction('load', { silent: true });
       else await loadLookups();
       toast(
         syncChange
@@ -513,9 +513,9 @@ export async function loadLookups() {
         }),
     );
   }
-  render();
+  gridAction('render');
   await Promise.all(jobs);
-  if (version === state.lookupVersion && state.table === table && !state.cellEdit) render();
+  if (version === state.lookupVersion && state.table === table && !state.cellEdit) gridAction('render');
 }
 function showLinkedRecord(config, row) {
   $('#linkedTitle').textContent = config.targetTable;
@@ -659,7 +659,7 @@ async function saveLink(value) {
     pickerState = null;
     $('#linkPicker').close();
     toast('Đã lưu liên kết');
-    if (state.table === picker.table) await load({ silent: true });
+    if (state.table === picker.table) await gridAction('load', { silent: true });
   } catch (error) {
     picker.saving = false;
     $('#pickerError').textContent = error.message;

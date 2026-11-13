@@ -1,3 +1,4 @@
+import { onGridAction } from '../events.js';
 import { syncChrome } from '../chrome.js';
 import { autoScrollWhileDragging } from '../dnd.js';
 import { columnKind, icon } from '../icons.js';
@@ -691,3 +692,10 @@ export function render() {
     if (liveGrid.isConnected && state.table) updateFrozen();
   });
 }
+
+// Đăng ký sau khi các module được nạp; hàm vẫn giữ kết quả Promise cho nơi gọi.
+onGridAction((action, value) => {
+  if (action === 'load') return load(value);
+  if (action === 'render') return render();
+  if (action === 'choose') return choose(value);
+});

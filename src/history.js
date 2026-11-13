@@ -1,5 +1,5 @@
 import { api, toast } from './api.js';
-import { load } from './grid/render.js';
+import { gridAction } from './events.js';
 import { $, deletionBusy, name, state } from './state.js';
 
 export function historyFor(table) {
@@ -82,7 +82,7 @@ export async function changeHistory(direction) {
     });
     from.pop();
     history[undo ? 'redo' : 'undo'].push(item);
-    if (state.table === table) await load({ silent: true });
+    if (state.table === table) await gridAction('load', { silent: true });
     toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
   } catch (error) {
     toast(error.message);

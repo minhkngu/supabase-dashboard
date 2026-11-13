@@ -6,7 +6,7 @@ import { api, message, toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
-import { load } from './grid/render.js';
+import { gridAction } from './events.js';
 import { $, $$, PAGE_SIZES, deletionBusy, el, loadController, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
@@ -282,11 +282,11 @@ export function initRecordEditor() {
   $('#closeEditor').onclick = $('#cancel').onclick = () => $('#editor').close();
   // Keep the current grid usable while refreshing; silent loads also avoid
   // replacing an active editor or a row whose changes are still saving.
-  $('#refresh').onclick = () => load({ silent: true });
+  $('#refresh').onclick = () => gridAction('load', { silent: true });
   $('#prev').onclick = () => {
     state.page--;
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   $('#pageSize').onchange = () => {
     const size = Number($('#pageSize').value);
@@ -296,12 +296,12 @@ export function initRecordEditor() {
     state.view.pageSize = size;
     state.page = Math.floor(firstRow / size);
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   $('#next').onclick = () => {
     state.page++;
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   let previewTimer;
   $('#search').oninput = () => {
@@ -318,15 +318,15 @@ export function initRecordEditor() {
     }
     message('');
     if (value) {
-      previewTimer = setTimeout(() => load({ silent: true, skipCount: true }), 0);
-      timer = setTimeout(() => load({ silent: true, forceCount: true }), 350);
-    } else void load({ silent: true });
+      previewTimer = setTimeout(() => gridAction('load', { silent: true, skipCount: true }), 0);
+      timer = setTimeout(() => gridAction('load', { silent: true, forceCount: true }), 350);
+    } else void gridAction('load', { silent: true });
   };
   $('#searchColumn').onchange = () => {
     state.page = 0;
     persistView();
     const value = $('#search').value.trim();
-    if (!value || value.length >= 2) void load({ silent: true });
+    if (!value || value.length >= 2) void gridAction('load', { silent: true });
   };
 }
 
