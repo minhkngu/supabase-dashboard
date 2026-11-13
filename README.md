@@ -185,7 +185,7 @@ Deploy không tự thay đổi dữ liệu Supabase.
 | [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Xong |
 | [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Còn đo trên Vercel (G), H4 chờ quyết định |
 | [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong (PR #4) |
-| [`plan/sua-loi-treo-dang-tai-du-lieu.md`](plan/sua-loi-treo-dang-tai-du-lieu.md) | Bảng đứng ở "Đang tải dữ liệu" vì lưu cấu hình giao diện làm bỏ kết quả tải | Chưa làm, làm trước |
-| [`plan/toc-do-tai-bang-tren-vercel.md`](plan/toc-do-tai-bang-tren-vercel.md) | Tải bảng chậm trên Vercel (function ở `iad1`, database ở Seoul) | Chưa làm |
+| [`plan/sua-loi-treo-dang-tai-du-lieu.md`](plan/sua-loi-treo-dang-tai-du-lieu.md) | Bảng đứng ở "Đang tải dữ liệu" vì lưu cấu hình giao diện làm bỏ kết quả tải | Đã sửa (PR #5), còn kiểm trên Vercel |
+| [`plan/toc-do-tai-bang-tren-vercel.md`](plan/toc-do-tai-bang-tren-vercel.md) | Tải bảng chậm trên Vercel (function ở `iad1`, database ở Seoul) | Chưa làm, làm tiếp theo |
 | [`plan/do-hieu-nang-tren-vercel.md`](plan/do-hieu-nang-tren-vercel.md) | Đo định kỳ trên Vercel: `Server-Timing`, script đo, ngưỡng, bảng kết quả | Chưa làm |
 | [`plan/tach-ma-giao-dien.md`](plan/tach-ma-giao-dien.md) | Tách dần mã giao diện: trạng thái toàn cục, import vòng, thứ tự `init*`, file lớn | Chưa làm, làm dần |

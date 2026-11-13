@@ -1,6 +1,6 @@
 # Tăng tốc tải bảng trên Vercel
 
-**Trạng thái:** chưa làm. Làm sau `plan/sua-loi-treo-dang-tai-du-lieu.md`.
+**Trạng thái:** chưa làm. Lỗi treo đã sửa ở PR #5 nên có thể làm ngay.
 
 Nguồn: đo trên bản preview `main` (`49031bd`) và đo trực tiếp từ máy cá nhân ngày 13/11/2026. Mọi phép đo chỉ dùng request đọc.
 
