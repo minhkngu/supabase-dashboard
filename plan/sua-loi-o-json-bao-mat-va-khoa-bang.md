@@ -2,7 +2,15 @@
 
 Nguồn: đánh giá toàn dự án ngày 13/11/2026.
 
-**Trạng thái:** chưa làm.
+**Trạng thái:** xong (13/11/2026). Mỗi mục một commit trên nhánh `claude/json-security-table-lock-a8a452`.
+
+Kết quả:
+
+1. Xong. Trình duyệt dùng `expectedValues()` (`src/history.js`) bỏ cột JSON/mảng và giá trị object khỏi `expected` ở sửa ô, hoàn tác/làm lại, sửa hàng loạt và chọn liên kết. Sửa thêm lỗi cùng chỗ: sửa hàng loạt so ô bằng `String()` nên mọi object JSON bị coi là không đổi và bị bỏ qua; nay so theo `JSON.stringify`. Lưu ý: ô JSON sửa riêng lẻ mở form (không gửi `expected`), nên lỗi chỉ lộ ở sửa hàng loạt, dán và xóa vùng chọn.
+2. Xong. Giữ Basic cho CLI, dùng chung `createLoginThrottle`; khi bị chặn trả 429 cả với mật khẩu đúng.
+3. Xong. Thêm cả mã `57014` (vượt `statement_timeout`) vào thông báo lỗi.
+4. Xong, khác đề xuất: `promotionsDisplay` chỉ còn là giá trị dự phòng cũ (đã thay bằng `tableDisplay`) và không nơi nào ghi, nên bỏ khỏi `UI_SETTING_KEYS` thay vì thêm vào `syncedKeys`. Có test giữ hai danh sách khớp nhau. README ghi rủi ro lệch đồng hồ.
+5. Xong cả ba. Đăng xuất có nút ở chân thanh bên, chỉ hiện khi `/api/meta` trả `logout: true` (bản Vercel).
 
 Đánh giá toàn bộ dự án trên `main` (`45d5746`): lint, typecheck, 95 unit test và 117 e2e đều đạt, CI xanh. Các việc dưới đây xếp theo mức ưu tiên. Mỗi việc một commit, kèm test.
 

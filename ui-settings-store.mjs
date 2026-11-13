@@ -1,14 +1,6 @@
 // Lưu cấu hình giao diện dùng chung (view, thư mục, thứ tự bảng…) trên Supabase.
 import { Buffer } from 'node:buffer';
-export const UI_SETTING_KEYS = [
-  'views',
-  'namedViews',
-  'tableFolders',
-  'tableOrder',
-  'relationDisplay',
-  'tableDisplay',
-  'promotionsDisplay',
-];
+export const UI_SETTING_KEYS = ['views', 'namedViews', 'tableFolders', 'tableOrder', 'relationDisplay', 'tableDisplay'];
 export const UI_SETTING_MAX_BYTES = 256 * 1024;
 export const UI_SETTINGS_STORE_MISSING = 'Chưa thiết lập nơi lưu cấu hình giao diện trên Supabase.';
 

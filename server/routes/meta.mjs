@@ -16,6 +16,13 @@ export async function handleMeta(ctx, req, res, u) {
     }
   } else adminError = ctx.config.admin.error;
   const token = typeof ctx.csrf === 'function' ? ctx.csrf(req) : ctx.csrf;
-  response(res, 200, { tables: ctx.tables, token, adminAvailable, adminError, enumTypes });
+  response(res, 200, {
+    tables: ctx.tables,
+    token,
+    adminAvailable,
+    adminError,
+    enumTypes,
+    logout: !!ctx.config.session,
+  });
   return true;
 }

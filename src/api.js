@@ -1,7 +1,14 @@
 import { $, clearPageCache, invalidateLookupCache, state, el } from './state.js';
 
 export async function api(url, opts = {}) {
-  if (opts.method && !['GET', 'HEAD'].includes(opts.method.toUpperCase()) && !url.startsWith('/api/lookup/')) {
+  // Lưu cấu hình giao diện không đổi dữ liệu bảng, nên không xóa cache trang;
+  // nếu xóa, lần tải bảng đang chạy sẽ bị coi là cũ.
+  if (
+    opts.method &&
+    !['GET', 'HEAD'].includes(opts.method.toUpperCase()) &&
+    !url.startsWith('/api/lookup/') &&
+    !url.startsWith('/api/ui-settings')
+  ) {
     clearPageCache();
     const match = url.match(/^\/api\/table\/([^/?]+)/);
     invalidateLookupCache(match ? decodeURIComponent(match[1]) : null);
@@ -20,10 +27,20 @@ export async function api(url, opts = {}) {
     if (error.name !== 'AbortError') error.network = true;
     throw error;
   }
-  const d = await r.json();
-  if (!r.ok) {
-    throw Object.assign(Error(d.error || 'Có lỗi xảy ra'), { status: r.status });
-  }
+  // Vercel or a proxy may answer with an HTML error page (504…); report the
+  // status instead of a JSON parse error.
+  const text = await r.text();
+  let d = null;
+  try {
+    d = text ? JSON.parse(text) : {};
+  } catch {}
+  if (!r.ok || !d || typeof d !== 'object')
+    throw Object.assign(
+      Error(d?.error || (r.ok ? 'Máy chủ trả về dữ liệu không hợp lệ.' : `Máy chủ trả về lỗi ${r.status}`)),
+      {
+        status: r.status,
+      },
+    );
   return d;
 }
 let toastTimer;

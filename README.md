@@ -70,7 +70,7 @@ Chọn các ô cùng cột bằng Shift và nhấp ô đầu, ô cuối; nhập 
 
 ### Lưu cấu hình giao diện lên Supabase
 
-View, thư mục, thứ tự bảng và tên hiển thị được lưu trong `localStorage` và đồng bộ lên `siris_admin.ui_settings`, nên theo bạn sang Vercel hoặc máy khác. Khi khởi động, bản nào mới hơn thắng; máy chủ trống thì bản trên trình duyệt được đẩy lên. Mỗi khóa được ghi đè nguyên khối, nên hai trình duyệt cùng sửa một lúc thì bản sau thắng. Cấu hình là chung cho mọi người dùng app. Chưa chạy `ui-settings.sql` thì app vẫn chạy và báo "Cấu hình chỉ lưu trên trình duyệt này".
+View, thư mục, thứ tự bảng và tên hiển thị được lưu trong `localStorage` và đồng bộ lên `siris_admin.ui_settings`, nên theo bạn sang Vercel hoặc máy khác. Khi khởi động, bản nào mới hơn thắng; máy chủ trống thì bản trên trình duyệt được đẩy lên. Mỗi khóa được ghi đè nguyên khối, nên hai trình duyệt cùng sửa một lúc thì bản sau thắng. Thời điểm sửa trên trình duyệt (đồng hồ máy người dùng) được so trực tiếp với `updated_at` của máy chủ, nên đồng hồ máy lệch nhiều có thể khiến bản cũ thắng khi khởi động. Cấu hình là chung cho mọi người dùng app. Chưa chạy `ui-settings.sql` thì app vẫn chạy và báo "Cấu hình chỉ lưu trên trình duyệt này".
 
 ### Thiết lập cột
 
@@ -172,8 +172,9 @@ Deploy không tự thay đổi dữ liệu Supabase.
 
 ### Đăng nhập và log
 
-- `/auth/login` nhận tên đăng nhập và mật khẩu. Phiên lưu trong cookie ký HMAC (HttpOnly, Secure, SameSite=Strict) 8 giờ; đổi tên đăng nhập hoặc mật khẩu sẽ vô hiệu mọi phiên cũ. Request ghi vẫn cần cùng nguồn và token CSRF theo phiên.
-- Giới hạn 10 lần sai trong 15 phút theo IP, nằm trong bộ nhớ từng instance nên chỉ làm chậm kẻ dò mật khẩu. Cần chặn chắc thì bật rate limit của Vercel Firewall cho `/auth/login`.
+- `/auth/login` nhận tên đăng nhập và mật khẩu. Phiên lưu trong cookie ký HMAC (HttpOnly, Secure, SameSite=Strict) 8 giờ; đổi tên đăng nhập hoặc mật khẩu sẽ vô hiệu mọi phiên cũ. Request ghi vẫn cần cùng nguồn và token CSRF theo phiên. Nút Đăng xuất ở chân thanh bên gọi `POST /auth/logout` để xóa cookie của trình duyệt đó; muốn thu hồi mọi phiên thì đổi mật khẩu.
+- Header `Authorization: Basic` (dùng từ CLI) cũng được nhận và tính chung bộ đếm lần sai bên dưới.
+- Giới hạn 10 lần sai trong 15 phút theo IP (cả form và Basic; khi bị chặn thì gửi đúng mật khẩu cũng nhận 429), nằm trong bộ nhớ từng instance nên chỉ làm chậm kẻ dò mật khẩu. Cần chặn chắc thì bật rate limit của Vercel Firewall cho `/auth/login`.
 - Sự kiện log (JSON một dòng, không ghi mật khẩu): `login_failed`, `login_blocked`, `schema_apply`. Xem bằng `vercel logs <deployment-url>`.
 - Thử luồng đăng nhập trên máy: `npm run build` rồi `node scripts/preview-login.mjs`, mở http://127.0.0.1:3002. Đọc tài khoản từ `.env.vercel.local`, chỉ nghe loopback, không bật cookie Secure; bị vô hiệu trên Vercel.
 
@@ -181,6 +182,6 @@ Deploy không tự thay đổi dữ liệu Supabase.
 
 | File | Nội dung | Trạng thái |
 | --- | --- | --- |
-| [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Chưa làm |
+| [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Xong |
 | [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Còn đo trên Vercel (G), H4 chờ quyết định |
 | [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong (PR #4) |

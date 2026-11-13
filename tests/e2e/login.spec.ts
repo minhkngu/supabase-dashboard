@@ -45,3 +45,18 @@ for (const width of [390, 768, 1440]) {
     expect((await response.json()).tables).toEqual([]);
   });
 }
+
+test('đăng xuất xóa phiên và quay về trang đăng nhập', async ({ page }) => {
+  await page.goto(base + '/auth/login');
+  await page.getByLabel('Tên đăng nhập').fill('siris');
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click();
+  await expect(page).toHaveURL(base + '/');
+  const logout = page.getByRole('button', { name: 'Đăng xuất' });
+  await expect(logout).toBeVisible();
+  await logout.click();
+  await expect(page).toHaveURL(base + '/auth/login');
+  expect((await page.request.get(base + '/api/meta')).status()).toBe(401);
+  await page.goto(base);
+  await expect(page).toHaveURL(base + '/auth/login');
+});

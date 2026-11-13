@@ -176,6 +176,30 @@ describe('API trên máy cục bộ', () => {
     });
     expect(invalid.status).toBe(400);
   });
+  it('sửa cột jsonb không kèm điều kiện thì lưu, kèm object cũ thì từ chối', async () => {
+    const meta = await (await fetch(`${origin}/api/meta`)).json();
+    const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };
+    const count = upstreamRequests.length;
+    const saved = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ key: { id: 'one' }, values: { policies: { pets: true } } }),
+    });
+    expect(saved.status).toBe(200);
+    expect(upstreamRequests.length).toBe(count + 1);
+    expect(new URL(upstreamRequests.at(-1).url, 'http://localhost').searchParams.get('policies')).toBeNull();
+    const rejected = await fetch(`${origin}/api/table/branches`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        key: { id: 'one' },
+        values: { policies: { pets: true } },
+        expected: { policies: { pets: false } },
+      }),
+    });
+    expect(rejected.status).toBe(400);
+    expect(upstreamRequests.length).toBe(count + 1);
+  });
   it('lookup theo lô dùng Data API và kiểm tra đầu vào', async () => {
     const meta = await (await fetch(`${origin}/api/meta`)).json();
     const headers = { origin, 'x-siris-token': meta.token, 'content-type': 'application/json' };

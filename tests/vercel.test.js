@@ -178,6 +178,45 @@ describe('Vercel adapter', () => {
     for (let i = 0; i < 10; i++) expect((await attempt()).status).toBe(401);
     expect((await attempt()).status).toBe(429);
   });
+  it('counts wrong Basic credentials with the same throttle', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    const wrong = `Basic ${Buffer.from(`${env.SIRIS_LOGIN_USER}:wrong`).toString('base64')}`;
+    const headers = { 'x-forwarded-for': '203.0.113.4' };
+    for (let i = 0; i < 10; i++)
+      expect((await call(app, { headers: { ...headers, authorization: wrong } })).status).toBe(401);
+    const blocked = await call(app, { headers: { ...headers, authorization: wrong } });
+    expect(blocked.status).toBe(429);
+    expect(blocked.text).not.toContain('public.rooms');
+    // Đúng mật khẩu cũng bị chặn đến khi hết thời gian chờ.
+    expect((await call(app, { headers })).status).toBe(429);
+    const form = await call(app, {
+      url: '/auth/login',
+      method: 'POST',
+      headers: { ...headers, authorization: '', origin: 'https://siris.vercel.app' },
+      body: { username: env.SIRIS_LOGIN_USER, password: env.SIRIS_LOGIN_PASSWORD },
+    });
+    expect(form.status).toBe(429);
+    expect((await call(app, { headers: { 'x-forwarded-for': '203.0.113.5' } })).status).toBe(200);
+  });
+  it('logs out by clearing the session cookie', async () => {
+    const app = await createVercelHandler(env, tables, process.cwd());
+    expect(JSON.parse((await call(app)).text).logout).toBe(true);
+    const cross = await call(app, {
+      url: '/auth/logout',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://attacker.example' },
+    });
+    expect(cross.status).toBe(403);
+    const result = await call(app, {
+      url: '/auth/logout',
+      method: 'POST',
+      headers: { authorization: '', origin: 'https://siris.vercel.app' },
+    });
+    expect(result.status).toBe(303);
+    expect(result.headers.Location).toBe('/auth/login');
+    for (const part of ['__Host-siris_session=;', 'Max-Age=0', 'Secure', 'HttpOnly', 'Path=/'])
+      expect(result.headers['Set-Cookie']).toContain(part);
+  });
   it('passes authenticated same-origin requests to the shared routes', async () => {
     const app = await createVercelHandler(env, tables, process.cwd());
     const { token } = JSON.parse((await call(app)).text);

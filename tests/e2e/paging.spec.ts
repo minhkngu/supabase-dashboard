@@ -36,7 +36,12 @@ test('chuyển trang dùng lại tổng đã biết, đổi tìm kiếm thì đ�
   await expect(page.getByRole('button', { name: 'Trang sau', exact: true })).toBeDisabled();
   await page.locator('#search').fill('lune');
   await expect(page.locator('#count')).toHaveText('60 bản ghi');
-  expect(requests.filter(q => q.get('search') === 'lune' && q.get('page') === '0').at(-1)?.get('count')).toBeNull();
+  expect(
+    requests
+      .filter(q => q.get('search') === 'lune' && q.get('page') === '0')
+      .at(-1)
+      ?.get('count'),
+  ).toBeNull();
 });
 
 test('chọn cỡ trang ở chân lưới và nhớ theo bảng', async ({ page }) => {
