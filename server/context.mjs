@@ -69,7 +69,7 @@ export async function createContext(config, tables) {
     metadataGeneration = 0;
   ctx.cachedMetadata = function cachedMetadata() {
     if (metadataCache && Date.now() - metadataCache.time < 60000) return metadataCache.value;
-    if (metadataPending) return metadataPending;
+    if (metadataPending) return metadataCache ? metadataCache.value : metadataPending;
     const generation = metadataGeneration;
     const pending = Promise.all([admin.visibleMetadata('anon'), admin.enumTypes()])
       .then(([value, enumTypes]) => {
@@ -81,6 +81,11 @@ export async function createContext(config, tables) {
         if (metadataPending === pending) metadataPending = null;
       });
     metadataPending = pending;
+    if (metadataCache) {
+      // Làm mới ở nền; lỗi giữ bản cũ để lần sau thử lại.
+      pending.catch(() => {});
+      return metadataCache.value;
+    }
     return pending;
   };
   ctx.invalidateCaches = () => {
