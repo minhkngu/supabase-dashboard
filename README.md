@@ -145,7 +145,7 @@ Mặc định giả lập độ trễ Data API 60 ms và mỗi gói PostgreSQL 4
 
 ## Triển khai lên Vercel
 
-`vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`; function phục vụ `dist/` và API. `public/` để trống để mọi tài nguyên đều qua kiểm tra đăng nhập. Bản Vercel đọc metadata trực tiếp ở mỗi request.
+`vercel.json` build giao diện rồi chuyển mọi request tới `api/handler.mjs`; function phục vụ `dist/` và API. `public/` để trống để mọi tài nguyên đều qua kiểm tra đăng nhập. Bản Vercel đọc metadata trực tiếp ở mỗi request. Function được cấu hình chạy tại `icn1` (Seoul), cùng vùng với database; kiểm tra cài đặt Function Region trên Vercel không ghi đè vùng này.
 
 ### Biến môi trường
 
