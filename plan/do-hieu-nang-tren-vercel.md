@@ -1,6 +1,6 @@
 # Đo hiệu năng định kỳ trên Vercel
 
-**Trạng thái:** đã bật `Server-Timing` cho Preview, bổ sung ba mục thời gian và script đo; bản preview đã triển khai và đăng nhập. Header của một request chưa đăng nhập xác nhận function `icn1`; còn đo đầy đủ khi đã đăng nhập và ghi kết quả.
+**Trạng thái:** đã bật `Server-Timing` cho Preview, bổ sung ba mục thời gian và script đo; bản preview đã triển khai và đăng nhập. Header của một request chưa đăng nhập xác nhận function `icn1`; đã thử chạy phép đo trong Chrome sau khi người dùng cho phép dán, nhưng thao tác Console không thành công do cửa sổ đổi và chưa thu được kết quả. Còn đo đầy đủ khi đã đăng nhập và ghi kết quả.
 
 Mục tiêu: có số thật trên Vercel (không chỉ mô phỏng bằng `npm run bench`), đo cùng một cách mỗi lần để so trước/sau, và biết khi nào chậm đi.
 
