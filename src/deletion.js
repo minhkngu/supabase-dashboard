@@ -1,9 +1,12 @@
+import { setPage, setRows, setTotal } from './grid/grid-state.js';
+import { forgetRecord } from './history-state.js';
+import { writeApi } from './write-api.js';
 import { syncChrome } from './chrome.js';
 import { confirmDialog } from './confirm.js';
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
-import { api, toast } from './api.js';
-import { load, render } from './grid/render.js';
+import { toast } from './api.js';
+import { gridAction } from './events.js';
 import { bulkBusy, clearBulk } from './grid/selection.js';
 import { updateHistoryButtons } from './history.js';
 import { syncEditorReadiness } from './main.js';
@@ -12,11 +15,11 @@ import {
   $,
   pageSize,
   clearPageCache,
-  deletionBusy,
-  deletionNotice,
-  deletionProgress,
+  getDeletionBusy,
+  getDeletionNotice,
+  getDeletionProgress,
   el,
-  loadController,
+  getLoadController,
   name,
   pendingRows,
   selectedRecords,
@@ -30,7 +33,7 @@ import {
 import { persistView } from './view-menus.js';
 
 function toggleRecordSelection(row, checked) {
-  if (deletionBusy) return;
+  if (getDeletionBusy()) return;
   const identity = recordIdentity(state.table, row);
   if (!identity) return;
   if (checked) selectedRecords.set(identity, row);
@@ -38,7 +41,7 @@ function toggleRecordSelection(row, checked) {
   updateRowSelection();
 }
 function toggleManyRecordSelection(rows, checked) {
-  if (deletionBusy) return;
+  if (getDeletionBusy()) return;
   for (const row of rows) {
     const identity = recordIdentity(state.table, row);
     if (!identity) continue;
@@ -71,29 +74,29 @@ export function rowSelectionHeader() {
 }
 export function updateRowSelection() {
   const bar = $('#rowSelectionBar'),
-    active = deletionBusy || selectedRecords.size > 0 || !!deletionNotice;
+    active = getDeletionBusy() || selectedRecords.size > 0 || !!getDeletionNotice();
   bar.hidden = !active || isPromotionsOverview();
   // When every row of this page is selected but the table has more pages,
   // say so: selection never reaches rows on other pages.
   const onPage = state.rows.filter(row => recordIdentity(state.table, row)),
     wholePage = onPage.length > 0 && onPage.every(row => selectedRecords.has(recordIdentity(state.table, row))),
     morePages = state.total > state.rows.length;
-  $('#rowSelectionSummary').textContent = deletionBusy
-    ? deletionProgress
+  $('#rowSelectionSummary').textContent = getDeletionBusy()
+    ? getDeletionProgress()
     : `${selectedRecords.size} dòng đã chọn${wholePage && morePages ? ' trên trang này' : ''}`;
-  $('#deleteSelectedRows').disabled = deletionBusy || !state.configReady || !selectedRecords.size;
+  $('#deleteSelectedRows').disabled = getDeletionBusy() || !state.configReady || !selectedRecords.size;
   syncChrome();
-  $('#clearRowSelection').disabled = deletionBusy;
-  $('#deleteSelectedRows').textContent = deletionBusy ? 'Đang xóa…' : 'Xóa';
+  $('#clearRowSelection').disabled = getDeletionBusy();
+  $('#deleteSelectedRows').textContent = getDeletionBusy() ? 'Đang xóa…' : 'Xóa';
   $('#deleteSelectedRows').setAttribute('aria-label', `Xóa ${selectedRecords.size} dòng đã chọn`);
-  $('#rowDeleteResults').hidden = !deletionNotice;
-  $('#rowDeleteResults').textContent = deletionNotice;
+  $('#rowDeleteResults').hidden = !getDeletionNotice();
+  $('#rowDeleteResults').textContent = getDeletionNotice();
   const inputs = $$('#grid input[data-row-select]');
   for (const input of inputs) {
     const row = state.rows[Number(input.dataset.rowSelect)],
       identity = recordIdentity(state.table, row);
     input.checked = !!identity && selectedRecords.has(identity);
-    input.disabled = deletionBusy || !identity;
+    input.disabled = getDeletionBusy() || !identity;
     input.closest('tr')?.classList.toggle('record-selected', input.checked);
   }
   const header = $('#grid input[data-rows-select-all]');
@@ -102,7 +105,7 @@ export function updateRowSelection() {
       count = eligible.filter(input => input.checked).length;
     header.checked = eligible.length > 0 && count === eligible.length;
     header.indeterminate = count > 0 && count < eligible.length;
-    header.disabled = deletionBusy || !eligible.length;
+    header.disabled = getDeletionBusy() || !eligible.length;
   }
   promotionsOverview.syncSelection();
 }
@@ -130,14 +133,14 @@ export async function refreshAfterWrite(table = state.table) {
   const scroller = $('.table-scroll'),
     top = scroller?.scrollTop || 0,
     left = scroller?.scrollLeft || 0;
-  await load({ silent: true });
+  await gridAction('load', { silent: true });
   if (state.table?.name === table.name && scroller?.isConnected) {
     scroller.scrollTop = top;
     scroller.scrollLeft = left;
   }
 }
 export async function deleteRecords(rows) {
-  if (deletionBusy || !state.configReady || !state.table || !rows.length) return;
+  if (getDeletionBusy() || !state.configReady || !state.table || !rows.length) return;
   const table = state.table,
     records = rows.slice();
   if (state.rows.some(row => pendingRows.has(row)) || state.historyBusy || bulkBusy || state.cellEdit) {
@@ -158,13 +161,13 @@ export async function deleteRecords(rows) {
   )
     return;
   // The page may have changed while the confirmation was open.
-  if (deletionBusy || state.table !== table || state.cellEdit) return;
+  if (getDeletionBusy() || state.table !== table || state.cellEdit) return;
   setDeletionBusy(true);
   setDeletionTable(table);
   setDeletionNotice('');
   setDeletionProgress(`Đang chuẩn bị xóa ${records.length} dòng trong ${name(table)}…`);
-  if (isPromotionsOverview() && state.table.name === PROMOTIONS_TABLE) state.total = promotionsOverview.total();
-  loadController?.abort();
+  if (isPromotionsOverview() && state.table.name === PROMOTIONS_TABLE) setTotal(promotionsOverview.total());
+  getLoadController()?.abort();
   state.loadVersion++;
   promotionsOverview.cancel();
   clearBulk();
@@ -172,12 +175,12 @@ export async function deleteRecords(rows) {
   syncChrome();
   updateHistoryButtons();
   syncEditorReadiness();
-  render();
+  gridAction('render');
   updateRowSelection();
   let result;
   try {
     result = await deleteRecordBatch({
-      api,
+      api: writeApi,
       table,
       rows: records,
       onProgress: (current, total) => {
@@ -186,27 +189,20 @@ export async function deleteRecords(rows) {
       },
       onDeleted: entry => {
         clearPageCache();
-        const history = state.history.get(name(table));
-        if (history)
-          for (const direction of ['undo', 'redo'])
-            history[direction] = history[direction].filter(
-              item =>
-                recordIdentity(table, item.beforeKey) !== entry.identity &&
-                recordIdentity(table, item.afterKey) !== entry.identity,
-            );
+        forgetRecord(name(table), table, entry.identity);
         if (state.table?.name !== table.name) return;
-        loadController?.abort();
+        getLoadController()?.abort();
         state.loadVersion++;
         promotionsOverview.cancel();
         selectedRecords.delete(entry.identity);
-        state.rows = state.rows.filter(row => recordIdentity(table, row) !== entry.identity);
-        state.total = Math.max(0, state.total - 1);
+        setRows(state.rows.filter(row => recordIdentity(table, row) !== entry.identity));
+        setTotal(Math.max(0, state.total - 1));
         if ($('#editor').open && recordIdentity(table, state.edit) === entry.identity) {
           $('#editor').close();
           state.edit = null;
         }
         if (table.name === PROMOTIONS_TABLE) promotionsOverview.removeRecord(entry.row);
-        render();
+        gridAction('render');
         updateRowSelection();
       },
     });
@@ -225,7 +221,7 @@ export async function deleteRecords(rows) {
         problems.length &&
         records.some(row => recordIdentity(table, row) === recordIdentity(table, state.edit))
       )
-        $('#formError').textContent = deletionNotice;
+        $('#formError').textContent = getDeletionNotice();
     }
     toast(
       problems.length
@@ -234,7 +230,7 @@ export async function deleteRecords(rows) {
     );
   } catch (error) {
     setDeletionNotice(`Không thể hoàn tất thao tác xóa: ${error.message}`);
-    toast(deletionNotice);
+    toast(getDeletionNotice());
   } finally {
     setDeletionBusy(false);
     setDeletionTable(null);
@@ -242,11 +238,11 @@ export async function deleteRecords(rows) {
     syncChrome();
     updateHistoryButtons();
     syncEditorReadiness();
-    render();
+    gridAction('render');
     updateRowSelection();
   }
   if (state.table?.name === table.name) {
-    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / pageSize()) - 1));
+    setPage(Math.max(0, Math.min(state.page, Math.ceil(state.total / pageSize()) - 1)));
     persistView();
     await refreshAfterWrite(table);
   }

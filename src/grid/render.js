@@ -1,16 +1,16 @@
+import { setPage, setRows, setView, patchView, prepareSavedView } from './grid-state.js';
+import { setTable } from '../metadata-state.js';
+import { columnHeader, updateFrozen } from './column-header.js';
+import { load } from './load.js';
+export { load } from './load.js';
+import { onGridAction } from '../events.js';
 import { syncChrome } from '../chrome.js';
-import { autoScrollWhileDragging } from '../dnd.js';
-import { columnKind, icon } from '../icons.js';
-import { PROMOTIONS_TABLE } from '../../table-config.mjs';
 import { restoreCellFocus } from './keyboard.js';
 import { renderRuleChips } from '../rule-chips.js';
-import { openColumnMenu } from './column-menu.js';
-import { api, message, toast } from '../api.js';
 import { openColumnDialog } from '../column-dialog.js';
 import { rowCheckbox, rowSelectionHeader, updateRowSelection } from '../deletion.js';
 import { updateHistoryButtons } from '../history.js';
-import { activeLookups, loadLookups, lookupCell, showLookupDialog } from '../lookup.js';
-import { scheduleLookupCleanup } from '../main.js';
+import { activeLookups, lookupCell } from '../lookup.js';
 import {
   isPromotionsOverview,
   promotionsOverview,
@@ -20,36 +20,18 @@ import {
   tableOverview,
 } from '../overview/mode.js';
 import { openEditor } from '../record-editor.js';
-import {
-  hasRelationDisplay,
-  loadNativeDisplays,
-  nativeDisplayRows,
-  nativeDisplayValue,
-  nativeRelations,
-  openRelationDisplay,
-} from '../relation-display.js';
+import { hasRelationDisplay, nativeDisplayRows, nativeDisplayValue, nativeRelations } from '../relation-display.js';
 import { closeNav, nav, tableLabel } from '../sidebar.js';
 import {
   $,
-  $$,
-  cacheEpoch,
-  countedKey,
-  deletionBusy,
-  deletionTable,
   el,
-  loadController,
   name,
   PAGE_SIZE,
   PAGE_SIZES,
-  pageCache,
-  prefetching,
   pageSize,
-  pendingRows,
   savingCells,
   selectedRecords,
-  setCountedKey,
   setDeletionNotice,
-  setLoadController,
   state,
 } from '../state.js';
 import {
@@ -58,7 +40,6 @@ import {
   isUuidId,
   persistView,
   renderViewMenu,
-  setVisibleOrder,
   validFilterRules,
   validRules,
 } from '../view-menus.js';
@@ -81,20 +62,16 @@ export function choose(t) {
   promotionsOverview.cancel();
   tableOverview.cancel();
   setOverviewMode(savedOverviewMode(t));
-  state.rows = [];
+  setRows([]);
   state.loadVersion++;
   state.lookupVersion++;
-  state.table = t;
+  setTable(t);
   clearBulk();
-  const saved = state.views[name(t)] || {};
-  if (
-    !saved.freezeDefaultInitialized &&
-    t.columns.some(c => c.name === 'name') &&
-    (!Array.isArray(saved.frozen) || saved.frozen.length === 0)
-  )
-    saved.frozen = ['col:name'];
-  saved.freezeDefaultInitialized = true;
-  state.view = {
+  const saved = prepareSavedView(
+    name(t),
+    t.columns.some(c => c.name === 'name'),
+  );
+  setView({
     filters: validFilterRules(saved.filters, t),
     groups: validRules(saved.groups, t),
     sorts: validRules(saved.sorts, t),
@@ -111,8 +88,8 @@ export function choose(t) {
     collapsed: Array.isArray(saved.collapsed) ? saved.collapsed.filter(x => typeof x === 'string') : [],
     page: Number.isSafeInteger(saved.page) && saved.page >= 0 ? Math.min(saved.page, 100000) : 0,
     pageSize: PAGE_SIZES.includes(saved.pageSize) ? saved.pageSize : PAGE_SIZE,
-  };
-  state.page = state.view.page;
+  });
+  setPage(state.view.page);
   $('#search').value = state.view.search;
   const searchColumn = $('#searchColumn');
   searchColumn.replaceChildren(
@@ -120,7 +97,7 @@ export function choose(t) {
     ...t.columns.filter(c => ['text', 'character varying'].includes(c.data_type)).map(c => new Option(c.name, c.name)),
   );
   searchColumn.value = state.view.searchColumn;
-  state.view.searchColumn = searchColumn.value;
+  patchView({ searchColumn: searchColumn.value });
   $('#title').textContent = tableLabel(t);
   syncPromotionsView();
   syncChrome();
@@ -136,351 +113,6 @@ export function choose(t) {
   closeNav();
   load();
 }
-function serverOrder() {
-  const seen = new Set(),
-    result = [];
-  for (const rule of [...state.view.groups, ...state.view.sorts])
-    if (!seen.has(rule.column)) {
-      seen.add(rule.column);
-      result.push(rule);
-    }
-  return result;
-}
-function pageQuery(table, page, search, filters, orders, searchColumn = '', limit = PAGE_SIZE) {
-  return `/api/table/${name(table)}?${new URLSearchParams({
-    page: String(page),
-    search,
-    ...(searchColumn ? { search_column: searchColumn } : {}),
-    orders: JSON.stringify(orders),
-    filters: JSON.stringify(filters),
-    ...(limit !== PAGE_SIZE ? { limit: String(limit) } : {}),
-  })}`;
-}
-function putPage(key, data) {
-  pageCache.set(key, { time: Date.now(), data: structuredClone(data) });
-  if (pageCache.size > 100) pageCache.delete(pageCache.keys().next().value);
-}
-// Loads a page the user is likely to open next; failures stay silent.
-export async function prefetchPage(table, page, search, filters, orders, total, searchColumn = '', limit = PAGE_SIZE) {
-  const key = pageQuery(table, page, search, filters, orders, searchColumn, limit);
-  if (pageCache.has(key) || prefetching.has(key)) return;
-  prefetching.add(key);
-  const epoch = cacheEpoch;
-  try {
-    const data = await api(key + (Number.isSafeInteger(total) ? '&count=none' : ''));
-    if (epoch !== cacheEpoch) return;
-    if (data.total === null) data.total = total;
-    if (!Array.isArray(data.rows) || !Number.isSafeInteger(data.total) || data.total < 0) return;
-    putPage(key, data);
-  } catch {
-    // A prefetch that fails simply leaves the page to load normally.
-  } finally {
-    prefetching.delete(key);
-  }
-}
-export function prefetchTable(table) {
-  if (state.table?.name === table.name) return;
-  const view = state.views[name(table)] || {},
-    filters = validFilterRules(view.filters, table),
-    groups = validRules(view.groups, table),
-    sorts = validRules(view.sorts, table),
-    seen = new Set(),
-    orders = [...groups, ...sorts].filter(x => !seen.has(x.column) && seen.add(x.column));
-  const searchColumn =
-    view.searchColumn &&
-    table.columns.some(c => c.name === view.searchColumn && ['text', 'character varying'].includes(c.data_type))
-      ? view.searchColumn
-      : '';
-  const limit = PAGE_SIZES.includes(view.pageSize) ? view.pageSize : PAGE_SIZE;
-  void prefetchPage(
-    table,
-    0,
-    typeof view.search === 'string' && view.search.trim().length >= 2 ? view.search : '',
-    filters,
-    orders,
-    undefined,
-    searchColumn,
-    limit,
-  );
-}
-// Fetches whole-table counts for the groups visible on this page.
-async function loadGroupCounts(table, version) {
-  const groups = state.view.groups;
-  if (!groups.length || !state.rows.length) return;
-  const paths = new Map();
-  for (const row of state.rows)
-    for (let level = 0; level < groups.length; level++) {
-      const path = groups.slice(0, level + 1).map(g => [g.column, row[g.column] ?? null]);
-      if (path.some(([, value]) => value !== null && typeof value === 'object')) break;
-      paths.set(JSON.stringify(path), path);
-    }
-  const keys = [...paths.keys()];
-  const q = new URLSearchParams({
-    search: $('#search').value,
-    filters: JSON.stringify(state.view.filters || []),
-    paths: JSON.stringify([...paths.values()]),
-  });
-  try {
-    const { counts } = await api(`/api/table/${name(table)}/group-counts?${q}`);
-    if (version !== state.loadVersion || table !== state.table) return;
-    state.groupCounts = new Map();
-    keys.forEach((key, i) => Number.isFinite(counts[i]) && state.groupCounts.set(key, counts[i]));
-    if (!state.cellEdit) render();
-  } catch {
-    // Keep the per-page counts when whole-table counts are unavailable.
-  }
-}
-export async function load({ silent = false, skipCount = false, forceCount = false } = {}) {
-  if (!state.table) return;
-  if (deletionBusy && deletionTable?.name === state.table.name) return;
-  if (isPromotionsOverview()) {
-    loadController?.abort();
-    state.loadVersion++;
-    return state.table.name === PROMOTIONS_TABLE ? promotionsOverview.load() : tableOverview.load(state.table);
-  }
-  loadController?.abort();
-  const controller = new AbortController();
-  setLoadController(controller);
-  const version = ++state.loadVersion,
-    epoch = cacheEpoch,
-    table = state.table;
-  if (!silent) {
-    if (!bulkBusy) clearBulk();
-    persistView();
-  }
-  const search = $('#search').value,
-    filters = state.view?.filters || [],
-    orders = serverOrder(),
-    searchColumn = $('#searchColumn')?.value || '',
-    limit = pageSize(),
-    countKey = JSON.stringify([table.name, search, filters, searchColumn]),
-    needsCount = forceCount || (!skipCount && countedKey !== countKey),
-    cacheKey = pageQuery(table, state.page, search, filters, orders, searchColumn, limit),
-    cached = pageCache.get(cacheKey),
-    canShowCached = cached && !state.cellEdit && !state.rows.some(row => pendingRows.has(row));
-  // A cached page appears immediately, even after its 60-second freshness
-  // window; the network request below refreshes it in the background.
-  if (canShowCached) {
-    state.rows = structuredClone(cached.data.rows);
-    if (cached.data.total != null) state.total = cached.data.total;
-    render();
-    loadLookups();
-    loadNativeDisplays();
-    message(state.rows.length ? '' : 'Không tìm thấy bản ghi nào.');
-  } else if (!silent) {
-    message('Đang tải dữ liệu…');
-    $('#grid').replaceChildren();
-  }
-  try {
-    const d = await api(cacheKey + (needsCount ? '' : '&count=none'), { signal: controller.signal });
-    if (version !== state.loadVersion || table !== state.table) return;
-    // Một lần ghi xóa cache trong lúc chờ: kết quả này có thể đã cũ, nên tải
-    // lại thay vì bỏ im lặng và để nguyên "Đang tải dữ liệu…".
-    if (epoch !== cacheEpoch) return load({ silent, skipCount, forceCount });
-    if (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row)))) return;
-    if (!skipCount) putPage(cacheKey, d);
-    if (!skipCount && d.total != null) setCountedKey(countKey);
-    const total = d.total ?? state.total;
-    if (state.page > 0 && state.page * limit >= total) {
-      state.page = total ? Math.floor((total - 1) / limit) : 0;
-      return load({ silent });
-    }
-    if ((silent || canShowCached) && table.primary_keys?.length) {
-      const key = row => JSON.stringify(table.primary_keys.map(k => row[k])),
-        existing = new Map(state.rows.map(row => [key(row), row]));
-      state.rows = d.rows.map(row => {
-        const old = existing.get(key(row));
-        return old ? Object.assign(old, row) : row;
-      });
-    } else state.rows = d.rows;
-    state.total = total;
-    state.initialRowsReady = true;
-    state.groupCounts = null;
-    void loadGroupCounts(table, version);
-    render();
-    scheduleLookupCleanup();
-    loadLookups();
-    loadNativeDisplays();
-    message(d.rows.length ? '' : 'Không tìm thấy bản ghi nào.');
-    if (!skipCount && (state.page + 1) * limit < total)
-      void prefetchPage(table, state.page + 1, search, state.view?.filters || [], orders, total, searchColumn, limit);
-  } catch (e) {
-    if (e.name === 'AbortError' || version !== state.loadVersion || table !== state.table) return;
-    if (silent || cached) toast('Không thể làm mới dữ liệu: ' + e.message);
-    else {
-      message(e.message, true);
-      $('#count').textContent = 'Không thể tải dữ liệu';
-    }
-  }
-}
-function columnHeader(spec) {
-  const c = spec.column,
-    x = spec.lookup,
-    th = el(
-      'th',
-      x
-        ? 'lookup-header'
-        : /^(integer|bigint|smallint|numeric|real|double precision|decimal)$/.test(c.data_type)
-          ? 'numeric'
-          : '',
-    );
-  th.dataset.columnId = spec.id;
-  if (isUuidId(c)) th.classList.add('uuid-id');
-  th.draggable = true;
-  th.title = 'Bấm để mở tùy chọn cột, kéo để đổi vị trí';
-  th.tabIndex = 0;
-  th.setAttribute('aria-haspopup', 'menu');
-  th.setAttribute('aria-expanded', 'false');
-  th.onclick = () => openColumnMenu(spec, th);
-  th.onkeydown = e => {
-    if (e.target !== th || !['Enter', ' ', 'ArrowDown'].includes(e.key)) return;
-    e.preventDefault();
-    openColumnMenu(spec, th);
-  };
-  const label = el('span', 'column-label');
-  const kind = x ? { icon: 'lookup', label: 'Lookup' } : columnKind(c, state.table),
-    typeIconEl = el('span', 'type-icon');
-  typeIconEl.title = kind.label;
-  typeIconEl.append(icon(kind.icon, { size: 12 }));
-  label.append(typeIconEl, document.createTextNode(x ? x.label : c.name));
-  const pinned = state.view.frozen.includes(spec.id),
-    pin = el('button', 'column-pin');
-  pin.append(icon('pin', { size: 12, filled: pinned }));
-  pin.type = 'button';
-  pin.title = state.view.frozen.includes(spec.id) ? 'Bỏ ghim cột' : 'Ghim cột';
-  pin.setAttribute('aria-label', `${pin.title} ${x ? x.label : c.name}`);
-  pin.onclick = e => {
-    e.stopPropagation();
-    const frozen = state.view.frozen;
-    if (frozen.includes(spec.id)) state.view.frozen = frozen.filter(id => id !== spec.id);
-    else frozen.push(spec.id);
-    persistView();
-    render();
-  };
-  const edit = el('button', 'column-action');
-  edit.append(icon('more', { size: 14 }));
-  edit.type = 'button';
-  edit.setAttribute('aria-label', `Thiết lập cột ${x ? x.label : c.name}`);
-  edit.title = state.adminAvailable ? 'Thiết lập cột' : state.adminError;
-  edit.onclick = e => {
-    e.stopPropagation();
-    if (spec.lookup) {
-      showLookupDialog();
-      return;
-    }
-    openColumnDialog(spec);
-  };
-  const relation = spec.column ? nativeRelations().find(r => r.config.sourceColumn === spec.column.name) : null;
-  if (relation) {
-    const display = el('button', 'column-action', 'Aa');
-    display.type = 'button';
-    display.title = 'Chọn trường hiển thị';
-    display.setAttribute('aria-label', `Chọn trường hiển thị ${relation.label}`);
-    display.onclick = e => {
-      e.stopPropagation();
-      openRelationDisplay(relation);
-    };
-    th.append(label, display, pin, edit);
-  } else th.append(label, pin, edit);
-  for (const button of th.querySelectorAll('button')) button.draggable = false;
-  th.ondragstart = e => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/x-siris-column', spec.id);
-    draggedColumn = spec.id;
-    th.classList.add('column-dragging');
-  };
-  th.ondragend = () => {
-    draggedColumn = null;
-    th.classList.remove('column-dragging');
-    clearColumnDrop();
-  };
-  th.ondragover = e => {
-    if (!draggedColumn) return;
-    autoScrollWhileDragging(th.closest('.table-scroll'), e, 'x');
-    const target = columnDropTarget(spec.id, th, e);
-    if (!target) {
-      // Crossing between pinned and unpinned columns is not allowed.
-      e.dataTransfer.dropEffect = 'none';
-      clearColumnDrop();
-      return;
-    }
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (!th.classList.contains(`column-drop-${target.side}`)) {
-      clearColumnDrop();
-      th.classList.add(`column-drop-${target.side}`);
-    }
-  };
-  th.ondragleave = e => {
-    if (!th.contains(e.relatedTarget)) th.classList.remove('column-drop-before', 'column-drop-after');
-  };
-  th.ondrop = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    const from = draggedColumn || e.dataTransfer.getData('application/x-siris-column'),
-      target = columnDropTarget(spec.id, th, e);
-    clearColumnDrop();
-    if (!from || from === spec.id || !target) return;
-    const all = displayedColumns().map(c => c.id);
-    all.splice(all.indexOf(from), 1);
-    let index = all.indexOf(spec.id);
-    if (target.side === 'after') index++;
-    all.splice(index, 0, from);
-    setVisibleOrder(all);
-    persistView();
-    setTimeout(render, 0);
-  };
-  return th;
-}
-let draggedColumn = null;
-function clearColumnDrop() {
-  document
-    .querySelectorAll('.column-drop-before,.column-drop-after')
-    .forEach(n => n.classList.remove('column-drop-before', 'column-drop-after'));
-}
-// Where a dragged column would land relative to header th, or null when the
-// move would cross the pinned boundary.
-function columnDropTarget(toId, th, e) {
-  const frozen = state.view.frozen;
-  if (!draggedColumn || frozen.includes(draggedColumn) !== frozen.includes(toId)) return null;
-  const rect = th.getBoundingClientRect();
-  return { side: e.clientX > rect.left + rect.width / 2 ? 'after' : 'before' };
-}
-function updateFrozen() {
-  const grid = $('#grid');
-  for (const cell of grid.querySelectorAll('.frozen-cell')) {
-    cell.classList.remove('frozen-cell', 'frozen-number', 'frozen-edge');
-    cell.style.left = '';
-  }
-  const heads = $$('thead th[data-column-id]', grid),
-    frozen = state.view.frozen,
-    visibleFrozen = heads.filter(head => frozen.includes(head.dataset.columnId));
-  let offset = 0;
-  const numberHead = grid.querySelector('thead th:first-child');
-  if (numberHead) {
-    offset = numberHead.offsetWidth;
-    for (const cell of grid.querySelectorAll('thead th:first-child, tbody tr:not(.group-row) td:first-child')) {
-      cell.classList.add('frozen-cell', 'frozen-number');
-      if (!visibleFrozen.length) cell.classList.add('frozen-edge');
-      cell.style.left = '0px';
-    }
-  }
-  for (const head of heads) {
-    const id = head.dataset.columnId;
-    if (!frozen.includes(id)) continue;
-    const index = head.cellIndex;
-    for (const row of grid.rows) {
-      if (row.classList.contains('group-row')) continue;
-      const cell = row.cells[index];
-      if (cell) {
-        cell.classList.add('frozen-cell');
-        if (head === visibleFrozen.at(-1)) cell.classList.add('frozen-edge');
-        cell.style.left = `${offset}px`;
-      }
-    }
-    offset += head.offsetWidth;
-  }
-}
 export function render() {
   if (!state.table || !state.view) return;
   syncPromotionsView();
@@ -492,7 +124,7 @@ export function render() {
     head = el('thead'),
     tr = el('tr');
   tr.append(rowSelectionHeader());
-  for (const spec of columns) tr.append(columnHeader(spec));
+  for (const spec of columns) tr.append(columnHeader(spec, render));
   const addHeader = el('th', 'add-column-header'),
     addColumn = el('button', 'add-column', '＋');
   addColumn.type = 'button';
@@ -691,3 +323,10 @@ export function render() {
     if (liveGrid.isConnected && state.table) updateFrozen();
   });
 }
+
+// Đăng ký sau khi các module được nạp; hàm vẫn giữ kết quả Promise cho nơi gọi.
+onGridAction((action, value) => {
+  if (action === 'load') return load(value);
+  if (action === 'render') return render();
+  if (action === 'choose') return choose(value);
+});

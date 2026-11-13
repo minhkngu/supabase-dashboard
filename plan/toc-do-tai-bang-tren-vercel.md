@@ -1,6 +1,6 @@
 # Tăng tốc tải bảng trên Vercel
 
-**Trạng thái:** chưa làm. Lỗi treo đã sửa ở PR #5 nên có thể làm ngay.
+**Trạng thái:** xong (13/11/2026) trên nhánh `codex/hoan-thanh-plan`. Đo có đăng nhập trên preview `b60e27d` (function `icn1`): tải bảng 50 dòng 154–317 ms (trước 557–1.743 ms ở `iad1`), metadata lấy từ cache (`Server-Timing` `meta` khoảng 0,01 ms). Số chi tiết trong `plan/do-hieu-nang-tren-vercel.md`.
 
 Nguồn: đo trên bản preview `main` (`49031bd`) và đo trực tiếp từ máy cá nhân ngày 13/11/2026. Mọi phép đo chỉ dùng request đọc.
 

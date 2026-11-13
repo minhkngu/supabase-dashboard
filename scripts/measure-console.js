@@ -1,26 +1,50 @@
-// Dán vào tab Console của bản đã đăng nhập (production cũ, rồi Preview mới).
-// Đổi TABLE thành tên một bảng lớn có thật. Chỉ đọc, không ghi dữ liệu.
+// Chỉ gửi GET, không ghi dữ liệu. Dán vào Console của trang đã đăng nhập.
 (async () => {
-  const TABLE = 'ĐỔI_TÊN_BẢNG';
-  const t = async (label, url) => {
-    const ms = [],
-      srv = [];
+  const initial = await fetch('/api/meta', { cache: 'no-store' });
+  if (!initial.ok) throw Error(`Không đọc được metadata: ${initial.status}`);
+  const meta = await initial.json();
+  const routes = [
+    ['Mức sàn', '/api/khong-co', 150],
+    ['Metadata', '/api/meta', 200],
+    ['Formula', '/api/formula-config'],
+    ['Lookup', '/api/lookup-config'],
+    ['Cấu hình giao diện', '/api/ui-settings'],
+  ];
+  for (const table of meta.tables.slice(0, 3)) {
+    const name = table.name.replace(/^public\./, '');
+    const base = `/api/table/${encodeURIComponent(name)}?page=0&limit=50`;
+    routes.push([`${name} có đếm`, base, 400], [`${name} không đếm`, `${base}&count=none`, 400]);
+  }
+  const results = [];
+  for (const [label, url, limit] of routes) {
+    const times = [],
+      timings = [],
+      regions = new Set();
     for (let i = 0; i < 5; i++) {
-      const s = performance.now();
-      const r = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
-      await r.arrayBuffer();
-      ms.push(Math.round(performance.now() - s));
-      srv.push((r.headers.get('Server-Timing') || '').replace('app;dur=', '').slice(0, 7));
+      const start = performance.now();
+      const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+      await response.arrayBuffer();
+      times.push(Math.round(performance.now() - start));
+      timings.push(response.headers.get('Server-Timing') || '—');
+      regions.add(response.headers.get('x-vercel-id')?.split('::')[1] || '—');
+      if (!response.ok && url !== '/api/khong-co') throw Error(`${label}: HTTP ${response.status}`);
     }
-    const sorted = [...ms].sort((a, b) => a - b);
-    return { phép: label, 'trung vị ms': sorted[2], 'các lần': ms.join(','), 'Server-Timing': srv.join(',') };
-  };
-  const base = `/api/table/${TABLE}`;
-  console.table([
-    await t('/api/meta', '/api/meta'),
-    await t('trang 1', `${base}?page=0&limit=50`),
-    await t('trang 1 count=none', `${base}?page=0&limit=50&count=none`),
-    await t('trang 2 count=none', `${base}?page=1&limit=50&count=none`),
-    await t('limit=1000', `${base}?page=0&limit=1000&count=none`),
-  ]);
+    times.sort((a, b) => a - b);
+    const appTimes = timings
+      .map(value => Number(value.match(/(?:^|,\s*)app;dur=([\d.]+)/)?.[1]))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    const appMedian = appTimes.length === 5 ? Math.round(appTimes[2]) : null;
+    results.push({
+      phép: label,
+      'trung vị ms': times[2],
+      'min–max ms': `${times[0]}–${times[4]}`,
+      ngưỡng: limit && times[2] > limit ? `Vượt ${limit} ms` : limit || '—',
+      'app trung vị ms': appMedian ?? '—',
+      'ngưỡng app': url.startsWith('/api/table/') && appMedian !== null && appMedian > 150 ? 'Vượt 150 ms' : '—',
+      'Server-Timing': timings.join(' | '),
+      vùng: [...regions].join(', '),
+    });
+  }
+  console.table(results);
 })();

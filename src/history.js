@@ -1,16 +1,16 @@
-import { api, toast } from './api.js';
-import { load } from './grid/render.js';
-import { $, deletionBusy, name, state } from './state.js';
+import { historyForName, recordChange, transferChange, setHistoryBusy } from './history-state.js';
+import { writeApi } from './write-api.js';
+import { toast } from './api.js';
+import { gridAction } from './events.js';
+import { $, getDeletionBusy, name, state } from './state.js';
 
 export function historyFor(table) {
-  const id = name(table);
-  if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
-  return state.history.get(id);
+  return historyForName(name(table));
 }
 export function updateHistoryButtons() {
   const history = state.table && historyFor(state.table);
-  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || deletionBusy;
-  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || deletionBusy;
+  $('#undoCell').disabled = !state.configReady || !history?.undo.length || state.historyBusy || getDeletionBusy();
+  $('#redoCell').disabled = !state.configReady || !history?.redo.length || state.historyBusy || getDeletionBusy();
 }
 // Điều kiện chống ghi đè: máy chủ so từng cột bằng `eq.` nên chỉ nhận giá trị đơn.
 // Bỏ cột JSON, mảng và mọi giá trị object; trả undefined khi không còn cột nào.
@@ -27,7 +27,7 @@ export function expectedValues(table, values) {
 export async function commitCell(table, row, column, value) {
   const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
     old = row[column.name] ?? null;
-  const result = await api(`/api/table/${name(table)}`, {
+  const result = await writeApi(`/api/table/${name(table)}`, {
     method: 'PATCH',
     body: JSON.stringify({
       key,
@@ -37,16 +37,13 @@ export async function commitCell(table, row, column, value) {
   });
   const saved = result.rows?.[0];
   if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
-  const history = historyFor(table);
-  history.undo.push({
+  recordChange(name(table), {
     column: column.name,
     before: old,
     after: saved[column.name],
     beforeKey: key,
     afterKey: Object.fromEntries(table.primary_keys.map(k => [k, saved[k]])),
   });
-  if (history.undo.length > 50) history.undo.shift();
-  history.redo = [];
   updateHistoryButtons();
   return saved;
 }
@@ -59,20 +56,20 @@ export function undoLatest(table, entry) {
   void changeHistory('undo');
 }
 export async function changeHistory(direction) {
-  if (deletionBusy || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
+  if (getDeletionBusy() || !state.configReady || !state.table || state.historyBusy || state.cellEdit) return;
   const table = state.table,
     history = historyFor(table),
     from = history[direction],
     item = from.at(-1);
   if (!item) return;
-  state.historyBusy = true;
+  setHistoryBusy(true);
   updateHistoryButtons();
   try {
     const undo = direction === 'undo',
       key = undo ? item.afterKey : item.beforeKey,
       value = undo ? item.before : item.after,
       expected = undo ? item.after : item.before;
-    await api(`/api/table/${name(table)}`, {
+    await writeApi(`/api/table/${name(table)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         key,
@@ -80,14 +77,13 @@ export async function changeHistory(direction) {
         expected: expectedValues(table, { [item.column]: expected }),
       }),
     });
-    from.pop();
-    history[undo ? 'redo' : 'undo'].push(item);
-    if (state.table === table) await load({ silent: true });
+    transferChange(name(table), direction);
+    if (state.table === table) await gridAction('load', { silent: true });
     toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
   } catch (error) {
     toast(error.message);
   } finally {
-    state.historyBusy = false;
+    setHistoryBusy(false);
     updateHistoryButtons();
   }
 }

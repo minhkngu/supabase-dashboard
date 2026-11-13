@@ -1,7 +1,9 @@
+import { setLookups } from './config-state.js';
+import { writeApi } from './write-api.js';
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
 import { expectedValues } from './history.js';
-import { load, render } from './grid/render.js';
+import { gridAction } from './events.js';
 import { $, lookupCache, PAGE_SIZE, el, name, state } from './state.js';
 
 // Lookup values are stable for a short while; asking again on every page load
@@ -56,7 +58,7 @@ export async function cachedLookup(table, column, values, fields) {
 // in this browser: a local copy would drift from the server that actually
 // writes the trigger-maintained columns.
 export function restoreLookups() {
-  state.lookups = [];
+  setLookups([]);
 }
 export function persistLookups() {
   return lookupCloudAvailable;
@@ -221,16 +223,19 @@ function showLookupList() {
         return;
       if (lookupCloudAvailable) {
         try {
-          await api('/api/lookup-config', { method: 'POST', body: JSON.stringify({ action: 'delete', id: x.id }) });
+          await writeApi('/api/lookup-config', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', id: x.id }),
+          });
         } catch (error) {
           $('#lookupError').textContent = error.message;
           return;
         }
       }
       const old = state.lookups;
-      state.lookups = state.lookups.filter(y => y.id !== x.id);
+      setLookups(state.lookups.filter(y => y.id !== x.id));
       if (!persistLookups()) {
-        state.lookups = old;
+        setLookups(old);
         $('#lookupError').textContent = 'Không thể lưu cấu hình trên trình duyệt.';
         return;
       }
@@ -324,23 +329,21 @@ export function initLookup() {
       }
       let saved = x;
       if (lookupCloudAvailable) {
-        const result = await api('/api/lookup-config', {
+        const result = await writeApi('/api/lookup-config', {
           method: 'POST',
           body: JSON.stringify({ action: 'save', config: x, signature }),
         });
         saved = result.config || x;
       }
       const old = state.lookups;
-      state.lookups = state.lookupEditing
-        ? state.lookups.map(y => (y.id === x.id ? saved : y))
-        : [...state.lookups, saved];
+      setLookups(state.lookupEditing ? state.lookups.map(y => (y.id === x.id ? saved : y)) : [...state.lookups, saved]);
       if (!persistLookups()) {
-        state.lookups = old;
+        setLookups(old);
         throw Error('Không thể lưu cấu hình trên trình duyệt.');
       }
       resetLookupForm();
       showLookupList();
-      if (syncChange) await load({ silent: true });
+      if (syncChange) await gridAction('load', { silent: true });
       else await loadLookups();
       toast(
         syncChange
@@ -513,9 +516,9 @@ export async function loadLookups() {
         }),
     );
   }
-  render();
+  gridAction('render');
   await Promise.all(jobs);
-  if (version === state.lookupVersion && state.table === table && !state.cellEdit) render();
+  if (version === state.lookupVersion && state.table === table && !state.cellEdit) gridAction('render');
 }
 function showLinkedRecord(config, row) {
   $('#linkedTitle').textContent = config.targetTable;
@@ -613,7 +616,7 @@ async function loadPicker() {
     direction: 'asc',
   });
   try {
-    const result = await api(`/api/table/${config.targetTable}?${query}`);
+    const result = await writeApi(`/api/table/${config.targetTable}?${query}`);
     if (picker !== pickerState || picker.version !== version) return;
     const list = $('#pickerList');
     list.replaceChildren();
@@ -647,7 +650,7 @@ async function saveLink(value) {
   try {
     if (value !== picker.row[picker.column.name]) {
       const key = Object.fromEntries(picker.table.primary_keys.map(k => [k, picker.row[k]]));
-      await api(`/api/table/${name(picker.table)}`, {
+      await writeApi(`/api/table/${name(picker.table)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           key,
@@ -659,7 +662,7 @@ async function saveLink(value) {
     pickerState = null;
     $('#linkPicker').close();
     toast('Đã lưu liên kết');
-    if (state.table === picker.table) await load({ silent: true });
+    if (state.table === picker.table) await gridAction('load', { silent: true });
   } catch (error) {
     picker.saving = false;
     $('#pickerError').textContent = error.message;

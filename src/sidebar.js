@@ -1,8 +1,10 @@
+import { sortTables, removeTableAt, insertTableAt } from './metadata-state.js';
 import { toast } from './api.js';
 import { autoScrollWhileDragging } from './dnd.js';
 import { openPopupMenu } from './grid/column-menu.js';
 import { confirmDialog, promptDialog } from './confirm.js';
-import { choose, prefetchTable } from './grid/render.js';
+import { choose } from './grid/render.js';
+import { prefetchTable } from './grid/page-cache.js';
 import { $, el, name, state } from './state.js';
 import { getJSON, getText, setJSON, setText, storageKeys } from './storage.js';
 
@@ -40,7 +42,7 @@ export function restoreSidebar() {
   const saved = getJSON(storageKeys.tableOrder, []);
   if (Array.isArray(saved)) {
     const rank = new Map(saved.map((n, i) => [n, i]));
-    state.tables.sort((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
+    sortTables((a, b) => (rank.get(name(a)) ?? Infinity) - (rank.get(name(b)) ?? Infinity));
   }
   const data = getJSON(storageKeys.tableFolders, {});
   state.folders = Array.isArray(data?.folders)
@@ -56,7 +58,7 @@ function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
   if (!draggedName || draggedName === targetName) return;
   const from = state.tables.findIndex(t => name(t) === draggedName);
   if (from < 0) return;
-  const [item] = state.tables.splice(from, 1);
+  const item = removeTableAt(from);
   if (targetFolder !== undefined) {
     state.tableFolders[draggedName] = targetFolder;
     if (targetFolder) {
@@ -70,7 +72,7 @@ function reorderTable(draggedName, targetName, placeAfter, targetFolder) {
     const group = state.tables.filter(t => (state.tableFolders[name(t)] || null) === destination);
     to = group.length ? state.tables.indexOf(group.at(-1)) + 1 : state.tables.length;
   } else if (placeAfter) to++;
-  state.tables.splice(to, 0, item);
+  insertTableAt(to, item);
   persistSidebar();
   clearTimeout(state.navAfterDrop);
   state.navAfterDrop = setTimeout(nav, 0);
@@ -332,6 +334,7 @@ export function initSidebar() {
     $('#addFolder').setAttribute('aria-expanded', 'false');
   };
   $('#tableSearch').oninput = () => nav();
+  initSidebarControls();
 }
 
 export function closeNav() {
@@ -348,7 +351,7 @@ function toggleSidebar() {
   $('#sidebarToggleBtn')?.setAttribute('title', expanded ? 'Thu gọn thanh bên (⌘B)' : 'Mở rộng thanh bên (⌘B)');
   setText(storageKeys.sidebarCollapsed, String(!expanded));
 }
-export function initSidebar2() {
+function initSidebarControls() {
   $('#toggleSidebar')?.addEventListener('click', e => {
     if (e.target.closest('#closeNav')) return;
     toggleSidebar();

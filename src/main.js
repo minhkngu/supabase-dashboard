@@ -1,3 +1,5 @@
+import { setConfigReady, setFormulas, setLookups } from './config-state.js';
+import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { syncChrome } from './chrome.js';
 import { api, message, toast } from './api.js';
 import { choose, load, render } from './grid/render.js';
@@ -6,7 +8,7 @@ import { loadLookups, restoreLookups, setLookupCloudAvailable } from './lookup.j
 import { recordFieldHint } from './record-editor.js';
 import { loadNativeDisplays, reloadRelationDisplay } from './relation-display.js';
 import { nav, restoreSidebar } from './sidebar.js';
-import { $, deletionBusy, name, state, writable } from './state.js';
+import { $, getDeletionBusy, name, state, writable } from './state.js';
 import { getJSON, getText, setJSON, storageKeys } from './storage.js';
 import { applyRemoteSettings, beginUiSync, startUiSyncFlush } from './ui-sync.js';
 import { restoreViews } from './view-menus.js';
@@ -25,8 +27,8 @@ export function syncEditorReadiness() {
     const hint = input.closest('.field')?.querySelector('.field-hint');
     if (hint) hint.textContent = recordFieldHint(c);
   }
-  $('#save').disabled = deletionBusy || !state.configReady || !hasKey;
-  $('#delete').disabled = deletionBusy || !state.configReady || !hasKey;
+  $('#save').disabled = getDeletionBusy() || !state.configReady || !hasKey;
+  $('#delete').disabled = getDeletionBusy() || !state.configReady || !hasKey;
 }
 function showConfigStatus(text, retry = false) {
   const box = $('#configStatus');
@@ -40,7 +42,7 @@ export function scheduleLookupCleanup() {
   setTimeout(async () => {
     try {
       await api('/api/lookup-config/cleanup-disabled', { method: 'POST', body: '{}' });
-      state.lookups = state.lookups.filter(x => !(x.columnBound === true && x.sync?.enabled === false));
+      setLookups(state.lookups.filter(x => !(x.columnBound === true && x.sync?.enabled === false)));
     } catch (error) {
       toast('Không thể xóa lookup đã tắt: ' + error.message);
     }
@@ -48,7 +50,7 @@ export function scheduleLookupCleanup() {
 }
 async function loadConfigs(request) {
   const attempt = ++state.configAttempt;
-  state.configReady = false;
+  setConfigReady(false);
   showConfigStatus('Đang tải cấu hình cột…');
   syncChrome();
   updateHistoryButtons();
@@ -61,11 +63,11 @@ async function loadConfigs(request) {
       (cloud.available && !Array.isArray(cloud.items))
     )
       throw Error('Cấu hình nhận được không hợp lệ.');
-    state.formulas = formula.items;
+    setFormulas(formula.items);
     setLookupCloudAvailable(cloud.available);
-    if (cloud.available) state.lookups = cloud.items;
+    if (cloud.available) setLookups(cloud.items);
     state.cleanupPending = state.lookups.some(x => x.columnBound === true && x.sync?.enabled === false);
-    state.configReady = true;
+    setConfigReady(true);
     showConfigStatus('');
     syncEditorReadiness();
     if (state.table) {
@@ -78,7 +80,7 @@ async function loadConfigs(request) {
     scheduleLookupCleanup();
   } catch {
     if (attempt !== state.configAttempt) return;
-    state.configReady = false;
+    setConfigReady(false);
     syncEditorReadiness();
     showConfigStatus('Không thể tải cấu hình cột. Bảng đang ở chế độ chỉ đọc.', true);
     if (state.table) {
@@ -123,7 +125,7 @@ async function initialize() {
   // visit, so data appears without waiting for the metadata round trip.
   const saved = getJSON(storageKeys.metadata, null);
   if (Array.isArray(saved?.tables) && saved.tables.length) {
-    state.tables = saved.tables;
+    setTables(saved.tables);
     restoreSidebar();
     nav();
     cachedLoad = choose(state.tables.find(t => name(t) === current) || state.tables[0]);
@@ -132,10 +134,10 @@ async function initialize() {
     const apply = async next => {
       const old = state.table,
         oldName = old && name(old);
-      state.tables = next.tables;
+      setTables(next.tables);
       state.adminAvailable = !!next.adminAvailable;
       state.adminError = next.adminError || '';
-      state.enumTypes = Array.isArray(next.enumTypes) ? next.enumTypes : [];
+      setEnumTypes(Array.isArray(next.enumTypes) ? next.enumTypes : []);
       state.token = next.token;
       $('#logoutBtn').hidden = !next.logout;
       restoreSidebar();
@@ -143,7 +145,7 @@ async function initialize() {
       setJSON(storageKeys.metadata, { tables: state.tables });
       const selected = state.tables.find(t => name(t) === (oldName || current)) || state.tables[0];
       if (!selected) {
-        state.table = null;
+        setTable(null);
         message('Không có bảng nào để hiển thị.');
         return;
       }

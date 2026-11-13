@@ -1,3 +1,4 @@
+import { patchView } from './grid-state.js';
 // Menu opened from a column header: sort, filter, group, hide, pin and
 // column settings without going through the toolbar menus.
 import { openColumnDialog } from '../column-dialog.js';
@@ -34,7 +35,7 @@ function menuItems(spec) {
       items.push({
         text,
         run() {
-          state.view.sorts = [{ column: column.name, direction }];
+          patchView({ sorts: [{ column: column.name, direction }] });
           applyRules('sort', { open: false });
         },
       });
@@ -43,7 +44,9 @@ function menuItems(spec) {
     items.push({
       text: 'Lọc theo cột này',
       run() {
-        state.view.filters = [...(state.view.filters || []), { column: column.name, operator: 'contains', value: '' }];
+        patchView({
+          filters: [...(state.view.filters || []), { column: column.name, operator: 'contains', value: '' }],
+        });
         applyRules('filter');
         setTimeout(() => {
           const inputs = document.querySelectorAll('#filterMenu input:not([type="checkbox"])');
@@ -56,7 +59,7 @@ function menuItems(spec) {
     items.push({
       text: 'Nhóm theo cột này',
       run() {
-        state.view.groups = [{ column: column.name, direction: 'asc' }];
+        patchView({ groups: [{ column: column.name, direction: 'asc' }] });
         applyRules('group', { open: false });
       },
     });
@@ -65,7 +68,7 @@ function menuItems(spec) {
     {
       text: 'Ẩn cột',
       run() {
-        if (!state.view.hidden.includes(spec.id)) state.view.hidden.push(spec.id);
+        if (!state.view.hidden.includes(spec.id)) patchView({ hidden: [...state.view.hidden, spec.id] });
         persistView();
         render();
       },
@@ -73,7 +76,9 @@ function menuItems(spec) {
     {
       text: pinned ? 'Bỏ ghim cột' : 'Ghim cột',
       run() {
-        state.view.frozen = pinned ? state.view.frozen.filter(id => id !== spec.id) : [...state.view.frozen, spec.id];
+        patchView({
+          frozen: pinned ? state.view.frozen.filter(id => id !== spec.id) : [...state.view.frozen, spec.id],
+        });
         persistView();
         render();
       },

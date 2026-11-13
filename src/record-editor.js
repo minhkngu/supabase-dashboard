@@ -1,3 +1,5 @@
+import { setPage, patchView } from './grid/grid-state.js';
+import { writeApi } from './write-api.js';
 import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
 import { nativeRelations, relationDisplayField } from './relation-display.js';
@@ -6,8 +8,8 @@ import { api, message, toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
 import { deleteRecords, refreshAfterWrite } from './deletion.js';
 import { formatNumber, formatNumberInput } from './grid/cell-edit.js';
-import { load } from './grid/render.js';
-import { $, $$, PAGE_SIZES, deletionBusy, el, loadController, name, pageSize, state, writable } from './state.js';
+import { gridAction } from './events.js';
+import { $, $$, PAGE_SIZES, getDeletionBusy, el, getLoadController, name, pageSize, state, writable } from './state.js';
 import { persistView } from './view-menus.js';
 
 export function recordFieldHint(column, row = null) {
@@ -38,8 +40,8 @@ export function openEditor(row) {
   $('#save').textContent = row ? 'Lưu thay đổi' : 'Thêm bản ghi';
   // Deleting stays in the grid, where rows are selected deliberately.
   $('#delete').hidden = !row || isPromotionsOverview();
-  $('#delete').disabled = deletionBusy || !state.configReady || !state.table.primary_keys?.length;
-  $('#save').disabled = deletionBusy || !state.configReady;
+  $('#delete').disabled = getDeletionBusy() || !state.configReady || !state.table.primary_keys?.length;
+  $('#save').disabled = getDeletionBusy() || !state.configReady;
   $('#formError').textContent = '';
   const fields = $('#formFields');
   fields.replaceChildren();
@@ -244,7 +246,7 @@ export function valueFor(c, raw) {
 export function initRecordEditor() {
   $('#form').onsubmit = async e => {
     e.preventDefault();
-    if (deletionBusy || !state.configReady) return;
+    if (getDeletionBusy() || !state.configReady) return;
     $('#formError').textContent = '';
     try {
       const values = {};
@@ -262,7 +264,7 @@ export function initRecordEditor() {
       const key = state.edit ? Object.fromEntries(state.table.primary_keys.map(k => [k, state.edit[k]])) : undefined;
       if (state.edit && !state.table.primary_keys.length) throw Error('Bảng không có khóa chính để xác định bản ghi.');
       $('#save').disabled = true;
-      await api(`/api/table/${name(state.table)}`, {
+      await writeApi(`/api/table/${name(state.table)}`, {
         method: state.edit ? 'PATCH' : 'POST',
         body: JSON.stringify({ values, key }),
       });
@@ -282,51 +284,51 @@ export function initRecordEditor() {
   $('#closeEditor').onclick = $('#cancel').onclick = () => $('#editor').close();
   // Keep the current grid usable while refreshing; silent loads also avoid
   // replacing an active editor or a row whose changes are still saving.
-  $('#refresh').onclick = () => load({ silent: true });
+  $('#refresh').onclick = () => gridAction('load', { silent: true });
   $('#prev').onclick = () => {
-    state.page--;
+    setPage(state.page - 1);
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   $('#pageSize').onchange = () => {
     const size = Number($('#pageSize').value);
     if (!state.view || !PAGE_SIZES.includes(size) || size === pageSize()) return;
     // Keep the first visible row on screen when the page size changes.
     const firstRow = state.page * pageSize();
-    state.view.pageSize = size;
-    state.page = Math.floor(firstRow / size);
+    patchView({ pageSize: size });
+    setPage(Math.floor(firstRow / size));
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   $('#next').onclick = () => {
-    state.page++;
+    setPage(state.page + 1);
     persistView();
-    void load({ silent: true });
+    void gridAction('load', { silent: true });
   };
   let previewTimer;
   $('#search').oninput = () => {
-    state.page = 0;
+    setPage(0);
     persistView();
     clearTimeout(timer);
     clearTimeout(previewTimer);
     const value = $('#search').value.trim();
     if (value && value.length < 2) {
-      loadController?.abort();
+      getLoadController()?.abort();
       state.loadVersion++;
       message('Nhập ít nhất 2 ký tự để tìm kiếm.');
       return;
     }
     message('');
     if (value) {
-      previewTimer = setTimeout(() => load({ silent: true, skipCount: true }), 0);
-      timer = setTimeout(() => load({ silent: true, forceCount: true }), 350);
-    } else void load({ silent: true });
+      previewTimer = setTimeout(() => gridAction('load', { silent: true, skipCount: true }), 0);
+      timer = setTimeout(() => gridAction('load', { silent: true, forceCount: true }), 350);
+    } else void gridAction('load', { silent: true });
   };
   $('#searchColumn').onchange = () => {
-    state.page = 0;
+    setPage(0);
     persistView();
     const value = $('#search').value.trim();
-    if (!value || value.length >= 2) void load({ silent: true });
+    if (!value || value.length >= 2) void gridAction('load', { silent: true });
   };
 }
 

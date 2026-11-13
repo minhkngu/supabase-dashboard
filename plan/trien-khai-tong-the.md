@@ -1,6 +1,8 @@
 # Kế hoạch triển khai Siris
 
-Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (chờ quyết định). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
+**Trạng thái:** xong (13/11/2026). H4 đã chốt giữ giới hạn đăng nhập hiện tại. G đã có số thật cho bản cũ (`iad1`) và bản mới (`icn1`), xem `plan/do-hieu-nang-tren-vercel.md`; phép đo lúc instance nguội và đo định kỳ theo dõi tiếp ở plan đó.
+
+Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (đã chọn giữ giới hạn hiện tại). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
 Mục lục:
 1. Tình hình hiện tại
@@ -19,7 +21,7 @@ Mục lục:
 
 Nhánh `claude/hopeful-gates-00krjq` đã được merge với `main` (cả 20 file xung đột đã giải quyết) để PR #3 là PR duy nhất, trên một nhánh duy nhất. Cách giải quyết: **lấy code và test của `main`** cho mọi file xung đột, vì `main` đã tách `server.mjs` thành `server/` và `app.js` thành `src/`; giữ plan này, `scripts/bench.mjs`, script `bench` và mục README về đo hiệu năng.
 
-Các thay đổi tốc độ viết trên nền cũ của PR #3 (commit `d21eac0`) đã được chuyển sang cấu trúc `server/` và `src/` (giai đoạn P). Bản edge/Sites đã gỡ (C), đã có CI (D), đã gom `localStorage`, tách e2e và tăng bảo mật Vercel (E). **Còn lại: đo một lần trên Vercel (G) và quyết định H4.** (H1–H3, H5, H6 đã xong.)
+Các thay đổi tốc độ viết trên nền cũ của PR #3 (commit `d21eac0`) đã được chuyển sang cấu trúc `server/` và `src/` (giai đoạn P). Bản edge/Sites đã gỡ (C), đã có CI (D), đã gom `localStorage`, tách e2e và tăng bảo mật Vercel (E). **Còn lại: đo một lần trên Vercel (G) và H4 đã chọn giữ giới hạn hiện tại.** (H1–H3, H5, H6 đã xong.)
 
 Kết quả kiểm tra sau merge:
 
@@ -85,7 +87,7 @@ Không chuyển: snapshot metadata ghi xuống đĩa (vô ích trên Vercel).
 | H1 | **CI đỏ**: job `bench-cache` và `e2e` lỗi do runner Ubuntu 26.04 (không có `postgresql-16`, Playwright 1.55.1 không hỗ trợ). Test `bench-cache` chưa từng chạy xanh ở đâu | Cao | Xong |
 | H2 | Phiên bản Node không đồng bộ: CI dùng 22, project Vercel dùng 26.x, `engines` ghi `>=20`; cảnh báo `actions/checkout@v4`, `setup-node@v4` chạy Node 20 sắp bị bỏ | Thấp | Xong |
 | H3 | `VERCEL.md` chưa ghi: giới hạn đăng nhập sai nằm trong bộ nhớ từng instance (chỉ làm chậm, không chặn hẳn), các sự kiện log (`login_failed`, `login_blocked`, `schema_apply`), và việc đổi định dạng cookie làm mất mọi phiên đăng nhập cũ khi deploy lần đầu | Trung bình | Xong |
-| H4 | Giới hạn đăng nhập sai chưa dùng kho dùng chung | Quyết định | Chờ quyết định |
+| H4 | Giới hạn đăng nhập sai chưa dùng kho dùng chung | Quyết định | Giữ giới hạn hiện tại theo lựa chọn người dùng |
 | H5 | `ARCHITECTURE.md` chưa mô tả `src/storage.js`, `scripts/bench.mjs`, bộ test e2e đã tách | Thấp | Xong (gộp vào README) |
 | H6 | Mô tả PR #3 lỗi thời (vẫn nói "grid-first", "overview editing", số liệu cũ) | Trung bình | Xong |
 | H7 | Hai mục tiêu tốc độ chưa đạt: mở ứng dụng ≈ 146–202 ms (mục tiêu 80 ms), ghi 50 dòng nối tiếp 3.175 ms (mục tiêu < 1 s) | Chấp nhận / ghi rõ | Đã ghi nhận |
@@ -203,7 +205,8 @@ Mỗi bước một commit; bước H1 phải xong và CI xanh trước khi sang
 - Việc: thêm mục "Đăng nhập và log" gồm: ngưỡng 10 lần sai trong 15 phút theo IP, chỉ nằm trong bộ nhớ từng instance (chỉ làm chậm); tên các sự kiện log `login_failed`, `login_blocked`, `schema_apply` và cách xem bằng `vercel logs`; việc đổi định dạng cookie phiên làm mọi người phải đăng nhập lại sau lần deploy đầu.
 - Kiểm: đọc lại cùng mã `server/vercel.mjs`, `server/routes/schema.mjs` để tên sự kiện và ngưỡng khớp.
 
-**H4. (Cần bạn quyết) Giới hạn đăng nhập sai dùng kho chung**
+**H4. Giới hạn đăng nhập sai dùng kho chung — đã quyết định**
+- Người dùng chọn giữ giới hạn hiện tại ngày 13/11/2026.
 - Phương án mặc định: **không làm**, chấp nhận rủi ro vì app một người dùng, phiên 8 giờ, mật khẩu ≥ 16 ký tự và chặn thêm ở Vercel Firewall nếu cần.
 - Nếu muốn chặn chắc: dùng Vercel Firewall rate limit cho `/auth/login` (cấu hình trên Vercel, không sửa mã) hoặc kho dùng chung (Marketplace Redis, hoặc bảng trong `siris_admin`).
 
@@ -268,8 +271,8 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | C | Gỡ edge/Sites | **Xong** (C1–C3) |
 | D | CI | **Xong**; ba job xanh trên Ubuntu 24.04 |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | **Xong** (E1–E4); tài liệu và giới hạn đăng nhập xem H3–H4 |
-| H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Xong** H1–H3, H5, H6; H4 chờ quyết định |
-| G (B4) | Đo một lần trên Vercel | Sau H, do người dùng thao tác |
+| H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Xong** H1–H3, H5, H6; H4 giữ giới hạn hiện tại |
+| G (B4) | Đo một lần trên Vercel | **Xong phần chính** (13/11/2026): số trong `plan/do-hieu-nang-tren-vercel.md`; còn đo lúc instance nguội |
 
 ---
 

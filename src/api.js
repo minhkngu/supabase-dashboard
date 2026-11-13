@@ -1,18 +1,6 @@
-import { $, clearPageCache, invalidateLookupCache, state, el } from './state.js';
+import { $, state, el } from './state.js';
 
 export async function api(url, opts = {}) {
-  // Lưu cấu hình giao diện không đổi dữ liệu bảng, nên không xóa cache trang;
-  // nếu xóa, lần tải bảng đang chạy sẽ bị coi là cũ.
-  if (
-    opts.method &&
-    !['GET', 'HEAD'].includes(opts.method.toUpperCase()) &&
-    !url.startsWith('/api/lookup/') &&
-    !url.startsWith('/api/ui-settings')
-  ) {
-    clearPageCache();
-    const match = url.match(/^\/api\/table\/([^/?]+)/);
-    invalidateLookupCache(match ? decodeURIComponent(match[1]) : null);
-  }
   let r;
   try {
     r = await fetch(url, {

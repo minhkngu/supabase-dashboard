@@ -1,6 +1,9 @@
+import { patchRow } from './grid-state.js';
+import { writeApi } from '../write-api.js';
 import { autoScrollWhileDragging } from '../dnd.js';
-import { api, toast } from '../api.js';
-import { expectedValues, historyFor, updateHistoryButtons } from '../history.js';
+import { toast } from '../api.js';
+import { expectedValues, updateHistoryButtons } from '../history.js';
+import { clearHistory } from '../history-state.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
 import { $, PAGE_SIZES, el, name, pendingRows, state, writable, $$ } from '../state.js';
@@ -413,7 +416,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   const failed = [];
   for (const change of changes) {
     pendingRows.add(change.record);
-    Object.assign(change.record, change.values);
+    patchRow(change.record, change.values);
   }
   if (changes.length && state.table === table && !state.cellEdit) render();
   const errors = new Array(changes.length),
@@ -423,7 +426,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   try {
     for (let start = 0; start < changes.length; start += 50) {
       const chunk = changes.slice(start, start + 50);
-      const result = await api(`/api/table/${name(table)}/batch`, {
+      const result = await writeApi(`/api/table/${name(table)}/batch`, {
         method: 'POST',
         body: JSON.stringify({
           changes: chunk.map(({ key, values, expected }) => ({
@@ -441,10 +444,10 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
           item = result.results[i];
         settled[index] = true;
         if (item?.ok && item.rows?.length) {
-          Object.assign(change.record, item.rows[0]);
+          patchRow(change.record, item.rows[0]);
           saved++;
         } else {
-          Object.assign(change.record, change.expected);
+          patchRow(change.record, change.expected);
           errors[index] = `Dòng ${change.row}: ${item?.error || 'Không tìm thấy bản ghi.'}`;
         }
       }
@@ -452,7 +455,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   } catch (error) {
     for (let i = 0; i < changes.length; i++) {
       if (settled[i]) continue;
-      Object.assign(changes[i].record, changes[i].expected);
+      patchRow(changes[i].record, changes[i].expected);
       errors[i] = `Dòng ${changes[i].row}: Chưa xác nhận được kết quả; hãy kiểm tra dữ liệu: ${error.message}`;
     }
   } finally {
@@ -461,9 +464,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   }
   failed.push(...errors.filter(Boolean));
   if (saved) {
-    const history = historyFor(table);
-    history.undo = [];
-    history.redo = [];
+    clearHistory(name(table));
     updateHistoryButtons();
   }
   if (state.table === table) await load({ silent: true });

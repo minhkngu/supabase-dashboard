@@ -5,8 +5,11 @@ import pg from 'pg';
 import { safeError } from '../admin.mjs';
 
 export function response(res, status, data) {
-  const timing = res._sirisStart
-    ? { 'Server-Timing': `app;dur=${Number(process.hrtime.bigint() - res._sirisStart) / 1e6}` }
+  const t = res._sirisTiming;
+  const timing = t
+    ? {
+        'Server-Timing': `meta;dur=${t.meta.toFixed(2)}, upstream;dur=${t.upstream.toFixed(2)}, app;dur=${(Number(process.hrtime.bigint() - t.start) / 1e6).toFixed(2)}`,
+      }
     : {};
   res.writeHead(status, {
     ...timing,

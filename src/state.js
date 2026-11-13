@@ -1,9 +1,12 @@
+import { getRows, getPage, getTotal, getView, getViews } from './grid/grid-state.js';
+import { historyBusy } from './history-state.js';
+import { getFormulas, getLookups, getConfigReady } from './config-state.js';
+import { getTables, getTable, getEnumTypes } from './metadata-state.js';
+import { getDeletionBusy } from './deletion-state.js';
+export * from './deletion-state.js';
+export * from './grid/cache-state.js';
 import { isWritableColumn } from '../writable-column.mjs';
 
-export let deletionBusy = false,
-  deletionTable = null,
-  deletionProgress = '',
-  deletionNotice = '';
 export const selectedRecords = new Map();
 export const pendingRows = new WeakSet();
 // Columns of each row whose new value is being saved, shown as saving.
@@ -21,11 +24,21 @@ export const $ = s => document.querySelector(s);
 /** @type {(selector: string, root?: ParentNode) => any[]} */
 export const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 export const state = {
-  tables: [],
-  table: null,
-  rows: [],
-  page: 0,
-  total: 0,
+  get tables() {
+    return getTables();
+  },
+  get table() {
+    return getTable();
+  },
+  get rows() {
+    return getRows();
+  },
+  get page() {
+    return getPage();
+  },
+  get total() {
+    return getTotal();
+  },
   token: '',
   direction: 'asc',
   edit: null,
@@ -34,26 +47,40 @@ export const state = {
   tableFolders: {},
   tableLabels: {},
   groupCounts: null,
-  lookups: [],
+  get lookups() {
+    return getLookups();
+  },
+  get formulas() {
+    return getFormulas();
+  },
   lookupResults: new Map(),
   lookupVersion: 0,
   lookupEditing: null,
-  history: new Map(),
-  historyBusy: false,
+  get historyBusy() {
+    return historyBusy();
+  },
   adminAvailable: false,
   adminError: '',
-  enumTypes: [],
-  configReady: false,
+  get enumTypes() {
+    return getEnumTypes();
+  },
+  get configReady() {
+    return getConfigReady();
+  },
   configAttempt: 0,
   initialRowsReady: false,
   cleanupPending: false,
-  views: {},
-  view: null,
+  get views() {
+    return getViews();
+  },
+  get view() {
+    return getView();
+  },
   loadVersion: 0,
 };
 export const name = t => t.name.replace(/^public\./, '');
 export const writable = c =>
-  !deletionBusy &&
+  !getDeletionBusy() &&
   state.configReady &&
   isWritableColumn(state.table, c, { formulas: state.formulas, lookups: state.lookups });
 export function el(tag, cls, text) {
@@ -61,51 +88,4 @@ export function el(tag, cls, text) {
   if (cls) x.className = cls;
   if (text !== undefined) x.textContent = text;
   return x;
-}
-export const pageCache = new Map();
-export const prefetching = new Set();
-// Bumped whenever a write clears the page cache; a prefetch started before the
-// write must not put stale rows back.
-export let cacheEpoch = 0;
-// Lookup results by (source table, key column, fields, value), kept for 60s.
-export const lookupCache = new Map();
-export function invalidateLookupCache(table) {
-  if (!table) {
-    lookupCache.clear();
-    return;
-  }
-  for (const [key, group] of lookupCache) if (group.table === table) lookupCache.delete(key);
-}
-// Key (table, search, filters) whose total row count is already known; page
-// changes within it skip the count query. Any write clears it with the cache.
-export let countedKey = null;
-export function clearPageCache() {
-  pageCache.clear();
-  prefetching.clear();
-  countedKey = null;
-  cacheEpoch++;
-}
-export let loadController = null;
-export function setDeletionNotice(value) {
-  return (deletionNotice = value);
-}
-
-export function setDeletionBusy(value) {
-  return (deletionBusy = value);
-}
-
-export function setDeletionTable(value) {
-  return (deletionTable = value);
-}
-
-export function setDeletionProgress(value) {
-  return (deletionProgress = value);
-}
-
-export function setLoadController(value) {
-  return (loadController = value);
-}
-
-export function setCountedKey(value) {
-  return (countedKey = value);
 }

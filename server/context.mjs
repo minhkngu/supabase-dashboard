@@ -7,6 +7,7 @@ import { createLookupStore } from '../lookup-store.mjs';
 import { createUiSettingsStore } from '../ui-settings-store.mjs';
 import { parseFormula } from '../formula-parser.mjs';
 import { createTtlCache } from '../server-cache.mjs';
+import { measure } from './timing.mjs';
 
 export const LOOKUP_STORE_MISSING = 'Chưa thiết lập nơi lưu lookup trên Supabase.';
 
@@ -52,7 +53,7 @@ export async function createContext(config, tables) {
       if (!t) throw Error('Bảng không được hỗ trợ');
       return t;
     },
-    upstream: (route, options) => upstream(config, route, options),
+    upstream: (route, options) => measure('upstream', () => upstream(config, route, options)),
     async refreshTables() {
       ctx.tables = await admin.visibleMetadata('anon');
     },
@@ -67,9 +68,9 @@ export async function createContext(config, tables) {
   let metadataCache = null,
     metadataPending = null,
     metadataGeneration = 0;
-  ctx.cachedMetadata = function cachedMetadata() {
+  function cachedMetadata() {
     if (metadataCache && Date.now() - metadataCache.time < 60000) return metadataCache.value;
-    if (metadataPending) return metadataPending;
+    if (metadataPending) return metadataCache ? metadataCache.value : metadataPending;
     const generation = metadataGeneration;
     const pending = Promise.all([admin.visibleMetadata('anon'), admin.enumTypes()])
       .then(([value, enumTypes]) => {
@@ -81,8 +82,14 @@ export async function createContext(config, tables) {
         if (metadataPending === pending) metadataPending = null;
       });
     metadataPending = pending;
+    if (metadataCache) {
+      // Làm mới ở nền; lỗi giữ bản cũ để lần sau thử lại.
+      pending.catch(() => {});
+      return metadataCache.value;
+    }
     return pending;
-  };
+  }
+  ctx.cachedMetadata = () => measure('meta', cachedMetadata);
   ctx.invalidateCaches = () => {
     metadataGeneration++;
     metadataCache = null;

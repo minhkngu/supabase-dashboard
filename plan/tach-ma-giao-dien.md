@@ -1,6 +1,6 @@
 # Tách dần mã giao diện
 
-**Trạng thái:** chưa làm. Làm dần, không chặn tính năng mới; mỗi bước nhỏ, giữ nguyên hành vi.
+**Trạng thái:** xong (13/11/2026). Các vùng metadata, cấu hình, lịch sử, dữ liệu và view lưới, cache và xóa đã được tách; thao tác sửa view và dòng đi qua module sở hữu. Các biến `export let` của state đã bỏ; còn 11 cặp import vòng, được chặn tăng trong lint. Kiểm thử đầy đủ: 103 unit test đạt, 1 benchmark bỏ qua khi thiếu cấu hình, 121 E2E đạt.
 
 Nguồn: đánh giá ngày 13/11/2026 trên `main` (`49031bd`).
 

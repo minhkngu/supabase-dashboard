@@ -3,7 +3,7 @@
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { updateHistoryButtons } from './history.js';
 import { isPromotionsOverview } from './overview/mode.js';
-import { $, deletionBusy, deletionNotice, selectedRecords, state } from './state.js';
+import { $, getDeletionBusy, getDeletionNotice, selectedRecords, state } from './state.js';
 
 export function syncChrome() {
   const table = state.table,
@@ -19,9 +19,9 @@ export function syncChrome() {
   $('#ruleChips').hidden = overview || !$('#ruleChips').children.length;
   // Adding works in both modes; undo/redo only concern grid cell edits.
   $('#add').hidden = !table;
-  $('#add').disabled = deletionBusy || !state.configReady || !table?.primary_keys?.length;
+  $('#add').disabled = getDeletionBusy() || !state.configReady || !table?.primary_keys?.length;
   $('#undoCell').hidden = overview;
   $('#redoCell').hidden = overview;
   updateHistoryButtons();
-  $('#rowSelectionBar').hidden = overview || !(deletionBusy || selectedRecords.size || deletionNotice);
+  $('#rowSelectionBar').hidden = overview || !(getDeletionBusy() || selectedRecords.size || getDeletionNotice());
 }
