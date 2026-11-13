@@ -29,5 +29,5 @@ for (const [from, targets] of edges) {
 }
 pairs.sort((a, b) => a.join(' ').localeCompare(b.join(' ')));
 for (const pair of pairs) console.log(pair.join(' ↔ '));
-console.log(`Số cặp import vòng: ${pairs.length} (tối đa 12)`);
-if (pairs.length > 12) process.exitCode = 1;
+console.log(`Số cặp import vòng: ${pairs.length} (tối đa 11)`);
+if (pairs.length > 11) process.exitCode = 1;
