@@ -1,6 +1,6 @@
 # Tăng tốc tải bảng trên Vercel
 
-**Trạng thái:** đã cấu hình vùng `icn1` và làm mới metadata ở nền; còn kiểm tra cấu hình Vercel, triển khai preview và đo thực tế (bước 3).
+**Trạng thái:** đã cấu hình vùng `icn1` và làm mới metadata ở nền; đã triển khai preview và xác nhận `x-vercel-id` chứa `icn1`; còn đo thực tế có đăng nhập (bước 3).
 
 Nguồn: đo trên bản preview `main` (`49031bd`) và đo trực tiếp từ máy cá nhân ngày 13/11/2026. Mọi phép đo chỉ dùng request đọc.
 
