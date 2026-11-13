@@ -1,7 +1,8 @@
 import { writeApi } from '../write-api.js';
 import { autoScrollWhileDragging } from '../dnd.js';
 import { toast } from '../api.js';
-import { expectedValues, historyFor, updateHistoryButtons } from '../history.js';
+import { expectedValues, updateHistoryButtons } from '../history.js';
+import { clearHistory } from '../history-state.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
 import { $, PAGE_SIZES, el, name, pendingRows, state, writable, $$ } from '../state.js';
@@ -462,9 +463,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   }
   failed.push(...errors.filter(Boolean));
   if (saved) {
-    const history = historyFor(table);
-    history.undo = [];
-    history.redo = [];
+    clearHistory(name(table));
     updateHistoryButtons();
   }
   if (state.table === table) await load({ silent: true });

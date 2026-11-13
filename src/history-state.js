@@ -28,3 +28,9 @@ export function forgetRecord(id, table, identity) {
       item => recordIdentity(table, item.beforeKey) !== identity && recordIdentity(table, item.afterKey) !== identity,
     );
 }
+
+export function clearHistory(id) {
+  const history = historyForName(id);
+  history.undo = [];
+  history.redo = [];
+}
