@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Siris
 
-**Trạng thái:** H4 đã chốt giữ giới hạn đăng nhập hiện tại. G đã có số thật cho bản cũ (`iad1`) và bản mới (`icn1`) ngày 13/11/2026, xem `plan/do-hieu-nang-tren-vercel.md`; còn đo một lần khi instance nguội.
+**Trạng thái:** xong (13/11/2026). H4 đã chốt giữ giới hạn đăng nhập hiện tại. G đã có số thật cho bản cũ (`iad1`) và bản mới (`icn1`), xem `plan/do-hieu-nang-tren-vercel.md`; phép đo lúc instance nguội và đo định kỳ theo dõi tiếp ở plan đó.
 
 Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (đã chọn giữ giới hạn hiện tại). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
