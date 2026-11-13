@@ -1,3 +1,4 @@
+import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { initColumnSync, setupColumnSync, columnSyncConfig, columnSyncSettingsSnapshot } from './column-sync.js';
 import { initColumnFormula, setupColumnFormula } from './column-formula.js';
 import { writeApi } from './write-api.js';
@@ -14,14 +15,14 @@ async function refreshMetadata() {
   const d = await api('/api/meta?refresh=1');
   state.adminAvailable = !!d.adminAvailable;
   state.adminError = d.adminError || '';
-  state.enumTypes = Array.isArray(d.enumTypes) ? d.enumTypes : [];
+  setEnumTypes(Array.isArray(d.enumTypes) ? d.enumTypes : []);
   state.token = d.token;
   const current = state.table && name(state.table);
-  state.tables = d.tables;
+  setTables(d.tables);
   restoreSidebar();
   const selected = state.tables.find(t => name(t) === current);
   if (selected && state.view) {
-    state.table = selected;
+    setTable(selected);
     state.view.filters = validFilterRules(state.view.filters, selected);
     state.view.groups = validRules(state.view.groups, selected);
     state.view.sorts = validRules(state.view.sorts, selected);
@@ -31,7 +32,7 @@ async function refreshMetadata() {
     await gridAction('load', { silent: true });
   } else if (state.tables.length) gridAction('choose', state.tables[0]);
   else {
-    state.table = null;
+    setTable(null);
     message('Không có bảng nào để hiển thị.');
   }
   return d;

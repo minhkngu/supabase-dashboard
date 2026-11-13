@@ -1,3 +1,4 @@
+import { getTables, getTable, getEnumTypes } from './metadata-state.js';
 import { deletionBusy } from './deletion-state.js';
 export * from './deletion-state.js';
 export * from './grid/cache-state.js';
@@ -20,8 +21,12 @@ export const $ = s => document.querySelector(s);
 /** @type {(selector: string, root?: ParentNode) => any[]} */
 export const $$ = (s, root = document) => [...root.querySelectorAll(s)];
 export const state = {
-  tables: [],
-  table: null,
+  get tables() {
+    return getTables();
+  },
+  get table() {
+    return getTable();
+  },
   rows: [],
   page: 0,
   total: 0,
@@ -41,7 +46,9 @@ export const state = {
   historyBusy: false,
   adminAvailable: false,
   adminError: '',
-  enumTypes: [],
+  get enumTypes() {
+    return getEnumTypes();
+  },
   configReady: false,
   configAttempt: 0,
   initialRowsReady: false,

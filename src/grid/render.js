@@ -1,3 +1,4 @@
+import { setTable } from '../metadata-state.js';
 import { columnHeader, updateFrozen } from './column-header.js';
 import { load } from './load.js';
 export { load } from './load.js';
@@ -63,7 +64,7 @@ export function choose(t) {
   state.rows = [];
   state.loadVersion++;
   state.lookupVersion++;
-  state.table = t;
+  setTable(t);
   clearBulk();
   const saved = state.views[name(t)] || {};
   if (

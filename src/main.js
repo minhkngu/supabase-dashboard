@@ -1,3 +1,4 @@
+import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { syncChrome } from './chrome.js';
 import { api, message, toast } from './api.js';
 import { choose, load, render } from './grid/render.js';
@@ -123,7 +124,7 @@ async function initialize() {
   // visit, so data appears without waiting for the metadata round trip.
   const saved = getJSON(storageKeys.metadata, null);
   if (Array.isArray(saved?.tables) && saved.tables.length) {
-    state.tables = saved.tables;
+    setTables(saved.tables);
     restoreSidebar();
     nav();
     cachedLoad = choose(state.tables.find(t => name(t) === current) || state.tables[0]);
@@ -132,10 +133,10 @@ async function initialize() {
     const apply = async next => {
       const old = state.table,
         oldName = old && name(old);
-      state.tables = next.tables;
+      setTables(next.tables);
       state.adminAvailable = !!next.adminAvailable;
       state.adminError = next.adminError || '';
-      state.enumTypes = Array.isArray(next.enumTypes) ? next.enumTypes : [];
+      setEnumTypes(Array.isArray(next.enumTypes) ? next.enumTypes : []);
       state.token = next.token;
       $('#logoutBtn').hidden = !next.logout;
       restoreSidebar();
@@ -143,7 +144,7 @@ async function initialize() {
       setJSON(storageKeys.metadata, { tables: state.tables });
       const selected = state.tables.find(t => name(t) === (oldName || current)) || state.tables[0];
       if (!selected) {
-        state.table = null;
+        setTable(null);
         message('Không có bảng nào để hiển thị.');
         return;
       }
