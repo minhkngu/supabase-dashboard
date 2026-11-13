@@ -1,3 +1,4 @@
+import { writeApi } from './write-api.js';
 import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
 import { nativeRelations, relationDisplayField } from './relation-display.js';
@@ -262,7 +263,7 @@ export function initRecordEditor() {
       const key = state.edit ? Object.fromEntries(state.table.primary_keys.map(k => [k, state.edit[k]])) : undefined;
       if (state.edit && !state.table.primary_keys.length) throw Error('Bảng không có khóa chính để xác định bản ghi.');
       $('#save').disabled = true;
-      await api(`/api/table/${name(state.table)}`, {
+      await writeApi(`/api/table/${name(state.table)}`, {
         method: state.edit ? 'PATCH' : 'POST',
         body: JSON.stringify({ values, key }),
       });

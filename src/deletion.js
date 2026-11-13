@@ -1,8 +1,9 @@
+import { writeApi } from './write-api.js';
 import { syncChrome } from './chrome.js';
 import { confirmDialog } from './confirm.js';
 import { PROMOTIONS_TABLE } from '../table-config.mjs';
 import { deleteRecordBatch, recordIdentity } from '../record-deletion.mjs';
-import { api, toast } from './api.js';
+import { toast } from './api.js';
 import { gridAction } from './events.js';
 import { bulkBusy, clearBulk } from './grid/selection.js';
 import { updateHistoryButtons } from './history.js';
@@ -177,7 +178,7 @@ export async function deleteRecords(rows) {
   let result;
   try {
     result = await deleteRecordBatch({
-      api,
+      api: writeApi,
       table,
       rows: records,
       onProgress: (current, total) => {

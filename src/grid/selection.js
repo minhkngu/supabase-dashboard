@@ -1,5 +1,6 @@
+import { writeApi } from '../write-api.js';
 import { autoScrollWhileDragging } from '../dnd.js';
-import { api, toast } from '../api.js';
+import { toast } from '../api.js';
 import { expectedValues, historyFor, updateHistoryButtons } from '../history.js';
 import { valueFor } from '../record-editor.js';
 import { nativeRelations } from '../relation-display.js';
@@ -423,7 +424,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   try {
     for (let start = 0; start < changes.length; start += 50) {
       const chunk = changes.slice(start, start + 50);
-      const result = await api(`/api/table/${name(table)}/batch`, {
+      const result = await writeApi(`/api/table/${name(table)}/batch`, {
         method: 'POST',
         body: JSON.stringify({
           changes: chunk.map(({ key, values, expected }) => ({

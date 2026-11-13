@@ -1,3 +1,4 @@
+import { onDataChanged } from './events.js';
 import { isWritableColumn } from '../writable-column.mjs';
 
 export let deletionBusy = false,
@@ -109,3 +110,8 @@ export function setLoadController(value) {
 export function setCountedKey(value) {
   return (countedKey = value);
 }
+
+onDataChanged(table => {
+  clearPageCache();
+  invalidateLookupCache(table);
+});

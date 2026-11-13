@@ -1,3 +1,4 @@
+import { writeApi } from './write-api.js';
 import { confirmDialog } from './confirm.js';
 import { api, toast } from './api.js';
 import { expectedValues } from './history.js';
@@ -221,7 +222,10 @@ function showLookupList() {
         return;
       if (lookupCloudAvailable) {
         try {
-          await api('/api/lookup-config', { method: 'POST', body: JSON.stringify({ action: 'delete', id: x.id }) });
+          await writeApi('/api/lookup-config', {
+            method: 'POST',
+            body: JSON.stringify({ action: 'delete', id: x.id }),
+          });
         } catch (error) {
           $('#lookupError').textContent = error.message;
           return;
@@ -324,7 +328,7 @@ export function initLookup() {
       }
       let saved = x;
       if (lookupCloudAvailable) {
-        const result = await api('/api/lookup-config', {
+        const result = await writeApi('/api/lookup-config', {
           method: 'POST',
           body: JSON.stringify({ action: 'save', config: x, signature }),
         });
@@ -613,7 +617,7 @@ async function loadPicker() {
     direction: 'asc',
   });
   try {
-    const result = await api(`/api/table/${config.targetTable}?${query}`);
+    const result = await writeApi(`/api/table/${config.targetTable}?${query}`);
     if (picker !== pickerState || picker.version !== version) return;
     const list = $('#pickerList');
     list.replaceChildren();
@@ -647,7 +651,7 @@ async function saveLink(value) {
   try {
     if (value !== picker.row[picker.column.name]) {
       const key = Object.fromEntries(picker.table.primary_keys.map(k => [k, picker.row[k]]));
-      await api(`/api/table/${name(picker.table)}`, {
+      await writeApi(`/api/table/${name(picker.table)}`, {
         method: 'PATCH',
         body: JSON.stringify({
           key,

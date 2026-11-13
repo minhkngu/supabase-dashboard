@@ -18,3 +18,11 @@ export function gridAction(action, value) {
   if (detail.error) throw detail.error;
   return detail.result;
 }
+
+export function onDataChanged(handler) {
+  events.addEventListener('data-changed', event => handler(/** @type {CustomEvent} */ (event).detail));
+}
+
+export function dataChanged(table = null) {
+  events.dispatchEvent(new CustomEvent('data-changed', { detail: table }));
+}

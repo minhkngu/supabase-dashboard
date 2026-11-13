@@ -1,3 +1,4 @@
+import { writeApi } from './write-api.js';
 import { confirmDialog } from './confirm.js';
 import { api, message, toast } from './api.js';
 import { gridAction } from './events.js';
@@ -311,7 +312,7 @@ async function schemaOperation(operation) {
     !(await confirmDialog({ title: 'Xóa cột?', message: msg, confirmLabel: 'Xóa cột', danger: true }))
   )
     return false;
-  await api('/api/admin/schema/apply', {
+  await writeApi('/api/admin/schema/apply', {
     method: 'POST',
     body: JSON.stringify({ operation, signature: preview.signature }),
   });
@@ -618,7 +619,7 @@ function columnSteps(spec, table, ctx) {
           x => x.sourceTable === table && x.columnBound === true && x.sync?.enabled && x.sync.columnName === c.name,
         );
         if (lookup) {
-          const result = await api('/api/lookup-sync/rename', {
+          const result = await writeApi('/api/lookup-sync/rename', {
             method: 'POST',
             body: JSON.stringify({ table, column: c.name, newName: label, id: lookup.id }),
           });
@@ -672,7 +673,7 @@ function formulaStep(ctx) {
     enables: enabled,
     async run() {
       const config = { table: initial.table, column: ctx.column, expression, enabled },
-        result = await api('/api/formula-config', { method: 'POST', body: JSON.stringify(config) });
+        result = await writeApi('/api/formula-config', { method: 'POST', body: JSON.stringify(config) });
       state.formulas = (state.formulas || []).filter(
         f => f.table !== config.table || ![initial.column, config.column].includes(f.column),
       );
@@ -691,7 +692,7 @@ function syncStep(ctx) {
     async run() {
       const config = columnSyncConfig(ctx.column),
         preview = await api('/api/lookup-sync/preview', { method: 'POST', body: JSON.stringify(config) });
-      const result = await api('/api/lookup-config', {
+      const result = await writeApi('/api/lookup-config', {
           method: 'POST',
           body: JSON.stringify({ action: 'save', config, signature: preview.signature }),
         }),

@@ -1,4 +1,5 @@
-import { api, toast } from './api.js';
+import { writeApi } from './write-api.js';
+import { toast } from './api.js';
 import { gridAction } from './events.js';
 import { $, deletionBusy, name, state } from './state.js';
 
@@ -27,7 +28,7 @@ export function expectedValues(table, values) {
 export async function commitCell(table, row, column, value) {
   const key = Object.fromEntries(table.primary_keys.map(k => [k, row[k]])),
     old = row[column.name] ?? null;
-  const result = await api(`/api/table/${name(table)}`, {
+  const result = await writeApi(`/api/table/${name(table)}`, {
     method: 'PATCH',
     body: JSON.stringify({
       key,
@@ -72,7 +73,7 @@ export async function changeHistory(direction) {
       key = undo ? item.afterKey : item.beforeKey,
       value = undo ? item.before : item.after,
       expected = undo ? item.after : item.before;
-    await api(`/api/table/${name(table)}`, {
+    await writeApi(`/api/table/${name(table)}`, {
       method: 'PATCH',
       body: JSON.stringify({
         key,
