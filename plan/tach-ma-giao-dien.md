@@ -1,6 +1,6 @@
 # Tách dần mã giao diện
 
-**Trạng thái:** đã hoàn thành bước 1, 2 và 4; bước 5 đã tách tải lưới, tiêu đề cột, lookup, formula và CSS. Bước 3 đã tách metadata, cấu hình, lịch sử, dữ liệu, phân trang và view lưới, cache và xóa; đã bỏ các biến export let của state. Các module khác vẫn sửa trực tiếp thuộc tính bên trong view và dữ liệu lồng nhau, nên chưa đạt yêu cầu chỉ module sở hữu ghi. Số cặp import vòng hiện là 11.
+**Trạng thái:** xong (13/11/2026). Các vùng metadata, cấu hình, lịch sử, dữ liệu và view lưới, cache và xóa đã được tách; thao tác sửa view và dòng đi qua module sở hữu. Các biến `export let` của state đã bỏ; còn 11 cặp import vòng, được chặn tăng trong lint. Kiểm thử đầy đủ: 103 unit test đạt, 1 benchmark bỏ qua khi thiếu cấu hình, 121 E2E đạt.
 
 Nguồn: đánh giá ngày 13/11/2026 trên `main` (`49031bd`).
 
