@@ -183,9 +183,9 @@ Deploy không tự thay đổi dữ liệu Supabase.
 | File | Nội dung | Trạng thái |
 | --- | --- | --- |
 | [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Xong |
-| [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Còn đo trên Vercel (G); H4 giữ giới hạn hiện tại |
+| [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | G đã đo (13/11); H4 giữ giới hạn hiện tại |
 | [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong (PR #4) |
-| [`plan/sua-loi-treo-dang-tai-du-lieu.md`](plan/sua-loi-treo-dang-tai-du-lieu.md) | Bảng đứng ở "Đang tải dữ liệu" vì lưu cấu hình giao diện làm bỏ kết quả tải | Đã sửa (PR #5), còn kiểm trên Vercel |
-| [`plan/toc-do-tai-bang-tren-vercel.md`](plan/toc-do-tai-bang-tren-vercel.md) | Tải bảng chậm trên Vercel (function ở `iad1`, database ở Seoul) | Đã cấu hình vùng và cache metadata; còn kiểm tra, đo trên Vercel |
-| [`plan/do-hieu-nang-tren-vercel.md`](plan/do-hieu-nang-tren-vercel.md) | Đo định kỳ trên Vercel: `Server-Timing`, script đo, ngưỡng, bảng kết quả | Đã bật Server-Timing và triển khai preview; còn đo trên Vercel |
+| [`plan/sua-loi-treo-dang-tai-du-lieu.md`](plan/sua-loi-treo-dang-tai-du-lieu.md) | Bảng đứng ở "Đang tải dữ liệu" vì lưu cấu hình giao diện làm bỏ kết quả tải | Xong; đã kiểm trên Vercel |
+| [`plan/toc-do-tai-bang-tren-vercel.md`](plan/toc-do-tai-bang-tren-vercel.md) | Tải bảng chậm trên Vercel (function ở `iad1`, database ở Seoul) | Xong: `icn1`, tải bảng 154–317 ms |
+| [`plan/do-hieu-nang-tren-vercel.md`](plan/do-hieu-nang-tren-vercel.md) | Đo định kỳ trên Vercel: `Server-Timing`, script đo, ngưỡng, bảng kết quả | Đã đo lần đầu; còn đo lúc instance nguội và đo định kỳ |
 | [`plan/tach-ma-giao-dien.md`](plan/tach-ma-giao-dien.md) | Tách dần mã giao diện: trạng thái toàn cục, import vòng, thứ tự `init*`, file lớn | Đã tách sự kiện, khởi tạo, CSS và các module lớn; còn gom trạng thái |

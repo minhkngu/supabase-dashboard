@@ -1,6 +1,6 @@
 # Kế hoạch triển khai Siris
 
-**Trạng thái:** H4 đã chốt giữ giới hạn đăng nhập hiện tại; còn đo hiệu năng Vercel (G).
+**Trạng thái:** H4 đã chốt giữ giới hạn đăng nhập hiện tại. G đã có số thật cho bản cũ (`iad1`) và bản mới (`icn1`) ngày 13/11/2026, xem `plan/do-hieu-nang-tren-vercel.md`; còn đo một lần khi instance nguội.
 
 Cập nhật 13/11/2026: PR #3 và PR #4 đã merge vào `main`, CI xanh; giai đoạn H xong trừ H4 (đã chọn giữ giới hạn hiện tại). Còn lại: đo trên Vercel (G) và các lỗi mới trong `plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`. Phần dưới giữ lịch sử từ 12/11/2026. Bản online chạy trên **Vercel**; `chatgpt-site/` (Sites) và Supabase Edge Function không còn dùng.
 
@@ -272,7 +272,7 @@ Chỉ làm khi có số đo chứng minh: phân trang theo khóa (bảng > 50.00
 | D | CI | **Xong**; ba job xanh trên Ubuntu 24.04 |
 | E | Rà mã chết, `storage`, tách e2e, bảo mật Vercel | **Xong** (E1–E4); tài liệu và giới hạn đăng nhập xem H3–H4 |
 | H | Sửa các lỗi còn lại: CI đỏ (H1), Node (H2), tài liệu (H3, H5), mô tả PR (H6) | **Xong** H1–H3, H5, H6; H4 giữ giới hạn hiện tại |
-| G (B4) | Đo một lần trên Vercel | Sau H, do người dùng thao tác |
+| G (B4) | Đo một lần trên Vercel | **Xong phần chính** (13/11/2026): số trong `plan/do-hieu-nang-tren-vercel.md`; còn đo lúc instance nguội |
 
 ---
 
