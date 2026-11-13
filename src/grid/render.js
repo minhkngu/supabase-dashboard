@@ -1,3 +1,4 @@
+import { setPage, setRows } from './grid-state.js';
 import { setTable } from '../metadata-state.js';
 import { columnHeader, updateFrozen } from './column-header.js';
 import { load } from './load.js';
@@ -61,7 +62,7 @@ export function choose(t) {
   promotionsOverview.cancel();
   tableOverview.cancel();
   setOverviewMode(savedOverviewMode(t));
-  state.rows = [];
+  setRows([]);
   state.loadVersion++;
   state.lookupVersion++;
   setTable(t);
@@ -92,7 +93,7 @@ export function choose(t) {
     page: Number.isSafeInteger(saved.page) && saved.page >= 0 ? Math.min(saved.page, 100000) : 0,
     pageSize: PAGE_SIZES.includes(saved.pageSize) ? saved.pageSize : PAGE_SIZE,
   };
-  state.page = state.view.page;
+  setPage(state.view.page);
   $('#search').value = state.view.search;
   const searchColumn = $('#searchColumn');
   searchColumn.replaceChildren(

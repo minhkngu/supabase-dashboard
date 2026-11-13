@@ -1,3 +1,4 @@
+import { setPage, setRows, setTotal } from './grid-state.js';
 import { pageQuery, putPage, prefetchPage } from './page-cache.js';
 import { gridAction } from '../events.js';
 import { PROMOTIONS_TABLE } from '../../table-config.mjs';
@@ -92,8 +93,8 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
   // A cached page appears immediately, even after its 60-second freshness
   // window; the network request below refreshes it in the background.
   if (canShowCached) {
-    state.rows = structuredClone(cached.data.rows);
-    if (cached.data.total != null) state.total = cached.data.total;
+    setRows(structuredClone(cached.data.rows));
+    if (cached.data.total != null) setTotal(cached.data.total);
     gridAction('render');
     loadLookups();
     loadNativeDisplays();
@@ -113,18 +114,20 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
     if (!skipCount && d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;
     if (state.page > 0 && state.page * limit >= total) {
-      state.page = total ? Math.floor((total - 1) / limit) : 0;
+      setPage(total ? Math.floor((total - 1) / limit) : 0);
       return load({ silent });
     }
     if ((silent || canShowCached) && table.primary_keys?.length) {
       const key = row => JSON.stringify(table.primary_keys.map(k => row[k])),
         existing = new Map(state.rows.map(row => [key(row), row]));
-      state.rows = d.rows.map(row => {
-        const old = existing.get(key(row));
-        return old ? Object.assign(old, row) : row;
-      });
-    } else state.rows = d.rows;
-    state.total = total;
+      setRows(
+        d.rows.map(row => {
+          const old = existing.get(key(row));
+          return old ? Object.assign(old, row) : row;
+        }),
+      );
+    } else setRows(d.rows);
+    setTotal(total);
     state.initialRowsReady = true;
     state.groupCounts = null;
     void loadGroupCounts(table, version);

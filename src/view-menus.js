@@ -1,3 +1,4 @@
+import { setPage } from './grid/grid-state.js';
 import { columnKind, icon } from './icons.js';
 import { toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
@@ -482,7 +483,7 @@ export function renderViewMenu(kind) {
 
 // open: false applies the rules without showing the toolbar menu.
 export function applyRules(kind, { open = true } = {}) {
-  state.page = 0;
+  setPage(0);
   state.collapsed.clear();
   persistView();
   renderViewMenu(kind);

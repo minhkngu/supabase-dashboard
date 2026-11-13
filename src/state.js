@@ -1,3 +1,4 @@
+import { getRows, getPage, getTotal } from './grid/grid-state.js';
 import { historyBusy } from './history-state.js';
 import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
@@ -29,9 +30,15 @@ export const state = {
   get table() {
     return getTable();
   },
-  rows: [],
-  page: 0,
-  total: 0,
+  get rows() {
+    return getRows();
+  },
+  get page() {
+    return getPage();
+  },
+  get total() {
+    return getTotal();
+  },
   token: '',
   direction: 'asc',
   edit: null,

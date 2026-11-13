@@ -1,3 +1,4 @@
+import { setPage, setRows, setTotal } from './grid/grid-state.js';
 import { forgetRecord } from './history-state.js';
 import { writeApi } from './write-api.js';
 import { syncChrome } from './chrome.js';
@@ -165,7 +166,7 @@ export async function deleteRecords(rows) {
   setDeletionTable(table);
   setDeletionNotice('');
   setDeletionProgress(`Đang chuẩn bị xóa ${records.length} dòng trong ${name(table)}…`);
-  if (isPromotionsOverview() && state.table.name === PROMOTIONS_TABLE) state.total = promotionsOverview.total();
+  if (isPromotionsOverview() && state.table.name === PROMOTIONS_TABLE) setTotal(promotionsOverview.total());
   loadController?.abort();
   state.loadVersion++;
   promotionsOverview.cancel();
@@ -194,8 +195,8 @@ export async function deleteRecords(rows) {
         state.loadVersion++;
         promotionsOverview.cancel();
         selectedRecords.delete(entry.identity);
-        state.rows = state.rows.filter(row => recordIdentity(table, row) !== entry.identity);
-        state.total = Math.max(0, state.total - 1);
+        setRows(state.rows.filter(row => recordIdentity(table, row) !== entry.identity));
+        setTotal(Math.max(0, state.total - 1));
         if ($('#editor').open && recordIdentity(table, state.edit) === entry.identity) {
           $('#editor').close();
           state.edit = null;
@@ -241,7 +242,7 @@ export async function deleteRecords(rows) {
     updateRowSelection();
   }
   if (state.table?.name === table.name) {
-    state.page = Math.max(0, Math.min(state.page, Math.ceil(state.total / pageSize()) - 1));
+    setPage(Math.max(0, Math.min(state.page, Math.ceil(state.total / pageSize()) - 1)));
     persistView();
     await refreshAfterWrite(table);
   }

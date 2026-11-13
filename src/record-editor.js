@@ -1,3 +1,4 @@
+import { setPage } from './grid/grid-state.js';
 import { writeApi } from './write-api.js';
 import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
@@ -285,7 +286,7 @@ export function initRecordEditor() {
   // replacing an active editor or a row whose changes are still saving.
   $('#refresh').onclick = () => gridAction('load', { silent: true });
   $('#prev').onclick = () => {
-    state.page--;
+    setPage(state.page - 1);
     persistView();
     void gridAction('load', { silent: true });
   };
@@ -295,18 +296,18 @@ export function initRecordEditor() {
     // Keep the first visible row on screen when the page size changes.
     const firstRow = state.page * pageSize();
     state.view.pageSize = size;
-    state.page = Math.floor(firstRow / size);
+    setPage(Math.floor(firstRow / size));
     persistView();
     void gridAction('load', { silent: true });
   };
   $('#next').onclick = () => {
-    state.page++;
+    setPage(state.page + 1);
     persistView();
     void gridAction('load', { silent: true });
   };
   let previewTimer;
   $('#search').oninput = () => {
-    state.page = 0;
+    setPage(0);
     persistView();
     clearTimeout(timer);
     clearTimeout(previewTimer);
@@ -324,7 +325,7 @@ export function initRecordEditor() {
     } else void gridAction('load', { silent: true });
   };
   $('#searchColumn').onchange = () => {
-    state.page = 0;
+    setPage(0);
     persistView();
     const value = $('#search').value.trim();
     if (!value || value.length >= 2) void gridAction('load', { silent: true });
