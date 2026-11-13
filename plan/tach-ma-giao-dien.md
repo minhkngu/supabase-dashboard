@@ -1,6 +1,6 @@
 # Tách dần mã giao diện
 
-**Trạng thái:** chưa làm. Làm dần, không chặn tính năng mới; mỗi bước nhỏ, giữ nguyên hành vi.
+**Trạng thái:** đã thêm kiểm tra 18 cặp import vòng vào lint (bước 1); còn bước 2–5. Làm dần, giữ nguyên hành vi.
 
 Nguồn: đánh giá ngày 13/11/2026 trên `main` (`49031bd`).
 

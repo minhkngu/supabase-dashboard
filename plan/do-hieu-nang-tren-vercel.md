@@ -1,6 +1,6 @@
 # Đo hiệu năng định kỳ trên Vercel
 
-**Trạng thái:** chưa làm. Lần đo đầu tiên làm ngay sau `plan/toc-do-tai-bang-tren-vercel.md` bước 1–2.
+**Trạng thái:** đã cải tiến script đo; còn mở rộng và bật `Server-Timing`, triển khai preview và đo thực tế.
 
 Mục tiêu: có số thật trên Vercel (không chỉ mô phỏng bằng `npm run bench`), đo cùng một cách mỗi lần để so trước/sau, và biết khi nào chậm đi.
 

@@ -1,6 +1,6 @@
 # Sửa lỗi bảng đứng ở "Đang tải dữ liệu"
 
-**Trạng thái:** bước 1–3 xong ở commit `d60c697` (merge qua PR #5): `api()` không xóa cache cho `/api/ui-settings`, `load()` tải lại khi `cacheEpoch` đổi, có e2e trong `tests/e2e/ui-sync.spec.ts`. Còn bước 4 (kiểm trên Vercel) và việc nhỏ: `/api/lookup-config/cleanup-disabled` vẫn xóa cache trang.
+**Trạng thái:** bước 1–3 xong ở commit `d60c697` (merge qua PR #5): `api()` không xóa cache cho `/api/ui-settings`, `load()` tải lại khi `cacheEpoch` đổi, có e2e trong `tests/e2e/ui-sync.spec.ts`. Đã sửa thêm `/api/lookup-config/cleanup-disabled` để không xóa cache trang; còn bước 4 (kiểm trên Vercel).
 
 Nguồn: tái hiện ngày 13/11/2026 trên bản preview `main` (`49031bd`) và bằng máy chủ cục bộ chỉ đọc nối dữ liệu thật. Lỗi có từ PR #4 (đồng bộ cấu hình giao diện).
 
