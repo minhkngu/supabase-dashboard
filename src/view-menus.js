@@ -234,6 +234,7 @@ export function initViewMenus() {
     colSearch.oninput = () => renderColumnVisibility(colSearch.value);
     colSearch.onclick = e => e.stopPropagation();
   }
+  initViewMenuControls();
 }
 
 const showAllBtn = $('#showAllColumns');
@@ -493,7 +494,7 @@ export function applyRules(kind, { open = true } = {}) {
   }
   void load({ silent: true });
 }
-export function initViewMenus2() {
+function initViewMenuControls() {
   for (const kind of ['filter', 'group', 'sort']) {
     const btn = $('#' + kind + 'Button');
     if (btn)

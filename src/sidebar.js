@@ -332,6 +332,7 @@ export function initSidebar() {
     $('#addFolder').setAttribute('aria-expanded', 'false');
   };
   $('#tableSearch').oninput = () => nav();
+  initSidebarControls();
 }
 
 export function closeNav() {
@@ -348,7 +349,7 @@ function toggleSidebar() {
   $('#sidebarToggleBtn')?.setAttribute('title', expanded ? 'Thu gọn thanh bên (⌘B)' : 'Mở rộng thanh bên (⌘B)');
   setText(storageKeys.sidebarCollapsed, String(!expanded));
 }
-export function initSidebar2() {
+function initSidebarControls() {
   $('#toggleSidebar')?.addEventListener('click', e => {
     if (e.target.closest('#closeNav')) return;
     toggleSidebar();
