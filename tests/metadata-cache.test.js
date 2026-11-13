@@ -12,7 +12,7 @@ it('trả metadata cũ khi làm mới và chờ bản mới sau khi xóa cache',
   vi.useFakeTimers();
   mock.read.mockReset().mockResolvedValueOnce(['cũ']);
   mock.enums.mockReset().mockResolvedValue([]);
-  let resolve = value => {};
+  let resolve = _value => {};
   mock.read.mockImplementationOnce(() => new Promise(r => (resolve = r)));
   const ctx = await createContext({ admin: { url: '' } }, []);
   expect((await ctx.cachedMetadata()).tables).toEqual(['cũ']);

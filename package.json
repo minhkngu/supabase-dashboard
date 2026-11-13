@@ -9,7 +9,7 @@
     "pretest": "vite build",
     "dev": "node dev.mjs",
     "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-imports.mjs",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.js.json",
     "test:e2e": "playwright test",
     "bench": "node scripts/bench.mjs",
