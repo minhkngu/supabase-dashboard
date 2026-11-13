@@ -1,7 +1,9 @@
 name: Unit test
 
 on:
+  # Nhánh khác main chỉ chạy qua pull_request, để một commit không bị kiểm hai lần.
   push:
+    branches: [main]
   pull_request:
 
 # Một lượt mới trên cùng nhánh hủy lượt đang chạy.

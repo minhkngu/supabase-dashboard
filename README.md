@@ -131,7 +131,7 @@ npm run test:e2e
 
 - Vitest (`tests/*.test.js`) kiểm tra logic và API. Playwright (`tests/e2e/`) kiểm tra luồng trên trình duyệt với API giả lập, chia theo tính năng; mỗi test dừng sau 15 giây.
 - Dùng Chromium có sẵn: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e`.
-- CI (Ubuntu 24.04): `.github/workflows/unit-test.yml` chạy Vitest (Node 22 và 24, có build); `.github/workflows/ci.yml` gồm `checks` (lint, format, typecheck; Node 22 và 24), `bench-cache` (PostgreSQL 16), `e2e`.
+- CI (Ubuntu 24.04): `.github/workflows/unit-test.yml` chạy Vitest (Node 22 và 24, có build); `.github/workflows/ci.yml` gồm `checks` (lint, format, typecheck), `bench-cache` (PostgreSQL 16, chỉ chạy `tests/bench-cache.test.js`), `e2e`. Nhánh khác `main` chỉ chạy CI khi có pull request.
 - Kiểm thử tự động dùng dữ liệu giả lập, không thay cho nghiệm thu RLS, Storage, Realtime hay ghi thật. Không ghi lên Supabase thật khi chưa được phê duyệt.
 
 ### Đo hiệu năng
