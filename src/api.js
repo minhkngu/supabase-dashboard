@@ -7,7 +7,8 @@ export async function api(url, opts = {}) {
     opts.method &&
     !['GET', 'HEAD'].includes(opts.method.toUpperCase()) &&
     !url.startsWith('/api/lookup/') &&
-    !url.startsWith('/api/ui-settings')
+    !url.startsWith('/api/ui-settings') &&
+    !url.startsWith('/api/lookup-config/cleanup-disabled')
   ) {
     clearPageCache();
     const match = url.match(/^\/api\/table\/([^/?]+)/);
