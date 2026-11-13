@@ -1,3 +1,4 @@
+import { patchView, insertDuplicateColumn, renameViewColumn } from './grid/grid-state.js';
 import { addFormula, setFormulas, setLookups } from './config-state.js';
 import { setTables, setTable, setEnumTypes } from './metadata-state.js';
 import { initColumnSync, setupColumnSync, columnSyncConfig, columnSyncSettingsSnapshot } from './column-sync.js';
@@ -24,9 +25,11 @@ async function refreshMetadata() {
   const selected = state.tables.find(t => name(t) === current);
   if (selected && state.view) {
     setTable(selected);
-    state.view.filters = validFilterRules(state.view.filters, selected);
-    state.view.groups = validRules(state.view.groups, selected);
-    state.view.sorts = validRules(state.view.sorts, selected);
+    patchView({
+      filters: validFilterRules(state.view.filters, selected),
+      groups: validRules(state.view.groups, selected),
+      sorts: validRules(state.view.sorts, selected),
+    });
     gridAction('render');
     persistView();
     nav();
@@ -197,12 +200,7 @@ export function initColumnDialog() {
       if (state.table && name(state.table) === source.table) {
         await refreshMetadata();
         if (!state.table || name(state.table) !== source.table) return;
-        const order = state.view.order,
-          copy = 'col:' + newName,
-          original = 'col:' + source.column;
-        const current = order.indexOf(copy);
-        if (current >= 0) order.splice(current, 1);
-        order.splice(Math.max(0, order.indexOf(original) + 1), 0, copy);
+        insertDuplicateColumn('col:' + source.column, 'col:' + newName);
         persistView();
         gridAction('render');
       }
@@ -275,16 +273,8 @@ async function schemaOperation(operation) {
   return true;
 }
 function migrateViewColumn(oldName, newName) {
-  const v = state.view;
-  if (!v) return;
-  for (const rules of [v.filters, v.groups, v.sorts])
-    for (const r of rules || []) if (r.column === oldName) r.column = newName;
-  for (const list of [v.order, v.frozen, v.hidden])
-    for (let i = 0; i < (list || []).length; i++) if (list[i] === 'col:' + oldName) list[i] = 'col:' + newName;
-  if (v.widths && Object.hasOwn(v.widths, 'col:' + oldName)) {
-    v.widths['col:' + newName] = v.widths['col:' + oldName];
-    delete v.widths['col:' + oldName];
-  }
+  if (!state.view) return;
+  renameViewColumn(oldName, newName);
   persistView();
 }
 function showColumnError(table, text) {

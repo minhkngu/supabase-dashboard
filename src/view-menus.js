@@ -1,4 +1,4 @@
-import { setPage } from './grid/grid-state.js';
+import { setPage, patchView, patchRule, addRule, removeRule, moveRule } from './grid/grid-state.js';
 import { columnKind, icon } from './icons.js';
 import { toast } from './api.js';
 import { createCustomSelect } from './custom-select.js';
@@ -47,11 +47,13 @@ function currentView() {
 }
 export function persistView() {
   if (!state.table || !state.view) return;
-  state.view.search = $('#search').value;
-  state.view.searchColumn = $('#searchColumn')?.value || '';
-  state.view.freezeDefaultInitialized = true;
-  state.view.page = state.page;
-  state.view.collapsed = [...state.collapsed];
+  patchView({
+    search: $('#search').value,
+    searchColumn: $('#searchColumn')?.value || '',
+    freezeDefaultInitialized: true,
+    page: state.page,
+    collapsed: [...state.collapsed],
+  });
   state.views[name(state.table)] = state.view;
   const saved = setJSON(storageKeys.views, state.views);
   setText(storageKeys.currentTable, name(state.table));
@@ -73,9 +75,11 @@ export function displayedColumns(includeHidden = false) {
     byId = new Map(all.map(x => [x.id, x])),
     v = currentView();
   const ids = [...new Set([...(v.order || []).filter(id => byId.has(id)), ...all.map(x => x.id)])];
-  v.frozen = [...new Set((v.frozen || []).filter(id => byId.has(id)))];
-  v.order = ids;
-  v.hidden = [...new Set((v.hidden || []).filter(id => byId.has(id)))];
+  patchView({
+    frozen: [...new Set((v.frozen || []).filter(id => byId.has(id)))],
+    order: ids,
+    hidden: [...new Set((v.hidden || []).filter(id => byId.has(id)))],
+  });
   return [...ids.filter(id => v.frozen.includes(id)), ...ids.filter(id => !v.frozen.includes(id))]
     .filter(id => includeHidden || !v.hidden.includes(id))
     .map(id => byId.get(id));
@@ -83,7 +87,7 @@ export function displayedColumns(includeHidden = false) {
 export function setVisibleOrder(ids) {
   const present = new Set(ids);
   let i = 0;
-  state.view.order = state.view.order.map(id => (present.has(id) ? ids[i++] : id));
+  patchView({ order: state.view.order.map(id => (present.has(id) ? ids[i++] : id)) });
 }
 function moveColumnInList(from, to, after = false) {
   const columns = displayedColumns(true).map(spec => spec.id),
@@ -196,9 +200,9 @@ function renderColumnVisibility(filterQuery = '') {
         toast('Cần giữ ít nhất một cột hiển thị.');
         return;
       }
-      state.view.hidden = box.checked
-        ? state.view.hidden.filter(id => id !== spec.id)
-        : [...state.view.hidden, spec.id];
+      patchView({
+        hidden: box.checked ? state.view.hidden.filter(id => id !== spec.id) : [...state.view.hidden, spec.id],
+      });
       persistView();
       clearBulk();
       render();
@@ -225,7 +229,7 @@ export function initViewMenus() {
   };
   if (showAllBtn) {
     showAllBtn.onclick = () => {
-      state.view.hidden = [];
+      patchView({ hidden: [] });
       persistView();
       render();
       renderColumnVisibility($('#columnSearchInput')?.value || '');
@@ -303,8 +307,7 @@ export function renderViewMenu(kind) {
         ariaLabel: `Cột lọc ${index + 1}`,
         searchPlaceholder: 'Tìm cột...',
         onChange(newCol) {
-          rule.column = newCol;
-          rule.value = '';
+          patchRule('filters', index, { column: newCol, value: '' });
           applyRules('filter');
         },
       });
@@ -342,14 +345,14 @@ export function renderViewMenu(kind) {
           { value: 'empty', label: 'để trống' },
           { value: 'not_empty', label: 'có dữ liệu' },
         );
-      if (!ops.some(o => o.value === rule.operator)) rule.operator = ops[0].value;
+      if (!ops.some(o => o.value === rule.operator)) patchRule('filters', index, { operator: ops[0].value });
       const opDropdown = createCustomSelect({
         options: ops,
         value: rule.operator,
         className: 'op-select',
         ariaLabel: `Toán tử lọc ${index + 1}`,
         onChange(newOp) {
-          rule.operator = newOp;
+          patchRule('filters', index, { operator: newOp });
           applyRules('filter');
         },
       });
@@ -365,7 +368,7 @@ export function renderViewMenu(kind) {
           className: 'val-select',
           ariaLabel: `Giá trị lọc ${index + 1}`,
           onChange(newVal) {
-            rule.value = newVal;
+            patchRule('filters', index, { value: newVal });
             applyRules('filter');
           },
         });
@@ -377,7 +380,7 @@ export function renderViewMenu(kind) {
           className: 'val-select',
           ariaLabel: `Giá trị lọc ${index + 1}`,
           onChange(newVal) {
-            rule.value = newVal;
+            patchRule('filters', index, { value: newVal });
             applyRules('filter');
           },
         });
@@ -389,7 +392,7 @@ export function renderViewMenu(kind) {
         valInput.value = rule.value || '';
         let timer;
         valInput.oninput = () => {
-          rule.value = valInput.value;
+          patchRule('filters', index, { value: valInput.value });
           clearTimeout(timer);
           timer = setTimeout(() => applyRules('filter'), 350);
         };
@@ -401,7 +404,7 @@ export function renderViewMenu(kind) {
       removeBtn.type = 'button';
       removeBtn.title = 'Xóa điều kiện này';
       removeBtn.onclick = () => {
-        rules.splice(index, 1);
+        removeRule('filters', index);
         applyRules('filter');
       };
       row.append(colDropdown, opDropdown, valInput, removeBtn);
@@ -438,7 +441,7 @@ export function renderViewMenu(kind) {
       ariaLabel: `${isGroup ? 'Nhóm' : 'Sắp xếp'} ${index + 1}`,
       searchPlaceholder: 'Tìm cột...',
       onChange(newCol) {
-        rule.column = newCol;
+        patchRule(isGroup ? 'groups' : 'sorts', index, { column: newCol });
         applyRules(kind);
       },
     });
@@ -451,7 +454,7 @@ export function renderViewMenu(kind) {
     direction.title = 'Đổi chiều sắp xếp';
     direction.setAttribute('aria-label', `Đổi chiều ${rule.column}`);
     direction.onclick = () => {
-      rule.direction = rule.direction === 'asc' ? 'desc' : 'asc';
+      patchRule(isGroup ? 'groups' : 'sorts', index, { direction: rule.direction === 'asc' ? 'desc' : 'asc' });
       applyRules(kind);
     };
     const up = el('button', 'view-rule-button', '‹'),
@@ -464,15 +467,15 @@ export function renderViewMenu(kind) {
     up.disabled = index === 0;
     down.disabled = index === rules.length - 1;
     up.onclick = () => {
-      [rules[index - 1], rules[index]] = [rules[index], rules[index - 1]];
+      moveRule(isGroup ? 'groups' : 'sorts', index, index - 1);
       applyRules(kind);
     };
     down.onclick = () => {
-      [rules[index + 1], rules[index]] = [rules[index], rules[index + 1]];
+      moveRule(isGroup ? 'groups' : 'sorts', index, index + 1);
       applyRules(kind);
     };
     remove.onclick = () => {
-      rules.splice(index, 1);
+      removeRule(isGroup ? 'groups' : 'sorts', index);
       applyRules(kind);
     };
     row.append(colDropdown, direction, up, down, remove);
@@ -514,8 +517,7 @@ function initViewMenuControls() {
       addBtn.onclick = () => {
         if (kind === 'filter') {
           if (!state.table || !state.table.columns.length) return;
-          state.view.filters = state.view.filters || [];
-          state.view.filters.push({ column: state.table.columns[0].name, operator: 'contains', value: '' });
+          addRule('filters', { column: state.table.columns[0].name, operator: 'contains', value: '' });
           applyRules('filter');
         } else {
           const rules = kind === 'group' ? state.view.groups : state.view.sorts;
@@ -526,7 +528,7 @@ function initViewMenuControls() {
               !rules.some(r => r.column === c.name),
           );
           if (c) {
-            rules.push({ column: c.name, direction: 'asc' });
+            addRule(kind === 'group' ? 'groups' : 'sorts', { column: c.name, direction: 'asc' });
             applyRules(kind);
           }
         }
@@ -534,7 +536,7 @@ function initViewMenuControls() {
   }
   if (clearFiltersBtn)
     clearFiltersBtn.onclick = () => {
-      state.view.filters = [];
+      patchView({ filters: [] });
       applyRules('filter');
     };
 

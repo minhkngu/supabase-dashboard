@@ -16,3 +16,46 @@ export function setView(view) {
 export function setTotal(total) {
   grid.total = total;
 }
+
+// Các thao tác trên view giữ nguyên tham chiếu để callback đang mở vẫn hợp lệ.
+export function patchView(values) {
+  Object.assign(grid.view, values);
+}
+export function patchRule(kind, index, values) {
+  Object.assign(grid.view[kind][index], values);
+}
+export function addRule(kind, rule) {
+  (grid.view[kind] ||= []).push(rule);
+}
+export function removeRule(kind, index) {
+  grid.view[kind].splice(index, 1);
+}
+export function moveRule(kind, index, to) {
+  const rules = grid.view[kind];
+  [rules[index], rules[to]] = [rules[to], rules[index]];
+}
+export function insertDuplicateColumn(original, copy) {
+  const order = grid.view.order;
+  const index = order.indexOf(copy);
+  if (index >= 0) order.splice(index, 1);
+  order.splice(Math.max(0, order.indexOf(original) + 1), 0, copy);
+}
+export function renameViewColumn(oldName, newName) {
+  const view = grid.view;
+  if (!view) return;
+  for (const rules of [view.filters, view.groups, view.sorts])
+    for (const rule of rules || []) if (rule.column === oldName) rule.column = newName;
+  for (const list of [view.order, view.frozen, view.hidden])
+    for (let i = 0; i < (list || []).length; i++) if (list[i] === 'col:' + oldName) list[i] = 'col:' + newName;
+  if (view.widths && Object.hasOwn(view.widths, 'col:' + oldName)) {
+    view.widths['col:' + newName] = view.widths['col:' + oldName];
+    delete view.widths['col:' + oldName];
+  }
+}
+
+export function patchRow(row, values) {
+  return Object.assign(row, values);
+}
+export function setRowValue(row, column, value) {
+  row[column] = value;
+}

@@ -1,4 +1,4 @@
-import { setPage } from './grid/grid-state.js';
+import { setPage, patchView } from './grid/grid-state.js';
 import { writeApi } from './write-api.js';
 import { isPromotionsOverview } from './overview/mode.js';
 import { lookupTable } from './lookup.js';
@@ -295,7 +295,7 @@ export function initRecordEditor() {
     if (!state.view || !PAGE_SIZES.includes(size) || size === pageSize()) return;
     // Keep the first visible row on screen when the page size changes.
     const firstRow = state.page * pageSize();
-    state.view.pageSize = size;
+    patchView({ pageSize: size });
     setPage(Math.floor(firstRow / size));
     persistView();
     void gridAction('load', { silent: true });

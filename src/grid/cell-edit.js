@@ -1,3 +1,4 @@
+import { patchRow, setRowValue } from './grid-state.js';
 import { toast } from '../api.js';
 import { createCustomSelect } from '../custom-select.js';
 import { commitCell, historyFor, undoLatest } from '../history.js';
@@ -199,12 +200,12 @@ function startCellEdit(td, row, c, table) {
     const request = commitCell(table, row, c, value);
     pendingRows.add(row);
     savingCells.set(row, new Set([...(savingCells.get(row) || []), c.name]));
-    row[c.name] = value;
+    setRowValue(row, c.name, value);
     state.cellEdit = null;
     if (state.table === table) render();
     try {
       const saved = await request;
-      Object.assign(row, saved);
+      patchRow(row, saved);
       pendingRows.delete(row);
       savingCells.get(row)?.delete(c.name);
       if (state.table === table && !state.cellEdit) {
@@ -215,7 +216,7 @@ function startCellEdit(td, row, c, table) {
       const entry = historyFor(table).undo.at(-1);
       toast('Đã lưu thay đổi', { action: { label: 'Hoàn tác', run: () => undoLatest(table, entry) } });
     } catch (error) {
-      row[c.name] = original;
+      setRowValue(row, c.name, original);
       pendingRows.delete(row);
       savingCells.get(row)?.delete(c.name);
       toast(error.message);

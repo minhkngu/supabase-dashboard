@@ -1,4 +1,4 @@
-import { setPage, setRows, setView } from './grid-state.js';
+import { setPage, setRows, setView, patchView } from './grid-state.js';
 import { setTable } from '../metadata-state.js';
 import { columnHeader, updateFrozen } from './column-header.js';
 import { load } from './load.js';
@@ -101,7 +101,7 @@ export function choose(t) {
     ...t.columns.filter(c => ['text', 'character varying'].includes(c.data_type)).map(c => new Option(c.name, c.name)),
   );
   searchColumn.value = state.view.searchColumn;
-  state.view.searchColumn = searchColumn.value;
+  patchView({ searchColumn: searchColumn.value });
   $('#title').textContent = tableLabel(t);
   syncPromotionsView();
   syncChrome();

@@ -1,3 +1,4 @@
+import { patchView } from './grid-state.js';
 import { autoScrollWhileDragging } from '../dnd.js';
 import { columnKind, icon } from '../icons.js';
 import { openColumnMenu } from './column-menu.js';
@@ -46,8 +47,7 @@ export function columnHeader(spec, render) {
   pin.onclick = e => {
     e.stopPropagation();
     const frozen = state.view.frozen;
-    if (frozen.includes(spec.id)) state.view.frozen = frozen.filter(id => id !== spec.id);
-    else frozen.push(spec.id);
+    patchView({ frozen: frozen.includes(spec.id) ? frozen.filter(id => id !== spec.id) : [...frozen, spec.id] });
     persistView();
     render();
   };

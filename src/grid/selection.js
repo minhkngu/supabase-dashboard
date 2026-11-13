@@ -1,3 +1,4 @@
+import { patchRow } from './grid-state.js';
 import { writeApi } from '../write-api.js';
 import { autoScrollWhileDragging } from '../dnd.js';
 import { toast } from '../api.js';
@@ -415,7 +416,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   const failed = [];
   for (const change of changes) {
     pendingRows.add(change.record);
-    Object.assign(change.record, change.values);
+    patchRow(change.record, change.values);
   }
   if (changes.length && state.table === table && !state.cellEdit) render();
   const errors = new Array(changes.length),
@@ -443,10 +444,10 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
           item = result.results[i];
         settled[index] = true;
         if (item?.ok && item.rows?.length) {
-          Object.assign(change.record, item.rows[0]);
+          patchRow(change.record, item.rows[0]);
           saved++;
         } else {
-          Object.assign(change.record, change.expected);
+          patchRow(change.record, change.expected);
           errors[index] = `Dòng ${change.row}: ${item?.error || 'Không tìm thấy bản ghi.'}`;
         }
       }
@@ -454,7 +455,7 @@ async function pasteCells(startColumn, startRow, values, rowIndexes, { clear = f
   } catch (error) {
     for (let i = 0; i < changes.length; i++) {
       if (settled[i]) continue;
-      Object.assign(changes[i].record, changes[i].expected);
+      patchRow(changes[i].record, changes[i].expected);
       errors[i] = `Dòng ${changes[i].row}: Chưa xác nhận được kết quả; hãy kiểm tra dữ liệu: ${error.message}`;
     }
   } finally {

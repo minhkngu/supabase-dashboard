@@ -1,3 +1,4 @@
+import { patchRow } from './grid-state.js';
 import { setPage, setRows, setTotal } from './grid-state.js';
 import { pageQuery, putPage, prefetchPage } from './page-cache.js';
 import { gridAction } from '../events.js';
@@ -123,7 +124,7 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
       setRows(
         d.rows.map(row => {
           const old = existing.get(key(row));
-          return old ? Object.assign(old, row) : row;
+          return old ? patchRow(old, row) : row;
         }),
       );
     } else setRows(d.rows);

@@ -1,3 +1,4 @@
+import { removeRule } from './grid/grid-state.js';
 // Active filters, groups and sorts shown as removable chips under the toolbar.
 import { $, el, state } from './state.js';
 import { applyRules } from './view-menus.js';
@@ -35,7 +36,7 @@ export function renderRuleChips() {
       const value = ['empty', 'not_empty'].includes(rule.operator) ? '' : ` “${rule.value}”`;
       chips.push(
         chip(`${rule.column} ${OPERATORS[rule.operator] || rule.operator}${value}`, `Bỏ lọc ${rule.column}`, () => {
-          view.filters.splice(index, 1);
+          removeRule('filters', index);
           applyRules('filter', { open: false });
         }),
       );
@@ -50,7 +51,7 @@ export function renderRuleChips() {
             `${prefix}: ${rule.column} ${rule.direction === 'desc' ? '↓' : '↑'}`,
             `Bỏ ${prefix.toLowerCase()} theo ${rule.column}`,
             () => {
-              view[kind].splice(index, 1);
+              removeRule(kind, index);
               applyRules(kind === 'groups' ? 'group' : 'sort', { open: false });
             },
           ),
