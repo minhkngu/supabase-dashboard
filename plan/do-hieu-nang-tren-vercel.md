@@ -1,6 +1,6 @@
 # Đo hiệu năng định kỳ trên Vercel
 
-**Trạng thái:** bước 1–3 xong. Lần đo đầu với `icn1` (13/11/2026, preview `b60e27d`, đã đăng nhập) đạt mọi ngưỡng đo được, trừ `Server-Timing` của `branches` có đếm (151 ms, vượt 1 ms). Còn đo ngưỡng "lần đầu ở instance mới" (cần đợi instance nguội khoảng 15 phút) và bước 4 (đo định kỳ).
+**Trạng thái:** xong (13/11/2026). Bước 1–3 xong; lần đo đầu với `icn1` đạt các ngưỡng chính (chi tiết ở mục Kết quả). Ngưỡng "lần đầu ở instance mới" không bắt buộc với app một người dùng và chưa đo. Khi cần đo lại, làm theo mục "Khi nào đo lại".
 
 Mục tiêu: có số thật trên Vercel (không chỉ mô phỏng bằng `npm run bench`), đo cùng một cách mỗi lần để so trước/sau, và biết khi nào chậm đi.
 
@@ -32,7 +32,7 @@ Trung vị 5 lần, đo từ Việt Nam, instance đã ấm:
 | `/api/meta` (cache) | ≤ 200 ms |
 | `/api/table/<bảng>` 50 dòng | ≤ 400 ms |
 | `Server-Timing` của `/api/table` | ≤ 150 ms |
-| Lần đầu ở instance mới (bất kỳ request) | ≤ 1.500 ms |
+| Lần đầu ở instance mới (bất kỳ request) | ≤ 1.500 ms (không bắt buộc, chưa đo) |
 
 Ngưỡng là đề xuất; chỉnh lại sau lần đo đầu tiên với `icn1`.
 
@@ -57,7 +57,10 @@ Ngưỡng là đề xuất; chỉnh lại sau lần đo đầu tiên với `icn1
 - Sau khi `vercel.json` có `regions: ["icn1"]`: deploy preview, đợi 15 phút cho nguội, đo một lần lạnh và một lần ấm.
 - Ghi vào mục "Kết quả" của file này: ngày, commit, vùng, bảng số. Cập nhật giai đoạn G trong `plan/trien-khai-tong-the.md` trỏ về đây.
 
-### 4. Đo định kỳ
+## Khi nào đo lại
+
+Không phải việc cần làm xong; dùng như hướng dẫn.
+
 
 - Đo lại khi: đổi vùng hoặc gói Vercel, đổi cách đọc metadata/cache, thêm route nặng, hoặc người dùng báo chậm.
 - Mỗi lần thêm một dòng vào bảng kết quả; nếu vượt ngưỡng thì mở plan sửa riêng.

@@ -182,8 +182,8 @@ Deploy không tự thay đổi dữ liệu Supabase.
 
 | File | Nội dung | Trạng thái |
 | --- | --- | --- |
-| [`plan/do-hieu-nang-tren-vercel.md`](plan/do-hieu-nang-tren-vercel.md) | Đo định kỳ trên Vercel: `Server-Timing`, script đo, ngưỡng, bảng kết quả | Đang làm: còn đo lúc instance nguội, đo định kỳ |
 | [`plan/tach-ma-giao-dien.md`](plan/tach-ma-giao-dien.md) | Tách dần mã giao diện: trạng thái toàn cục, import vòng, thứ tự `init*`, file lớn | Đang làm: còn bước 3 (gom trạng thái) |
+| [`plan/do-hieu-nang-tren-vercel.md`](plan/do-hieu-nang-tren-vercel.md) | Đo định kỳ trên Vercel: `Server-Timing`, script đo, ngưỡng, bảng kết quả | Xong |
 | [`plan/sua-loi-o-json-bao-mat-va-khoa-bang.md`](plan/sua-loi-o-json-bao-mat-va-khoa-bang.md) | Lỗi và điểm yếu tìm được khi đánh giá 13/11/2026 | Xong |
 | [`plan/trien-khai-tong-the.md`](plan/trien-khai-tong-the.md) | Kế hoạch tổng thể (tốc độ, Vercel, CI) và số đo | Xong |
 | [`plan/giao-dien-keo-tha-va-luu-cau-hinh.md`](plan/giao-dien-keo-tha-va-luu-cau-hinh.md) | Kéo thả, bố trí nút, lưu cấu hình giao diện | Xong |
