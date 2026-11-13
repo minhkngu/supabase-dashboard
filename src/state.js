@@ -1,4 +1,4 @@
-import { getRows, getPage, getTotal } from './grid/grid-state.js';
+import { getRows, getPage, getTotal, getView } from './grid/grid-state.js';
 import { historyBusy } from './history-state.js';
 import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
@@ -71,7 +71,9 @@ export const state = {
   initialRowsReady: false,
   cleanupPending: false,
   views: {},
-  view: null,
+  get view() {
+    return getView();
+  },
   loadVersion: 0,
 };
 export const name = t => t.name.replace(/^public\./, '');

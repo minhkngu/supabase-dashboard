@@ -1,4 +1,4 @@
-import { setPage, setRows } from './grid-state.js';
+import { setPage, setRows, setView } from './grid-state.js';
 import { setTable } from '../metadata-state.js';
 import { columnHeader, updateFrozen } from './column-header.js';
 import { load } from './load.js';
@@ -75,7 +75,7 @@ export function choose(t) {
   )
     saved.frozen = ['col:name'];
   saved.freezeDefaultInitialized = true;
-  state.view = {
+  setView({
     filters: validFilterRules(saved.filters, t),
     groups: validRules(saved.groups, t),
     sorts: validRules(saved.sorts, t),
@@ -92,7 +92,7 @@ export function choose(t) {
     collapsed: Array.isArray(saved.collapsed) ? saved.collapsed.filter(x => typeof x === 'string') : [],
     page: Number.isSafeInteger(saved.page) && saved.page >= 0 ? Math.min(saved.page, 100000) : 0,
     pageSize: PAGE_SIZES.includes(saved.pageSize) ? saved.pageSize : PAGE_SIZE,
-  };
+  });
   setPage(state.view.page);
   $('#search').value = state.view.search;
   const searchColumn = $('#searchColumn');
