@@ -32,9 +32,17 @@ function runRelatedTests(relative, session) {
   const isServerModule =
     /^(server\/|api\/)?[^/]+\.mjs$/.test(relative) || /^server\/routes\/[^/]+\.mjs$/.test(relative);
   if ((!isTest && !isServerModule) || !existsSync(vitest)) return;
-  const args = [vitest, 'related', relative, '--run', '--passWithNoTests'];
   // tests/server.test.js cần dist/; chưa build thì bỏ qua thay vì báo đỏ giả.
-  if (!existsSync(path.join(root, 'dist', 'index.html'))) args.push('--exclude', 'tests/server.test.js');
+  const hasDist = existsSync(path.join(root, 'dist', 'index.html'));
+  let args;
+  if (relative === 'server.mjs') {
+    // Test API khởi động server.mjs bằng spawn chứ không import, nên `related` không tìm thấy nó.
+    if (!hasDist) return;
+    args = [vitest, 'run', 'tests/server.test.js'];
+  } else {
+    args = [vitest, 'related', relative, '--run', '--passWithNoTests'];
+    if (!hasDist) args.push('--exclude', 'tests/server.test.js');
+  }
   const result = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: 60000 });
   const output = strip(`${result.stdout || ''}${result.stderr || ''}`);
   if (result.status !== 0) {
