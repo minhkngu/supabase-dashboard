@@ -1,3 +1,4 @@
+import { historyBusy } from './history-state.js';
 import { getFormulas, getLookups, getConfigReady } from './config-state.js';
 import { getTables, getTable, getEnumTypes } from './metadata-state.js';
 import { deletionBusy } from './deletion-state.js';
@@ -48,8 +49,9 @@ export const state = {
   lookupResults: new Map(),
   lookupVersion: 0,
   lookupEditing: null,
-  history: new Map(),
-  historyBusy: false,
+  get historyBusy() {
+    return historyBusy();
+  },
   adminAvailable: false,
   adminError: '',
   get enumTypes() {

@@ -1,12 +1,11 @@
+import { historyForName, recordChange, transferChange, setHistoryBusy } from './history-state.js';
 import { writeApi } from './write-api.js';
 import { toast } from './api.js';
 import { gridAction } from './events.js';
 import { $, deletionBusy, name, state } from './state.js';
 
 export function historyFor(table) {
-  const id = name(table);
-  if (!state.history.has(id)) state.history.set(id, { undo: [], redo: [] });
-  return state.history.get(id);
+  return historyForName(name(table));
 }
 export function updateHistoryButtons() {
   const history = state.table && historyFor(state.table);
@@ -38,16 +37,13 @@ export async function commitCell(table, row, column, value) {
   });
   const saved = result.rows?.[0];
   if (!saved) throw Error('Không tìm thấy bản ghi đã lưu.');
-  const history = historyFor(table);
-  history.undo.push({
+  recordChange(name(table), {
     column: column.name,
     before: old,
     after: saved[column.name],
     beforeKey: key,
     afterKey: Object.fromEntries(table.primary_keys.map(k => [k, saved[k]])),
   });
-  if (history.undo.length > 50) history.undo.shift();
-  history.redo = [];
   updateHistoryButtons();
   return saved;
 }
@@ -66,7 +62,7 @@ export async function changeHistory(direction) {
     from = history[direction],
     item = from.at(-1);
   if (!item) return;
-  state.historyBusy = true;
+  setHistoryBusy(true);
   updateHistoryButtons();
   try {
     const undo = direction === 'undo',
@@ -81,14 +77,13 @@ export async function changeHistory(direction) {
         expected: expectedValues(table, { [item.column]: expected }),
       }),
     });
-    from.pop();
-    history[undo ? 'redo' : 'undo'].push(item);
+    transferChange(name(table), direction);
     if (state.table === table) await gridAction('load', { silent: true });
     toast(undo ? 'Đã hoàn tác' : 'Đã làm lại');
   } catch (error) {
     toast(error.message);
   } finally {
-    state.historyBusy = false;
+    setHistoryBusy(false);
     updateHistoryButtons();
   }
 }

@@ -1,3 +1,4 @@
+import { forgetRecord } from './history-state.js';
 import { writeApi } from './write-api.js';
 import { syncChrome } from './chrome.js';
 import { confirmDialog } from './confirm.js';
@@ -187,14 +188,7 @@ export async function deleteRecords(rows) {
       },
       onDeleted: entry => {
         clearPageCache();
-        const history = state.history.get(name(table));
-        if (history)
-          for (const direction of ['undo', 'redo'])
-            history[direction] = history[direction].filter(
-              item =>
-                recordIdentity(table, item.beforeKey) !== entry.identity &&
-                recordIdentity(table, item.afterKey) !== entry.identity,
-            );
+        forgetRecord(name(table), table, entry.identity);
         if (state.table?.name !== table.name) return;
         loadController?.abort();
         state.loadVersion++;
