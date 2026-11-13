@@ -273,13 +273,11 @@ export async function load({ silent = false, skipCount = false, forceCount = fal
   }
   try {
     const d = await api(cacheKey + (needsCount ? '' : '&count=none'), { signal: controller.signal });
-    if (
-      version !== state.loadVersion ||
-      epoch !== cacheEpoch ||
-      table !== state.table ||
-      (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row))))
-    )
-      return;
+    if (version !== state.loadVersion || table !== state.table) return;
+    // Một lần ghi xóa cache trong lúc chờ: kết quả này có thể đã cũ, nên tải
+    // lại thay vì bỏ im lặng và để nguyên "Đang tải dữ liệu…".
+    if (epoch !== cacheEpoch) return load({ silent, skipCount, forceCount });
+    if (silent && (state.cellEdit || state.rows.some(row => pendingRows.has(row)))) return;
     if (!skipCount) putPage(cacheKey, d);
     if (!skipCount && d.total != null) setCountedKey(countKey);
     const total = d.total ?? state.total;

@@ -66,3 +66,43 @@ test('máy chủ trống thì cấu hình sẵn có trên trình duyệt đượ
   await expect.poll(() => writes).toContain('views');
   expect(JSON.stringify(store.views.value)).toContain('col:name');
 });
+
+test('lưu cấu hình giao diện trong lúc bảng đang tải không làm treo "Đang tải dữ liệu"', async ({ page }) => {
+  const writes: string[] = [];
+  await page.route('**/api/**', async route => {
+    const request = route.request(),
+      url = new URL(request.url());
+    if (url.pathname === '/api/meta')
+      return route.fulfill({
+        json: {
+          tables: [
+            {
+              name: 'public.demo',
+              columns: [
+                { name: 'id', data_type: 'integer', options: ['updatable'] },
+                { name: 'name', data_type: 'text', options: ['updatable'] },
+              ],
+              primary_keys: ['id'],
+            },
+          ],
+          token: 'csrf',
+        },
+      });
+    if (url.pathname === '/api/formula-config') return route.fulfill({ json: { items: [] } });
+    if (url.pathname === '/api/lookup-config') return route.fulfill({ json: { available: false, items: [] } });
+    if (url.pathname === '/api/ui-settings') {
+      if (request.method() === 'POST') {
+        writes.push(request.postDataJSON().key);
+        return route.fulfill({ json: { ok: true, updatedAt: Date.now() } });
+      }
+      return route.fulfill({ json: { available: true, items: {} } });
+    }
+    // Chậm hơn độ trễ đẩy cấu hình (600ms) để lần lưu cấu hình xen vào giữa.
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    return route.fulfill({ json: { rows: [{ id: 1, name: 'A' }], total: 1 } });
+  });
+  await page.goto('/');
+  await expect.poll(() => writes).toContain('views');
+  await expect(page.locator('#grid tbody tr')).toHaveCount(1);
+  await expect(page.locator('#message')).toBeHidden();
+});
