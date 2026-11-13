@@ -1,0 +1,499 @@
+/* ==========================================================================
+   DATA GRID (LARK / AIRTABLE STYLE TABLE)
+   ========================================================================== */
+
+.grid-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 160px;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  z-index: 1;
+}
+
+.table-scroll {
+  flex: 0 1 auto;
+  max-height: calc(100dvh - 220px);
+  overflow: auto;
+  min-height: 0;
+}
+
+.table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 4px;
+}
+
+table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* HEADER CELLS */
+th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 38px;
+  min-width: 150px;
+  max-width: 260px;
+  padding: 0 12px;
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: left;
+  border-bottom: 1px solid var(--border-default);
+  border-right: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+th:first-child {
+  min-width: 64px;
+  width: 64px;
+  text-align: center;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+th.numeric {
+  text-align: right;
+}
+
+th[data-column-id] {
+  cursor: grab;
+}
+
+th.column-dragging {
+  opacity: 0.4;
+  background: var(--accent-soft);
+}
+
+th.column-drop-before {
+  box-shadow: inset 2px 0 var(--accent);
+}
+
+th.column-drop-after {
+  box-shadow: inset -2px 0 var(--accent);
+}
+
+.column-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 46px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* COLUMN CONTROLS (PIN, SETTINGS) */
+.column-pin,
+.column-action {
+  float: right;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 12px;
+  opacity: 0;
+  transition: all 0.15s ease;
+}
+
+.column-pin:hover,
+.column-action:hover {
+  background: var(--border-default);
+  color: var(--text-primary);
+}
+
+th:hover .column-pin,
+th:hover .column-action,
+th:focus-within .column-pin,
+th:focus-within .column-action,
+th.frozen-cell .column-pin {
+  opacity: 1;
+}
+
+th.frozen-cell .column-pin {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* FROZEN COLUMNS */
+.frozen-cell {
+  position: sticky;
+  z-index: 3;
+  background: var(--bg-surface);
+}
+
+.frozen-cell.frozen-number {
+  z-index: 3;
+}
+
+.frozen-cell:is(th) {
+  z-index: 5;
+  background: var(--bg-subtle);
+}
+
+tr:hover .frozen-cell:is(td) {
+  background: var(--bg-subtle);
+}
+
+.frozen-cell.editing {
+  z-index: 4;
+}
+
+.frozen-cell.frozen-edge {
+  box-shadow: 4px 0 8px rgba(15, 23, 42, 0.1);
+}
+
+.frozen-cell::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-default);
+  pointer-events: none;
+}
+
+.frozen-cell.frozen-edge::after {
+  width: 2px;
+  background: var(--text-faint);
+}
+
+/* Group labels stay visible at the left edge during horizontal scrolling. */
+.group-row .group-toggle {
+  position: sticky;
+  left: 12px;
+  z-index: 1;
+}
+
+/* ADD COLUMN HEADER */
+th.add-column-header,
+td.add-column-cell {
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding: 0;
+  text-align: center;
+}
+
+.add-column {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 16px;
+  transition: all 0.15s ease;
+}
+
+.add-column:hover {
+  background: var(--border-default);
+  color: var(--text-primary);
+}
+
+/* TABLE BODY ROWS & CELLS */
+td {
+  height: 40px;
+  min-width: 150px;
+  max-width: 260px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+  color: var(--text-secondary);
+  transition: background 0.1s ease;
+}
+
+td:first-child {
+  min-width: 64px;
+  width: 64px;
+  padding: 0 4px;
+  text-align: center;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+td.numeric {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+tbody tr {
+  cursor: pointer;
+}
+
+tbody tr:hover {
+  background: var(--bg-row-hover);
+}
+
+/* DATA CELL VALUES */
+.null {
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+.boolean {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.boolean.is-true {
+  background: var(--success-bg);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+}
+
+.boolean.is-false {
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+/* IN-CELL EDITING */
+td.cell-editable {
+  cursor: text;
+}
+
+td.cell-editable:hover {
+  box-shadow: inset 0 0 0 1.5px var(--accent-border);
+  background: var(--bg-cell-editing);
+}
+
+td.cell-readonly {
+  cursor: default;
+}
+
+#grid tbody td[data-bulk-column],
+#grid tbody td[data-bulk-column] .lookup-link {
+  cursor: pointer;
+  user-select: none;
+}
+
+td.editing {
+  padding: 0;
+  overflow: visible;
+  box-shadow: inset 0 0 0 2px var(--accent) !important;
+  background: var(--bg-surface);
+}
+
+td.editing.cell-error {
+  box-shadow: inset 0 0 0 2px var(--danger-text) !important;
+}
+
+.cell-input[hidden] {
+  display: none;
+}
+
+.cell-input {
+  display: block;
+  width: 100%;
+  height: 38px;
+  min-width: 0;
+  padding: 0 11px;
+  border: 0;
+  outline: 0 !important;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+/* LOOKUPS & RELATIONS IN CELLS */
+.lookup-header {
+  color: var(--info-text);
+}
+
+.lookup-cell {
+  color: var(--text-secondary);
+}
+
+.lookup-link {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  color: var(--info-accent);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.lookup-link:hover {
+  background: var(--info-bg-strong);
+  color: var(--info-text);
+}
+
+/* GROUPING ROWS */
+.group-row td {
+  height: 38px;
+  max-width: none;
+  overflow: visible;
+  background: var(--bg-app);
+  border-right: 0;
+  border-bottom: 1px solid var(--border-default);
+  text-align: left !important;
+  transition: background 0.12s ease;
+}
+
+.group-row:hover td {
+  background: var(--bg-subtle);
+}
+
+.group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.group-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  font-size: 9px;
+  transition: all 0.15s ease;
+}
+
+.group-toggle:hover .group-arrow {
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.group-count {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+}
+
+/* GRID FOOTER & PAGINATION */
+.grid-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 42px;
+  padding: 0 16px;
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-footer);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.badge-total {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.footer-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.grid-message {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.grid-message.error {
+  color: var(--danger-text);
+}
+
+.grid-message[hidden] {
+  display: none;
+}
