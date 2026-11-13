@@ -24,5 +24,5 @@ it('trả metadata cũ khi làm mới và chờ bản mới sau khi xóa cache',
   mock.read.mockResolvedValueOnce(['mới']);
   expect((await ctx.cachedMetadata()).tables).toEqual(['mới']);
   resolve(['hết hạn']);
-  await vi.waitFor(() => expect(ctx.cachedMetadata().tables).toEqual(['mới']));
+  await vi.waitFor(async () => expect((await ctx.cachedMetadata()).tables).toEqual(['mới']));
 });

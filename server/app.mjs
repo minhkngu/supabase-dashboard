@@ -1,6 +1,5 @@
 // The request handler shared by the local server (server.mjs) and the
 // Vercel function (api/handler.mjs → server/vercel.mjs).
-import process from 'node:process';
 import { createContext } from './context.mjs';
 import { rejectRequest, response, sendError } from './http.mjs';
 import { serveStatic } from './static.mjs';
@@ -11,6 +10,7 @@ import { handleSchema } from './routes/schema.mjs';
 import { handleTable } from './routes/table.mjs';
 import { handleUiSettings } from './routes/ui-settings.mjs';
 import { invalidatesCaches } from '../server-cache.mjs';
+import { withTiming } from './timing.mjs';
 
 const routes = [handleMeta, handleFormula, handleLookup, handleUiSettings, handleSchema, handleTable];
 
@@ -25,25 +25,26 @@ const routes = [handleMeta, handleFormula, handleLookup, handleUiSettings, handl
 export async function createApp(config, tables, { serveFiles = true, liveMetadataEachRequest = false } = {}) {
   const ctx = await createContext(config, tables);
   return async function handler(req, res) {
-    if (config.perfTiming) Object.assign(res, { _sirisStart: process.hrtime.bigint() });
-    try {
-      const u = new URL(req.url, `http://127.0.0.1:${config.port}`);
-      const rejected = rejectRequest(req, u, { port: config.port, csrf: ctx.csrf });
-      if (rejected) return response(res, rejected[0], { error: rejected[1] });
-      if (!u.pathname.startsWith('/api/')) {
-        if (serveFiles) return await serveStatic(config.root, req, res, u);
-        return response(res, 404, { error: 'Không tìm thấy' });
+    return withTiming(res, config.perfTiming, async () => {
+      try {
+        const u = new URL(req.url, `http://127.0.0.1:${config.port}`);
+        const rejected = rejectRequest(req, u, { port: config.port, csrf: ctx.csrf });
+        if (rejected) return response(res, rejected[0], { error: rejected[1] });
+        if (!u.pathname.startsWith('/api/')) {
+          if (serveFiles) return await serveStatic(config.root, req, res, u);
+          return response(res, 404, { error: 'Không tìm thấy' });
+        }
+        if (
+          invalidatesCaches(req.method, u.pathname) ||
+          (req.method === 'GET' && u.pathname === '/api/meta' && u.searchParams.get('refresh') === '1')
+        )
+          ctx.invalidateCaches();
+        if (liveMetadataEachRequest && ctx.admin.enabled) ctx.tables = (await ctx.cachedMetadata()).tables;
+        for (const route of routes) if (await route(ctx, req, res, u)) return;
+        response(res, 404, { error: 'Không tìm thấy' });
+      } catch (error) {
+        sendError(res, error);
       }
-      if (
-        invalidatesCaches(req.method, u.pathname) ||
-        (req.method === 'GET' && u.pathname === '/api/meta' && u.searchParams.get('refresh') === '1')
-      )
-        ctx.invalidateCaches();
-      if (liveMetadataEachRequest && ctx.admin.enabled) ctx.tables = (await ctx.cachedMetadata()).tables;
-      for (const route of routes) if (await route(ctx, req, res, u)) return;
-      response(res, 404, { error: 'Không tìm thấy' });
-    } catch (error) {
-      sendError(res, error);
-    }
+    });
   };
 }
