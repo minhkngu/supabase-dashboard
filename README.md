@@ -161,7 +161,7 @@ Những gì tự chạy trong phiên Claude Code:
 
 | Thành phần | Tác dụng |
 | --- | --- |
-| `env` trong `.claude/settings.json` | Tắt cảnh báo lặp của Node và thông báo của npm trong đầu ra lệnh |
+| `env` trong `.claude/settings.json` | Tắt cảnh báo lặp của Node và thông báo của npm trong đầu ra lệnh. `NODE_OPTIONS` ở đây thay hẳn giá trị sẵn có trên máy; cần thêm cờ riêng (ví dụ `--max-old-space-size`) thì đặt lại cả chuỗi trong `.claude/settings.local.json` |
 | `permissions.deny` | Không đọc `.agents/`, `.taste-skill/`, `package-lock.json`, `dist/`, `playwright-report/` |
 | `.claude/hooks/read-guard.mjs` | Từ chối Read nguyên một file văn bản trên 20 KB khi không có `offset`/`limit` |
 | `.claude/hooks/after-edit.mjs` | Sau mỗi lần sửa file: chạy Prettier, rồi các unit test có import file đó. Im lặng khi qua; báo lại khi test đỏ hoặc module máy chủ chưa có test |
@@ -170,7 +170,6 @@ Những gì tự chạy trong phiên Claude Code:
 Kiểm tra hook đang chạy: trong một phiên mới, bảo Claude đọc `index.html`; lần đọc nguyên file sẽ bị từ chối kèm lời nhắc dùng Grep. Sửa `.claude/settings.json` thì mở phiên mới để chắc chắn cấu hình được nạp lại.
 
 Agent khác (Codex…) chỉ đọc `AGENTS.md`; hook và `settings.json` không áp dụng cho chúng.
-
 
 ## Triển khai lên Vercel
 
