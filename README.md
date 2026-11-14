@@ -13,8 +13,9 @@
 3. [Tính năng](#tính-năng)
 4. [Kiến trúc](#kiến-trúc)
 5. [Kiểm thử](#kiểm-thử)
-6. [Triển khai lên Vercel](#triển-khai-lên-vercel)
-7. [Kế hoạch](#kế-hoạch)
+6. [Làm việc với Claude Code](#làm-việc-với-claude-code)
+7. [Triển khai lên Vercel](#triển-khai-lên-vercel)
+8. [Kế hoạch](#kế-hoạch)
 
 ## Cài đặt và chạy
 
@@ -130,7 +131,7 @@ npm run test:e2e
 
 - Vitest (`tests/*.test.js`) kiểm tra logic và API. Playwright (`tests/e2e/`) kiểm tra luồng trên trình duyệt với API giả lập, chia theo tính năng; mỗi test dừng sau 15 giây.
 - Dùng Chromium có sẵn: `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/đường/dẫn/tới/chrome npm run test:e2e`.
-- CI (`.github/workflows/ci.yml`, Ubuntu 24.04): `checks` (lint, typecheck, build, test; Node 22 và 24), `bench-cache` (PostgreSQL 16), `e2e`.
+- CI (Ubuntu 24.04): `.github/workflows/unit-test.yml` chạy Vitest (Node 22 và 24, có build); `.github/workflows/ci.yml` gồm `checks` (lint, format, typecheck), `bench-cache` (PostgreSQL 16, chỉ chạy `tests/bench-cache.test.js`), `e2e`. Nhánh khác `main` chỉ chạy CI khi có pull request.
 - Kiểm thử tự động dùng dữ liệu giả lập, không thay cho nghiệm thu RLS, Storage, Realtime hay ghi thật. Không ghi lên Supabase thật khi chưa được phê duyệt.
 
 ### Đo hiệu năng
@@ -142,6 +143,33 @@ SIRIS_BENCH_PG_BIN=/duong/dan/postgresql/bin npm run bench
 ```
 
 Mặc định giả lập độ trễ Data API 60 ms và mỗi gói PostgreSQL 40 ms; đổi bằng `SIRIS_BENCH_API_MS`, `SIRIS_BENCH_DB_MS`. Cột gói tin là số lần nhận dữ liệu qua proxy, không phải số truy vấn SQL. Chạy cùng cấu hình để so sánh trước và sau.
+
+## Làm việc với Claude Code
+
+Quy tắc cho agent nằm trong `AGENTS.md` (`CLAUDE.md` nạp file này). Cấu hình và hook nằm trong `.claude/` và đi theo repo: sau khi `git pull`, mở một phiên Claude Code mới trong thư mục này là chúng được áp dụng, không cần cài thêm gì.
+
+Điều kiện trên mỗi máy:
+
+1. Node.js 22.12+ và `npm install`. Hook gọi Prettier và Vitest trong `node_modules/`; thiếu thì hook tự bỏ qua, không báo lỗi.
+2. Trên Windows cần Git for Windows, vì lệnh hook chạy bằng Git Bash.
+3. Lần đầu mở repo, Claude Code hỏi có tin thư mục này không; hook chỉ chạy sau khi đồng ý.
+4. Trình duyệt cho e2e, chọn một trong hai:
+   - `npx playwright install chromium`, hoặc
+   - dùng Chrome có sẵn: sao `.claude/settings.local.example.json` thành `.claude/settings.local.json` rồi sửa đường dẫn. File này riêng từng máy và đã loại khỏi Git.
+
+Những gì tự chạy trong phiên Claude Code:
+
+| Thành phần | Tác dụng |
+| --- | --- |
+| `env` trong `.claude/settings.json` | Tắt cảnh báo lặp của Node và thông báo của npm trong đầu ra lệnh. `NODE_OPTIONS` ở đây thay hẳn giá trị sẵn có trên máy; cần thêm cờ riêng (ví dụ `--max-old-space-size`) thì đặt lại cả chuỗi trong `.claude/settings.local.json` |
+| `permissions.deny` | Không đọc `.agents/`, `.taste-skill/`, `package-lock.json`, `dist/`, `playwright-report/` |
+| `.claude/hooks/read-guard.mjs` | Từ chối Read nguyên một file văn bản trên 20 KB khi không có `offset`/`limit` |
+| `.claude/hooks/after-edit.mjs` | Sau mỗi lần sửa file: chạy Prettier, rồi các unit test có import file đó. Im lặng khi qua; báo lại khi test đỏ hoặc module máy chủ chưa có test |
+| `playwright.config.ts` | Reporter `dot` khi chạy trong Claude Code hoặc CI; tối đa 6 worker khi chạy trên máy |
+
+Kiểm tra hook đang chạy: trong một phiên mới, bảo Claude đọc `index.html`; lần đọc nguyên file sẽ bị từ chối kèm lời nhắc dùng Grep. Sửa `.claude/settings.json` thì mở phiên mới để chắc chắn cấu hình được nạp lại.
+
+Agent khác (Codex…) chỉ đọc `AGENTS.md`; hook và `settings.json` không áp dụng cho chúng.
 
 ## Triển khai lên Vercel
 

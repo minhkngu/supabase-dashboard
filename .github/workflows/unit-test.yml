@@ -1,0 +1,29 @@
+name: Unit test
+
+on:
+  # Nhánh khác main chỉ chạy qua pull_request, để một commit không bị kiểm hai lần.
+  push:
+    branches: [main]
+  pull_request:
+
+# Một lượt mới trên cùng nhánh hủy lượt đang chạy.
+concurrency:
+  group: unit-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vitest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      # pretest chạy vite build trước vì tests/server.test.js cần dist/.
+      - run: npm test

@@ -1,0 +1,32 @@
+{
+  "env": {
+    "NODE_OPTIONS": "--disable-warning=DEP0205",
+    "NPM_CONFIG_LOGLEVEL": "error"
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.agents/**)",
+      "Read(./.taste-skill/**)",
+      "Read(./package-lock.json)",
+      "Read(./dist/**)",
+      "Read(./playwright-report/**)",
+      "Read(./test-results/**/*.zip)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/read-guard.mjs\"", "timeout": 10 }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/after-edit.mjs\"", "timeout": 90 }
+        ]
+      }
+    ]
+  }
+}

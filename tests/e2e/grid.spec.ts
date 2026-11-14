@@ -241,6 +241,8 @@ test('ô chọn dòng đứng yên khi cuộn ngang lưới', async ({ page }) =
   await page.goto('/');
   const checkbox = page.locator('#grid tbody tr').first().locator('input[data-row-select]');
   await expect(checkbox).toBeVisible();
+  // Pinning is applied one frame after the rows are drawn.
+  await expect(page.locator('#grid tbody td.frozen-number').first()).toBeVisible();
   const before = await checkbox.boundingBox();
   await page.locator('.table-scroll').evaluate(node => {
     node.scrollLeft = 500;

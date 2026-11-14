@@ -1,27 +1,24 @@
 name: CI
 
 on:
+  # Nhánh khác main chỉ chạy qua pull_request, để một commit không bị kiểm hai lần.
   push:
+    branches: [main]
   pull_request:
 
 jobs:
   checks:
     runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        node: [22, 24]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
-      - run: npm run build
-      - run: npm test
 
   bench-cache:
     runs-on: ubuntu-24.04
@@ -35,7 +32,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       # The benchmark starts its own PostgreSQL cluster with initdb/pg_ctl.
-      - run: npm test
+      # Chỉ file này cần PostgreSQL; phần còn lại của Vitest chạy ở unit-test.yml.
+      - run: npx vitest run tests/bench-cache.test.js
         env:
           SIRIS_BENCH_PG_BIN: /usr/lib/postgresql/16/bin
 

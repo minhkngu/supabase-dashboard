@@ -56,13 +56,14 @@ test('mũi tên di chuyển giữa các ô', async ({ page }) => {
 
 test('gõ ký tự vào sửa ô, Enter lưu và xuống dòng dưới', async ({ page }) => {
   const api = await mock(page);
+  // The cell shows the new text before the PATCH is answered, so the request list is polled.
   await cell(page, 0, 'name').focus();
   await page.keyboard.type('Ana');
   await expect(page.locator('td.editing input')).toHaveValue('Ana');
   await page.keyboard.press('Enter');
   await expect(cell(page, 0, 'name')).toHaveText('Ana');
   await expect(cell(page, 1, 'name')).toBeFocused();
-  expect(api.patches).toEqual([{ name: 'Ana' }]);
+  await expect.poll(() => api.patches).toEqual([{ name: 'Ana' }]);
 });
 
 test('Tab lưu và sang ô bên phải, Shift+Tab sang trái', async ({ page }) => {
@@ -76,7 +77,7 @@ test('Tab lưu và sang ô bên phải, Shift+Tab sang trái', async ({ page }) 
   await page.keyboard.press('Enter');
   await page.keyboard.press('Shift+Tab');
   await expect(cell(page, 1, 'city')).toBeFocused();
-  expect(api.patches).toEqual([{ city: 'Sài Gòn' }]);
+  await expect.poll(() => api.patches).toEqual([{ city: 'Sài Gòn' }]);
 });
 
 test('Escape hủy sửa và giữ ô đang chọn', async ({ page }) => {
@@ -98,7 +99,7 @@ test('bấm sang ô khác khi đang sửa thì lưu ô cũ và mở ô mới nga
   await expect(cell(page, 0, 'name')).toHaveText('Mai');
   await expect(cell(page, 2, 'city').locator('input')).toBeFocused();
   await expect(cell(page, 2, 'city').locator('input')).toHaveValue('Hội An');
-  expect(api.patches).toEqual([{ name: 'Mai' }]);
+  await expect.poll(() => api.patches).toEqual([{ name: 'Mai' }]);
 });
 
 test('ô đang lưu có trạng thái riêng và toast cho hoàn tác', async ({ page }) => {

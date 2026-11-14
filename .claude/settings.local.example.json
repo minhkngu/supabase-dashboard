@@ -1,0 +1,5 @@
+{
+  "env": {
+    "PLAYWRIGHT_CHROMIUM_EXECUTABLE": "C:/Program Files/Google/Chrome/Application/chrome.exe"
+  }
+}
