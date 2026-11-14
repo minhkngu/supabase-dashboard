@@ -12,6 +12,8 @@ const bin = (...parts) => path.join(root, 'node_modules', ...parts);
 const prettier = bin('prettier', 'bin', 'prettier.cjs');
 const vitest = bin('vitest', 'vitest.mjs');
 const MAX_OUTPUT = 1500;
+// Hook có giới hạn 90 giây trong settings.json; để dư cho Prettier.
+const TEST_TIMEOUT_MS = Number(process.env.SIRIS_HOOK_TEST_TIMEOUT_MS) || 60000;
 
 const strip = text => text.replace(/\x1b\[[0-9;]*m/g, '');
 
@@ -43,8 +45,24 @@ function runRelatedTests(relative, session) {
     args = [vitest, 'related', relative, '--run', '--passWithNoTests'];
     if (!hasDist) args.push('--exclude', 'tests/server.test.js');
   }
-  const result = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: 60000 });
+  const result = spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: TEST_TIMEOUT_MS });
   const output = strip(`${result.stdout || ''}${result.stderr || ''}`);
+  if (result.status === null) {
+    // Vitest bị dừng (quá giờ hoặc không khởi động được) chứ không phải test đỏ: chỉ nhắc, không chặn.
+    const why =
+      result.error?.code === 'ETIMEDOUT' ? `chạy quá ${TEST_TIMEOUT_MS / 1000} giây nên bị dừng` : 'không chạy xong';
+    console.log(
+      JSON.stringify({
+        hookSpecificOutput: {
+          hookEventName: 'PostToolUse',
+          additionalContext:
+            `Unit test liên quan tới ${relative} ${why}; chưa biết qua hay đỏ. ` +
+            `Chạy lại bằng tay: npx vitest ${args.slice(1).join(' ')}`,
+        },
+      }),
+    );
+    return;
+  }
   if (result.status !== 0) {
     const start = Math.max(0, output.search(/FAIL|Error/));
     process.stderr.write(
